@@ -1,1 +1,3 @@
-# danzo
+# Danzo
+
+Fast CLI downloader based on Go.
