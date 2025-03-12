@@ -13,7 +13,7 @@ func main() {
 	url := flag.String("url", "", "URL to download")
 	output := flag.String("output", "", "Output file path")
 	connections := flag.Int("connections", 8, "Number of connections")
-	timeout := flag.Duration("timeout", 60*time.Second, "Connection timeout")
+	timeout := flag.Duration("timeout", 600*time.Second, "Connection timeout")
 	userAgent := flag.String("user-agent", "Mozilla/Firefox", "User agent")
 
 	flag.Parse()

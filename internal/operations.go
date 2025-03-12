@@ -133,11 +133,15 @@ func assembleFile(job DownloadJob) error {
 func displayProgress(totalSize int64, progressCh <-chan int64, doneCh <-chan struct{}) {
 	downloaded := int64(0)
 	startTime := time.Now()
+	ticker := time.NewTicker(500 * time.Millisecond) // Update twice every second
+	defer ticker.Stop()
 
 	for {
 		select {
 		case size := <-progressCh:
 			downloaded += size
+
+		case <-ticker.C:
 			percent := float64(downloaded) / float64(totalSize) * 100
 			elapsed := time.Since(startTime).Seconds()
 			speed := float64(downloaded) / elapsed / 1024 // KB/s
@@ -151,7 +155,18 @@ func displayProgress(totalSize int64, progressCh <-chan int64, doneCh <-chan str
 				speed)
 
 		case <-doneCh:
-			fmt.Println("\nDownload complete!")
+			// Final update
+			percent := float64(downloaded) / float64(totalSize) * 100
+			elapsed := time.Since(startTime).Seconds()
+			speed := float64(downloaded) / elapsed / 1024 // KB/s
+
+			fmt.Printf("\r\033[K")
+			fmt.Printf("Downloaded: %.2f%% (%s/%s) Speed: %.2f KB/s\n",
+				percent,
+				humanize.Bytes(uint64(downloaded)),
+				humanize.Bytes(uint64(totalSize)),
+				speed)
+			fmt.Println("Download complete!")
 			return
 		}
 	}
@@ -163,6 +178,7 @@ func Download(config DownloadConfig) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("File size: %s", humanize.Bytes(uint64(fileSize)))
 
 	// Create download job
 	job := DownloadJob{
@@ -195,6 +211,7 @@ func Download(config DownloadConfig) error {
 
 	// Start progress display
 	go displayProgress(fileSize, progressCh, doneCh)
+	log.Println("Downloading...")
 
 	// Download chunks concurrently
 	var wg sync.WaitGroup
