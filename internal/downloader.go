@@ -70,8 +70,7 @@ func Download(config DownloadConfig) error {
 		go downloadChunk(&job, &job.Chunks[i], client, &wg, progressCh, mutex)
 	}
 	wg.Wait()
-	// Signal progress display to finish
-	close(doneCh)
+	close(doneCh) // Signal progress display to finish
 
 	allCompleted := true
 	var incompleteChunks []int

@@ -5,6 +5,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"syscall"
 	"time"
@@ -93,4 +95,12 @@ func formatBytes(bytes uint64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+func Clean(outputPath string) error {
+	tempDir := filepath.Join(filepath.Dir(outputPath), ".danzo-temp")
+	if err := os.RemoveAll(tempDir); err != nil {
+		return err
+	}
+	return nil
 }

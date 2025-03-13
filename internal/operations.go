@@ -71,8 +71,11 @@ func downloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, 
 		if retry > 0 {
 			log.Debug().Int("attempt", retry+1).Int("maxRetries", maxRetries).Msg("Retrying download of chunk")
 			time.Sleep(time.Duration(retry+1) * 500 * time.Millisecond) // Backoff
+			if chunk.Downloaded > 0 {
+				progressCh <- -chunk.Downloaded
+				chunk.Downloaded = 0
+			}
 		}
-		chunk.Downloaded = 0
 		if err := doDownloadChunk(job, chunk, client, tempFileName, progressCh); err != nil {
 			log.Error().Err(err).Int("attempt", retry+1).Msg("Error downloading chunk")
 			continue

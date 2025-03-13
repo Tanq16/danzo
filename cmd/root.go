@@ -19,6 +19,7 @@ var (
 	userAgent   string
 	proxyURL    string
 	debug       bool
+	cleanOutput string
 )
 
 var rootCmd = &cobra.Command{
@@ -44,6 +45,18 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+var cleanCmd = &cobra.Command{
+	Use:   "clean",
+	Short: "Clean up temporary files",
+	Run: func(cmd *cobra.Command, args []string) {
+		err := internal.Clean(cleanOutput)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Error cleaning up temporary files")
+		}
+		log.Info().Msg("Temporary files cleaned up")
+	},
+}
+
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -62,4 +75,7 @@ func init() {
 
 	rootCmd.MarkFlagRequired("url")
 	rootCmd.MarkFlagRequired("output")
+
+	rootCmd.AddCommand(cleanCmd)
+	cleanCmd.Flags().StringVarP(&cleanOutput, "output", "o", "", "Output file path")
 }
