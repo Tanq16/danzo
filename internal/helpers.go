@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"runtime"
 	"time"
 )
 
@@ -66,4 +67,15 @@ func formatBytes(bytes uint64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+func GetDefaultConnections() int {
+	cpus := runtime.NumCPU()
+	// 1 connection per core (heuristic default)
+	connections := cpus
+	// Cap at 64
+	if connections > 64 {
+		connections = 64
+	}
+	return connections
 }
