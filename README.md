@@ -1,6 +1,5 @@
 <div align="center">
-  <img src=".github/assets/logo.png" alt="Danzo Logo" width="220">
-  <h1>Danzo</h1>
+  <img src=".github/assets/logo.png" alt="Danzo Logo" width="250">
 
   <a href="https://github.com/tanq16/danzo/actions/workflows/binary.yml"><img alt="Build Binary" src="https://github.com/tanq16/danzo/actions/workflows/binary.yml/badge.svg"></a> &bull; <a href="https://github.com/Tanq16/danzo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/danzo"></a><br><br>
   <a href="#features">Features</a> &bull; <a href="#installation-and-usage">Install & Use</a> &bull; <a href="#tips-and-notes">Tips & Notes</a>
