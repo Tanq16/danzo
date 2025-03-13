@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal"
 )
@@ -19,11 +19,16 @@ var (
 	verify      bool
 	maxRetries  int
 	retryWait   time.Duration
+	debug       bool
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "danzo",
 	Short: "Danzo is a fast CLI download manager",
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		internal.InitLogger(debug)
+		log.Debug().Msg("Debug logging enabled")
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		config := internal.DownloadConfig{
 			URL:         url,
@@ -37,7 +42,7 @@ var rootCmd = &cobra.Command{
 		}
 		err := internal.Download(config)
 		if err != nil {
-			log.Fatalln("Download failed")
+			log.Fatal().Err(err).Msg("Download failed")
 		}
 	},
 }
@@ -58,6 +63,7 @@ func init() {
 	rootCmd.Flags().BoolVarP(&verify, "verify", "v", false, "Verify file integrity after download")
 	rootCmd.Flags().IntVarP(&maxRetries, "retries", "r", 3, "Maximum number of retries per chunk")
 	rootCmd.Flags().DurationVar(&retryWait, "retry-wait", 500*time.Millisecond, "Wait time between retries")
+	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 
 	rootCmd.MarkFlagRequired("url")
 	rootCmd.MarkFlagRequired("output")

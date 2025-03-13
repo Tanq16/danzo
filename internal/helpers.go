@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const bufferSize = 65536 // 64KB
+const bufferSize = 1024 * 512 // 512 KB
 var chunkIDRegex = regexp.MustCompile(`\.part(\d+)$`)
 
 type DownloadConfig struct {
@@ -49,6 +49,8 @@ func createHTTPClient(timeout time.Duration) *http.Client {
 		MaxIdleConnsPerHost: 100, // for connection reuse
 		IdleConnTimeout:     90 * time.Second,
 		DisableCompression:  true,
+		MaxConnsPerHost:     0,
+		DisableKeepAlives:   false,
 	}
 	return &http.Client{
 		Timeout:   timeout,

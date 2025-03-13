@@ -2,19 +2,20 @@ package internal
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"sync"
 	"time"
 )
 
 func Download(config DownloadConfig) error {
+	log := GetLogger("downloader")
+
 	client := createHTTPClient(config.Timeout)
 	fileSize, err := getFileSize(config.URL, config.UserAgent, client)
 	if err != nil {
 		return fmt.Errorf("error getting file size: %v", err)
 	}
-	log.Printf("File size: %s", formatBytes(uint64(fileSize)))
+	log.Info().Str("size", formatBytes(uint64(fileSize))).Msg("File size determined")
 	job := DownloadJob{
 		Config:    config,
 		FileSize:  fileSize,
@@ -25,11 +26,12 @@ func Download(config DownloadConfig) error {
 	minChunkSize := int64(1024 * 1024) // 1MB minimum
 	if chunkSize < minChunkSize && fileSize > minChunkSize {
 		newConnections := max(int(fileSize/minChunkSize), 1)
-		log.Printf("Adjusting connections from %d to %d to maintain minimum chunk size", config.Connections, newConnections)
+		log.Info().Int("oldConnections", config.Connections).Int("newConnections", newConnections).Msg("Adjusting to maintain minimum chunk size")
 		config.Connections = newConnections
 		chunkSize = fileSize / int64(config.Connections)
 	}
-	log.Printf("Using %d connections with chunk size of %s", config.Connections, formatBytes(uint64(chunkSize)))
+	log.Info().Int("connections", config.Connections).Str("chunkSize", formatBytes(uint64(chunkSize))).Msg("Download configuration")
+
 	var currentPosition int64 = 0
 	for i := range config.Connections {
 		startByte := currentPosition
@@ -49,11 +51,11 @@ func Download(config DownloadConfig) error {
 		}
 		currentPosition = endByte + 1
 	}
-	log.Printf("Download divided into %d chunks", len(job.Chunks))
+	log.Info().Int("chunks", len(job.Chunks)).Msg("Download divided into chunks")
+
 	progressCh := make(chan int64, config.Connections*2) // Buffer to prevent blocking
 	doneCh := make(chan struct{})
 	go displayProgress(fileSize, progressCh, doneCh)
-	log.Println("Starting download...")
 
 	var wg sync.WaitGroup
 	for i := range job.Chunks {
@@ -75,7 +77,7 @@ func Download(config DownloadConfig) error {
 	if !allCompleted {
 		return fmt.Errorf("download incomplete: %d chunks failed: %v", len(incompleteChunks), incompleteChunks)
 	}
-	log.Println("Assembling file chunks...")
+
 	err = assembleFile(job)
 	if err != nil {
 		return fmt.Errorf("error assembling file: %v", err)
@@ -87,6 +89,6 @@ func Download(config DownloadConfig) error {
 	if fileInfo.Size() != fileSize {
 		return fmt.Errorf("file size mismatch: expected %d bytes, got %d bytes", fileSize, fileInfo.Size())
 	}
-	log.Printf("File size verified: %s", formatBytes(uint64(fileInfo.Size())))
+	log.Info().Str("size", formatBytes(uint64(fileInfo.Size()))).Str("path", job.Config.OutputPath).Msg("File size verified")
 	return nil
 }
