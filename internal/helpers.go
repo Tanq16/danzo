@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"syscall"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 const bufferSize = 1024 * 1024 * 2 // 2MB buffer
@@ -17,6 +20,7 @@ type DownloadConfig struct {
 	OutputPath  string
 	Connections int
 	Timeout     time.Duration
+	ProxyURL    string
 	UserAgent   string
 }
 
@@ -41,7 +45,7 @@ type DownloadJob struct {
 	FileHash  string
 }
 
-func createHTTPClient(timeout time.Duration) *http.Client {
+func createHTTPClient(timeout time.Duration, proxyURL string) *http.Client {
 	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100, // for connection reuse
@@ -62,6 +66,15 @@ func createHTTPClient(timeout time.Duration) *http.Client {
 				})
 			},
 		}).DialContext,
+	}
+	if proxyURL != "" {
+		proxyURLParsed, err := url.Parse(proxyURL)
+		if err != nil {
+			log.Error().Err(err).Str("proxy", proxyURL).Msg("Invalid proxy URL, proceeding without proxy")
+		} else {
+			transport.Proxy = http.ProxyURL(proxyURLParsed)
+			log.Debug().Str("proxy", proxyURL).Msg("Using proxy for connections")
+		}
 	}
 	return &http.Client{
 		Timeout:   timeout,

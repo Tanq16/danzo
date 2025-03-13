@@ -17,6 +17,7 @@ var (
 	connections int
 	timeout     time.Duration
 	userAgent   string
+	proxyURL    string
 	debug       bool
 )
 
@@ -34,6 +35,7 @@ var rootCmd = &cobra.Command{
 			Connections: connections,
 			Timeout:     timeout,
 			UserAgent:   userAgent,
+			ProxyURL:    proxyURL,
 		}
 		err := internal.Download(config)
 		if err != nil {
@@ -53,8 +55,9 @@ func init() {
 	rootCmd.Flags().StringVarP(&url, "url", "u", "", "URL to download")
 	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path")
 	rootCmd.Flags().IntVarP(&connections, "connections", "c", min(runtime.NumCPU(), 64), "Number of connections (default: # CPU cores)")
-	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout")
+	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout (eg., 5s, 10m; default: 3m)")
 	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", "Danzo/1.0", "User agent")
+	rootCmd.Flags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 
 	rootCmd.MarkFlagRequired("url")

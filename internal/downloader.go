@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -10,7 +11,13 @@ import (
 func Download(config DownloadConfig) error {
 	log := GetLogger("downloader")
 
-	client := createHTTPClient(config.Timeout)
+	parsedURL, err := url.Parse(config.URL)
+	if err != nil {
+		return fmt.Errorf("error parsing URL: %v", err)
+	}
+	primaryScheme := parsedURL.Scheme
+	config.ProxyURL = fmt.Sprintf("%s://%s", primaryScheme, config.ProxyURL)
+	client := createHTTPClient(config.Timeout, config.ProxyURL)
 	fileSize, err := getFileSize(config.URL, config.UserAgent, client)
 	if err != nil {
 		return fmt.Errorf("error getting file size: %v", err)
@@ -23,7 +30,7 @@ func Download(config DownloadConfig) error {
 	}
 	mutex := &sync.Mutex{}
 	chunkSize := fileSize / int64(config.Connections)
-	minChunkSize := int64(1024 * 1024) // 1MB minimum
+	minChunkSize := int64(2 * 1024 * 1024) // 1MB minimum
 	if chunkSize < minChunkSize && fileSize > minChunkSize {
 		newConnections := max(int(fileSize/minChunkSize), 1)
 		log.Info().Int("oldConnections", config.Connections).Int("newConnections", newConnections).Msg("Adjusting to maintain minimum chunk size")
