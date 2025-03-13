@@ -58,8 +58,7 @@ func createHTTPClient(timeout time.Duration) *http.Client {
 			// Increased socket buffer size for better speed
 			Control: func(network, address string, c syscall.RawConn) error {
 				return c.Control(func(fd uintptr) {
-					syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, 1024*1024)
-					syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_SNDBUF, 1024*1024)
+					setSocketOptions(fd)
 				})
 			},
 		}).DialContext,
