@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -16,9 +17,6 @@ var (
 	connections int
 	timeout     time.Duration
 	userAgent   string
-	verify      bool
-	maxRetries  int
-	retryWait   time.Duration
 	debug       bool
 )
 
@@ -36,9 +34,6 @@ var rootCmd = &cobra.Command{
 			Connections: connections,
 			Timeout:     timeout,
 			UserAgent:   userAgent,
-			MaxRetries:  maxRetries,
-			RetryWait:   retryWait,
-			VerifyFile:  verify,
 		}
 		err := internal.Download(config)
 		if err != nil {
@@ -57,12 +52,9 @@ func Execute() {
 func init() {
 	rootCmd.Flags().StringVarP(&url, "url", "u", "", "URL to download")
 	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path")
-	rootCmd.Flags().IntVarP(&connections, "connections", "c", internal.GetDefaultConnections(), "Number of connections")
-	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 10*time.Minute, "Connection timeout")
-	rootCmd.Flags().StringVar(&userAgent, "user-agent", "Danzo/1.0", "User agent")
-	rootCmd.Flags().BoolVarP(&verify, "verify", "v", false, "Verify file integrity after download")
-	rootCmd.Flags().IntVarP(&maxRetries, "retries", "r", 3, "Maximum number of retries per chunk")
-	rootCmd.Flags().DurationVar(&retryWait, "retry-wait", 500*time.Millisecond, "Wait time between retries")
+	rootCmd.Flags().IntVarP(&connections, "connections", "c", min(runtime.NumCPU(), 64), "Number of connections (default: # CPU cores)")
+	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout")
+	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", "Danzo/1.0", "User agent")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 
 	rootCmd.MarkFlagRequired("url")

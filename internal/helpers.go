@@ -2,13 +2,14 @@ package internal
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"regexp"
-	"runtime"
+	"syscall"
 	"time"
 )
 
-const bufferSize = 1024 * 512 // 512 KB
+const bufferSize = 1024 * 1024 * 2 // 2MB buffer
 var chunkIDRegex = regexp.MustCompile(`\.part(\d+)$`)
 
 type DownloadConfig struct {
@@ -17,9 +18,6 @@ type DownloadConfig struct {
 	Connections int
 	Timeout     time.Duration
 	UserAgent   string
-	RetryWait   time.Duration
-	MaxRetries  int
-	VerifyFile  bool
 }
 
 type DownloadChunk struct {
@@ -50,7 +48,21 @@ func createHTTPClient(timeout time.Duration) *http.Client {
 		IdleConnTimeout:     90 * time.Second,
 		DisableCompression:  true,
 		MaxConnsPerHost:     0,
-		DisableKeepAlives:   false,
+		// These two seem to reduce performance drastically with custom dial context
+		// DisableKeepAlives:   false,
+		// ForceAttemptHTTP2:   true,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+			// Increased socket buffer size for better speed
+			Control: func(network, address string, c syscall.RawConn) error {
+				return c.Control(func(fd uintptr) {
+					syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, 1024*1024)
+					syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_SNDBUF, 1024*1024)
+				})
+			},
+		}).DialContext,
 	}
 	return &http.Client{
 		Timeout:   timeout,
@@ -69,15 +81,4 @@ func formatBytes(bytes uint64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-}
-
-func GetDefaultConnections() int {
-	cpus := runtime.NumCPU()
-	// 1 connection per core (heuristic default)
-	connections := cpus
-	// Cap at 64
-	if connections > 64 {
-		connections = 64
-	}
-	return connections
 }
