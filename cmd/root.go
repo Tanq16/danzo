@@ -91,12 +91,12 @@ func Execute() {
 
 func init() {
 	rootCmd.Flags().StringVarP(&url, "url", "u", "", "URL to download")
-	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (required when using --url)")
+	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (required with --url/-u)")
 	rootCmd.Flags().StringVarP(&urlListFile, "urllist", "l", "", "Path to YAML file containing URLs and output paths")
-	rootCmd.Flags().IntVarP(&numLinks, "numlinks", "n", 1, "Number of links to download simultaneously (only used with --urllist)")
-	rootCmd.Flags().IntVarP(&connections, "connections", "c", min(runtime.NumCPU(), 32), "Number of connections per download")
+	rootCmd.Flags().IntVarP(&numLinks, "workers", "w", 1, "Number of links to download in parallel (default: 1)")
+	rootCmd.Flags().IntVarP(&connections, "connections", "c", min(runtime.NumCPU(), 32), "Number of connections per download (default: CPU cores)")
 	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout (eg., 5s, 10m; default: 3m)")
-	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", "Danzo/1.0", "User agent")
+	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", "Danzo/1337", "User agent")
 	rootCmd.Flags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 

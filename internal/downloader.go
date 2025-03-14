@@ -12,7 +12,10 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 
 	progressManager := NewProgressManager()
 	progressManager.StartDisplay()
-	defer progressManager.ShowSummary()
+	defer func() {
+		close(progressManager.doneCh)
+		progressManager.ShowSummary()
+	}()
 
 	var wg sync.WaitGroup
 	errorCh := make(chan error, len(entries))
@@ -29,7 +32,7 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 			defer wg.Done()
 			logger := log.With().Int("workerID", workerID).Logger()
 			for entry := range entriesCh {
-				logger.Info().Str("output", entry.OutputPath).Msg("Worker starting download")
+				logger.Debug().Str("output", entry.OutputPath).Msg("Worker starting download")
 				config := DownloadConfig{
 					URL:         entry.URL,
 					OutputPath:  entry.OutputPath,

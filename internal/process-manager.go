@@ -86,17 +86,19 @@ func (pm *ProgressManager) StartDisplay() {
 			select {
 			case <-ticker.C:
 				pm.mutex.RLock()
-				paths := make([]string, 0, len(pm.progressMap))
+				activePaths := map[int]string{}
+				innerIndex := 0
 				for path, info := range pm.progressMap {
 					if !info.Completed {
-						paths = append(paths, path)
+						activePaths[innerIndex] = path
+						innerIndex++
 					}
 				}
-				if len(paths) > 0 {
-					if currentIndex >= len(paths) {
+				if len(activePaths) > 0 {
+					if currentIndex >= len(activePaths) {
 						currentIndex = 0
 					}
-					outputPath := paths[currentIndex]
+					outputPath := activePaths[currentIndex]
 					info := pm.progressMap[outputPath]
 					now := time.Now()
 					lastTime, exists := lastUpdateTimes[outputPath]
@@ -127,18 +129,16 @@ func (pm *ProgressManager) StartDisplay() {
 					} else {
 						info.ETA = "calculating..."
 					}
+					percent := float64(info.Downloaded) / float64(info.TotalSize) * 100
 
 					// Display progress
-					percent := float64(info.Downloaded) / float64(info.TotalSize) * 100
 					clearLine()
 					fmt.Printf("[%s] %.2f%% (%s/%s) Speed: %.2f MB/s ETA: %s", outputPath, percent, formatBytes(uint64(info.Downloaded)), formatBytes(uint64(info.TotalSize)), info.Speed, info.ETA)
 					log.Debug().Str("file", outputPath).Float64("percent", percent).Str("downloaded", formatBytes(uint64(info.Downloaded))).Str("total", formatBytes(uint64(info.TotalSize))).Float64("speed_mbps", info.Speed).Str("eta", info.ETA).Msg("Download progress")
 					currentIndex++
 				} else if pm.IsAllCompleted() {
 					clearLine()
-					log.Info().Msg("All downloads completed!")
-					pm.mutex.RUnlock()
-					return
+					fmt.Printf("Active downloads completed; waiting for additional jobs or termination...")
 				}
 				pm.mutex.RUnlock()
 
