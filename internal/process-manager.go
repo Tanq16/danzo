@@ -150,10 +150,6 @@ func (pm *ProgressManager) StartDisplay() {
 	}()
 }
 
-func (pm *ProgressManager) Stop() {
-	close(pm.doneCh)
-}
-
 func (pm *ProgressManager) ShowSummary() {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
