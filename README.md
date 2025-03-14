@@ -7,7 +7,7 @@
 
 ---
 
-***Danzo*** is a cross-OS and cross-architecture CLI downloader utility designed for fast parallel connections, progress tracking, and an easy to use binary. The tool aims to maximize download speeds by utilizing optimized buffer sizes.
+***Danzo*** is a cross-platform and cross-architecture CLI downloader utility designed for fast parallel connections, progress tracking, and an easy to use binary. The tool aims to maximize download speeds by utilizing optimized buffer sizes and parallel processing.
 
 Yes, the name is the same as a Naruto character who has a hobby of collecting many things, reprentative of parallel connections used in this tool.
 
