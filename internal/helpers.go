@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"gopkg.in/yaml.v3"
 )
 
 const bufferSize = 1024 * 1024 * 2 // 2MB buffer
@@ -45,6 +46,34 @@ type DownloadJob struct {
 	StartTime time.Time
 	TempFiles []string
 	FileHash  string
+}
+
+type DownloadEntry struct {
+	OutputPath string `yaml:"op"`
+	URL        string `yaml:"link"`
+}
+
+func ReadDownloadList(filePath string) ([]DownloadEntry, error) {
+	log := GetLogger("config")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("error reading YAML file: %v", err)
+	}
+	var entries []DownloadEntry
+	err = yaml.Unmarshal(data, &entries)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing YAML file: %v", err)
+	}
+	for i, entry := range entries {
+		if entry.URL == "" {
+			return nil, fmt.Errorf("missing URL for entry %d", i+1)
+		}
+		if entry.OutputPath == "" {
+			return nil, fmt.Errorf("missing output path for entry %d", i+1)
+		}
+	}
+	log.Info().Int("count", len(entries)).Msg("Entries loaded from YAML")
+	return entries, nil
 }
 
 func createHTTPClient(timeout time.Duration, proxyURL string) *http.Client {

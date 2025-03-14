@@ -20,6 +20,8 @@ var (
 	proxyURL    string
 	debug       bool
 	cleanOutput string
+	urlListFile string
+	numLinks    int
 )
 
 var rootCmd = &cobra.Command{
@@ -30,17 +32,40 @@ var rootCmd = &cobra.Command{
 		log.Debug().Msg("Debug logging enabled")
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		config := internal.DownloadConfig{
-			URL:         url,
-			OutputPath:  output,
-			Connections: connections,
-			Timeout:     timeout,
-			UserAgent:   userAgent,
-			ProxyURL:    proxyURL,
+		if urlListFile != "" && url != "" {
+			log.Fatal().Msg("Cannot specify both --url and --urllist, choose one")
 		}
-		err := internal.Download(config)
+		if urlListFile == "" && url == "" {
+			log.Fatal().Msg("Must specify either --url or --urllist")
+		}
+
+		// Handle single URL download
+		if url != "" {
+			if output == "" {
+				log.Fatal().Msg("Output file path is required with --url")
+			}
+			entries := []internal.DownloadEntry{{URL: url, OutputPath: output}}
+			err := internal.BatchDownload(entries, 1, connections, timeout, userAgent, proxyURL)
+			if err != nil {
+				log.Fatal().Err(err).Msg("Download failed")
+			}
+			return
+		}
+
+		// Handle batch download from URL list file
+		entries, err := internal.ReadDownloadList(urlListFile)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Download failed")
+			log.Fatal().Err(err).Msg("Failed to read URL list file")
+		}
+		connectionsPerLink := connections
+		maxConnections := 64
+		if numLinks*connectionsPerLink > maxConnections {
+			connectionsPerLink = max(maxConnections/numLinks, 1)
+			log.Warn().Int("connections", connectionsPerLink).Int("numLinks", numLinks).Msg("adjusted connections to below max limit")
+		}
+		err = internal.BatchDownload(entries, numLinks, connectionsPerLink, timeout, userAgent, proxyURL)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Batch download completed with errors")
 		}
 	},
 }
@@ -66,15 +91,14 @@ func Execute() {
 
 func init() {
 	rootCmd.Flags().StringVarP(&url, "url", "u", "", "URL to download")
-	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path")
-	rootCmd.Flags().IntVarP(&connections, "connections", "c", min(runtime.NumCPU(), 64), "Number of connections (default: # CPU cores)")
+	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (required when using --url)")
+	rootCmd.Flags().StringVarP(&urlListFile, "urllist", "l", "", "Path to YAML file containing URLs and output paths")
+	rootCmd.Flags().IntVarP(&numLinks, "numlinks", "n", 1, "Number of links to download simultaneously (only used with --urllist)")
+	rootCmd.Flags().IntVarP(&connections, "connections", "c", min(runtime.NumCPU(), 32), "Number of connections per download")
 	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout (eg., 5s, 10m; default: 3m)")
 	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", "Danzo/1.0", "User agent")
 	rootCmd.Flags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
-
-	rootCmd.MarkFlagRequired("url")
-	rootCmd.MarkFlagRequired("output")
 
 	rootCmd.AddCommand(cleanCmd)
 	cleanCmd.Flags().StringVarP(&cleanOutput, "output", "o", "", "Output file path")
