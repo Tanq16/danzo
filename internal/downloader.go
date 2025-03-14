@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int, timeout time.Duration, userAgent string, proxyURL string) error {
+func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int, timeout time.Duration, kaTimeout time.Duration, userAgent string, proxyURL string) error {
 	log := GetLogger("downloader")
 	log.Info().Int("totalFiles", len(entries)).Int("numLinks", numLinks).Int("connections", connectionsPerLink).Msg("Starting batch download")
 
@@ -38,17 +38,21 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 			logger := log.With().Int("workerID", workerID).Logger()
 			for entry := range entriesCh {
 				logger.Debug().Str("output", entry.OutputPath).Msg("Worker starting download")
+				if userAgent == "randomize" {
+					userAgent = getRandomUserAgent()
+				}
 				config := DownloadConfig{
 					URL:         entry.URL,
 					OutputPath:  entry.OutputPath,
 					Connections: connectionsPerLink,
 					Timeout:     timeout,
+					KATimeout:   kaTimeout,
 					UserAgent:   userAgent,
 					ProxyURL:    proxyURL,
 				}
 				progressCh := make(chan int64)
 				doneCh := make(chan struct{})
-				client := createHTTPClient(config.Timeout, config.ProxyURL)
+				client := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL)
 				fileSize, err := getFileSize(config.URL, config.UserAgent, client)
 				if err != nil {
 					logger.Error().Err(err).Str("output", entry.OutputPath).Msg("Failed to get file size")
@@ -108,7 +112,7 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 
 func downloadWithProgress(config DownloadConfig, fileSize int64, progressCh chan<- int64) error {
 	log := GetLogger("download-worker")
-	client := createHTTPClient(config.Timeout, config.ProxyURL)
+	client := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL)
 	log.Debug().Str("size", formatBytes(uint64(fileSize))).Msg("File size determined")
 	job := DownloadJob{
 		Config:    config,

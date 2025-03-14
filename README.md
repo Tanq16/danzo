@@ -53,25 +53,31 @@ go build .
 ### Command Options
 
 ```
+Danzo is a fast CLI download manager
+
 Usage:
   danzo [flags]
   danzo [command]
 
 Available Commands:
   clean       Clean up temporary files
+  completion  Generate the autocompletion script for the specified shell
   help        Help about any command
 
 Flags:
-  -c, --connections int        Number of connections per download (default: # CPU cores)
-      --debug                  Enable debug logging
-  -h, --help                   help for danzo
-  -o, --output string          Output file path (required with --url/-u)
-  -p, --proxy string           HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)
-  -t, --timeout duration       Connection timeout (default 3m0s)
-  -u, --url string             URL to download
-  -a, --user-agent string      User agent (default "Danzo/1337")
-  -l, --urllist string         Path to YAML file containing URLs and output paths
-  -w, --workers int            Number of links to download in parallel (default 1)
+  -c, --connections int               Number of connections per download (default: CPU cores) (default 16)
+      --debug                         Enable debug logging
+  -h, --help                          help for danzo
+  -k, --keep-alive-timeout duration   Keep-alive timeout for client (eg./ 10s, 1m, 80s; default: 90s) (default 1m30s)
+  -o, --output string                 Output file path (required with --url/-u)
+  -p, --proxy string                  HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)
+  -t, --timeout duration              Connection timeout (eg., 5s, 10m; default: 3m) (default 3m0s)
+  -u, --url string                    URL to download
+  -l, --urllist string                Path to YAML file containing URLs and output paths
+  -a, --user-agent string             User agent (default "Danzo/1337")
+  -w, --workers int                   Number of links to download in parallel (default: 1) (default 1)
+
+Use "danzo [command] --help" for more information about a command.
 ```
 
 ### Batch Download
@@ -118,3 +124,4 @@ Danzo stores partial downloads on disk in the `.danzo-temp` directory (situated 
 - For servers with rate limiting, reducing the number of connections might help
 - Debug mode (`--debug`) provides detailed information about the download process
 - Temporary files are stored in a .danzo-temp directory and automatically cleaned up after download
+- Use `-a randomize` to randomize the user agent for every HTTP client

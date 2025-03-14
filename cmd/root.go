@@ -16,6 +16,7 @@ var (
 	output      string
 	connections int
 	timeout     time.Duration
+	kaTimeout   time.Duration
 	userAgent   string
 	proxyURL    string
 	debug       bool
@@ -45,7 +46,7 @@ var rootCmd = &cobra.Command{
 				log.Fatal().Msg("Output file path is required with --url")
 			}
 			entries := []internal.DownloadEntry{{URL: url, OutputPath: output}}
-			err := internal.BatchDownload(entries, 1, connections, timeout, userAgent, proxyURL)
+			err := internal.BatchDownload(entries, 1, connections, timeout, kaTimeout, userAgent, proxyURL)
 			if err != nil {
 				log.Fatal().Err(err).Msg("Download failed")
 			}
@@ -63,7 +64,7 @@ var rootCmd = &cobra.Command{
 			connectionsPerLink = max(maxConnections/numLinks, 1)
 			log.Warn().Int("connections", connectionsPerLink).Int("numLinks", numLinks).Msg("adjusted connections to below max limit")
 		}
-		err = internal.BatchDownload(entries, numLinks, connectionsPerLink, timeout, userAgent, proxyURL)
+		err = internal.BatchDownload(entries, numLinks, connectionsPerLink, timeout, kaTimeout, userAgent, proxyURL)
 		if err != nil {
 			log.Fatal().Err(err).Msg("Batch download completed with errors")
 		}
@@ -96,6 +97,7 @@ func init() {
 	rootCmd.Flags().IntVarP(&numLinks, "workers", "w", 1, "Number of links to download in parallel (default: 1)")
 	rootCmd.Flags().IntVarP(&connections, "connections", "c", min(runtime.NumCPU(), 32), "Number of connections per download (default: CPU cores)")
 	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout (eg., 5s, 10m; default: 3m)")
+	rootCmd.Flags().DurationVarP(&kaTimeout, "keep-alive-timeout", "k", 90*time.Second, "Keep-alive timeout for client (eg./ 10s, 1m, 80s; default: 90s)")
 	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", "Danzo/1337", "User agent")
 	rootCmd.Flags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
