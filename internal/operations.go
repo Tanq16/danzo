@@ -66,7 +66,7 @@ func downloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, 
 			return
 		}
 	}
-	maxRetries := 3
+	maxRetries := 5
 	for retry := range maxRetries {
 		if retry > 0 {
 			log.Debug().Int("attempt", retry+1).Int("maxRetries", maxRetries).Msg("Retrying download of chunk")
@@ -215,60 +215,6 @@ func assembleFile(job DownloadJob) error {
 	for _, tempFilePath := range tempFiles {
 		os.Remove(tempFilePath)
 	}
-	tempDir := filepath.Dir(tempFiles[0])
-	os.RemoveAll(tempDir)
 	log.Debug().Int64("totalBytes", totalWritten).Str("outputFile", job.Config.OutputPath).Msg("File assembly completed")
 	return nil
-}
-
-func displayProgress(totalSize int64, progressCh <-chan int64, doneCh <-chan struct{}) {
-	log := GetLogger("progress")
-	downloaded := int64(0)
-	startTime := time.Now()
-	lastUpdateTime := startTime
-	lastDownloaded := int64(0)
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case size := <-progressCh:
-			downloaded += size
-		case <-ticker.C:
-			percent := float64(downloaded) / float64(totalSize) * 100
-			currentTime := time.Now()
-			timeDiff := currentTime.Sub(lastUpdateTime).Seconds()
-			byteDiff := downloaded - lastDownloaded
-			speed := float64(0)
-			if timeDiff > 0 {
-				speed = float64(byteDiff) / timeDiff / 1024 // KB/s
-				lastUpdateTime = currentTime
-				lastDownloaded = downloaded
-			}
-			elapsed := time.Since(startTime).Seconds()
-			avgSpeed := float64(downloaded) / elapsed / 1024 // KB/s
-			var eta string
-			if speed > 0 {
-				etaSeconds := int64(float64(totalSize-downloaded) / (speed * 1024))
-				if etaSeconds < 60 {
-					eta = fmt.Sprintf("%ds", etaSeconds)
-				} else if etaSeconds < 3600 {
-					eta = fmt.Sprintf("%dm %ds", etaSeconds/60, etaSeconds%60)
-				} else {
-					eta = fmt.Sprintf("%dh %dm", etaSeconds/3600, (etaSeconds%3600)/60)
-				}
-			} else {
-				eta = "calculating..."
-			}
-			log.Debug().Float64("percent", percent).Str("downloaded", formatBytes(uint64(downloaded))).Str("total", formatBytes(uint64(totalSize))).Float64("speed_kbps", speed).Float64("avg_speed_kbps", avgSpeed).Str("eta", eta).Msg("Download progress")
-			fmt.Printf("\r\033[K")
-			fmt.Printf("Downloaded: %.2f%% (%s/%s) Speed: %.2f KB/s Avg: %.2f KB/s ETA: %s", percent, formatBytes(uint64(downloaded)), formatBytes(uint64(totalSize)), speed, avgSpeed, eta)
-
-		case <-doneCh:
-			elapsed := time.Since(startTime).Seconds()
-			avgSpeed := float64(downloaded) / elapsed / 1024 // KB/s
-			fmt.Printf("\r\033[K")
-			log.Info().Str("size", formatBytes(uint64(downloaded))).Str("avgSpeed", fmt.Sprintf("%.2f KB/s", avgSpeed)).Str("timeSeconds", fmt.Sprintf("%.1f", elapsed)).Msg("Complete!")
-			return
-		}
-	}
 }

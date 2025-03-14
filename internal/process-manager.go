@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 type ProgressInfo struct {
@@ -153,8 +155,8 @@ func (pm *ProgressManager) StartDisplay() {
 func (pm *ProgressManager) ShowSummary() {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
-	fmt.Println("\nDownload Summary:")
-	fmt.Println("----------------")
+	fmt.Printf("\r\033[K") // Clear the current line
+	fmt.Println()
 	for _, info := range pm.progressMap {
 		elapsed := time.Since(info.StartTime).Seconds()
 		avgSpeed := float64(0)
@@ -165,6 +167,6 @@ func (pm *ProgressManager) ShowSummary() {
 		if !info.Completed {
 			status = "Incomplete"
 		}
-		fmt.Printf("%s: %s, Size: %s, Avg Speed: %.2f MB/s, Time: %.1fs\n", info.OutputPath, status, formatBytes(uint64(info.CompletedSize)), avgSpeed, elapsed)
+		log.Info().Str("file", info.OutputPath).Str("status", status).Str("size", formatBytes(uint64(info.CompletedSize))).Str("speed", fmt.Sprintf("%.2f", avgSpeed)).Str("time", fmt.Sprintf("%.2fs", elapsed)).Msg("Summary")
 	}
 }

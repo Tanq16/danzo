@@ -2,6 +2,8 @@ package internal
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -15,6 +17,9 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 	defer func() {
 		close(progressManager.doneCh)
 		progressManager.ShowSummary()
+		for _, entry := range entries {
+			os.RemoveAll(filepath.Join(filepath.Dir(entry.OutputPath), ".danzo-temp"))
+		}
 	}()
 
 	var wg sync.WaitGroup

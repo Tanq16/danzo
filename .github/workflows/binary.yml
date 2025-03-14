@@ -9,7 +9,7 @@ permissions:
   packages: write
 
 jobs:
-  check-commit:
+  create-release:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.new_version }}
@@ -22,13 +22,19 @@ jobs:
         id: version
         run: |
           # Get the latest version tag, default to v0.1 if none exists
-          LATEST_TAG=$(gh release list -L 1 | cut -f 1 | sed 's/Release //' || echo "v0")
-          LATEST_TAG=${LATEST_TAG:-v0}
+          LATEST_TAG=$(gh release list -L 1 | cut -f 1 | sed 's/Release //' || echo "v0.0")
+          LATEST_TAG=${LATEST_TAG:-v0.0}
           
           # Extract current version numbers
-          VERSION=$(echo $LATEST_TAG | sed 's/v//')
+          MAJOR=$(echo $LATEST_TAG | cut -d. -f1 | sed 's/v//')
+          MINOR=$(echo $LATEST_TAG | cut -d. -f2)
           
-          NEW_VERSION="v$((VERSION + 1))"
+          # Check commit message for version bump
+          if git log -1 --pretty=%B | grep -i "version bump"; then
+            NEW_VERSION="v$((MAJOR + 1)).0"
+          else
+            NEW_VERSION="v$MAJOR.$((MINOR + 1))"
+          fi
           
           echo "Previous version: $LATEST_TAG"
           echo "New version: $NEW_VERSION"
@@ -37,17 +43,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: Create Release
+        id: create_release
         run: |
           gh release create "${{ steps.version.outputs.new_version }}" \
             --title "Release ${{ steps.version.outputs.new_version }}" \
             --draft \
-            --notes "Danzo latest release binaries." \
+            --notes "Release ${{ steps.version.outputs.new_version }}" \
             --target ${{ github.sha }}
         env:
           GH_TOKEN: ${{ github.token }}
 
   build:
-    needs: check-commit
+    needs: create-release
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -73,7 +80,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
   publish:
-    needs: [check-commit, build]
+    needs: [create-release, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
