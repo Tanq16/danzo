@@ -74,7 +74,7 @@ jobs:
 
       - name: Upload Release Asset
         run: |
-          gh release upload "${{ needs.check-commit.outputs.version }}" \
+          gh release upload "${{ needs.create-release.outputs.version }}" \
             "danzo-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows' && '.exe' || '' }}"
         env:
           GH_TOKEN: ${{ github.token }}
@@ -87,6 +87,6 @@ jobs:
 
       - name: Publish Release
         run: |
-          gh release edit "${{ needs.check-commit.outputs.version }}" --draft=false
+          gh release edit "${{ needs.create-release.outputs.version }}" --draft=false
         env:
           GH_TOKEN: ${{ github.token }}
