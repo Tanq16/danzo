@@ -171,7 +171,7 @@ func (pm *ProgressManager) ShowSummary() {
 		if !info.Completed {
 			status = "Incomplete"
 		}
-		fmt.Printf("Status: %s\t\tSize: %s\t\tFile: %s\n", status, formatBytes(uint64(info.CompletedSize)), info.OutputPath)
+		fmt.Printf("Status: %s,  Size: %s,  File: %s\n", status, formatBytes(uint64(info.CompletedSize)), info.OutputPath)
 	}
 	fmt.Println()
 	log.Info().Str("Total Data", formatBytes(uint64(totalSize))).Str("Overall Speed", fmt.Sprintf("%.2f MB/s", float64(totalSize)/earliestTime/1024/1024)).Str("Time Elapsed", fmt.Sprintf("%.2fs", earliestTime)).Msg("Summary")
