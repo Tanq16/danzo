@@ -139,7 +139,7 @@ func (pm *ProgressManager) StartDisplay() {
 					log.Debug().Str("file", outputPath).Float64("percent", percent).Str("downloaded", formatBytes(uint64(info.Downloaded))).Str("total", formatBytes(uint64(info.TotalSize))).Float64("speed_mbps", info.Speed).Str("eta", info.ETA).Msg("Download progress")
 				} else if pm.IsAllCompleted() {
 					clearLine()
-					fmt.Print("Performing assemble or waiting for a job...", len(pm.progressMap))
+					fmt.Print("Performing assemble or waiting for a job...")
 				}
 				currentIndex++
 				pm.mutex.RUnlock()
@@ -166,16 +166,12 @@ func (pm *ProgressManager) ShowSummary() {
 		if earliestTime == 0 || elapsed > earliestTime {
 			earliestTime = elapsed
 		}
-		avgSpeed := float64(0)
-		if elapsed > 0 {
-			avgSpeed = float64(info.CompletedSize) / elapsed / 1024 / 1024 // MB/s
-		}
 		totalSize += info.CompletedSize
 		status := "Completed"
 		if !info.Completed {
 			status = "Incomplete"
 		}
-		fmt.Printf("File: %s, Status: %s, Size: %s, Speed: %.2f MB/s, Time: %.2fs\n", info.OutputPath, status, formatBytes(uint64(info.CompletedSize)), avgSpeed, elapsed)
+		fmt.Printf("Status: %s\t\tSize: %s\t\tFile: %s\n", status, formatBytes(uint64(info.CompletedSize)), info.OutputPath)
 	}
 	fmt.Println()
 	log.Info().Str("Total Data", formatBytes(uint64(totalSize))).Str("Overall Speed", fmt.Sprintf("%.2f MB/s", float64(totalSize)/earliestTime/1024/1024)).Str("Time Elapsed", fmt.Sprintf("%.2fs", earliestTime)).Msg("Summary")

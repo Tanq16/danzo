@@ -102,7 +102,7 @@ func ReadDownloadList(filePath string) ([]DownloadEntry, error) {
 			return nil, fmt.Errorf("missing output path for entry %d", i+1)
 		}
 	}
-	log.Info().Int("count", len(entries)).Msg("Entries loaded from YAML")
+	log.Debug().Int("count", len(entries)).Msg("Entries loaded from YAML")
 	return entries, nil
 }
 
