@@ -157,6 +157,8 @@ func (pm *ProgressManager) ShowSummary() {
 	defer pm.mutex.RUnlock()
 	fmt.Printf("\r\033[K") // Clear the current line
 	fmt.Println()
+	fmt.Println("Task Summary")
+	fmt.Println("============")
 	totalSize := int64(0)
 	earliestTime := float64(0)
 	for _, info := range pm.progressMap {
