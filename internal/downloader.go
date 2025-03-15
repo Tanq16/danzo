@@ -10,7 +10,7 @@ import (
 
 func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int, timeout time.Duration, kaTimeout time.Duration, userAgent string, proxyURL string) error {
 	log := GetLogger("downloader")
-	log.Info().Int("totalFiles", len(entries)).Int("numLinks", numLinks).Int("connections", connectionsPerLink).Msg("Starting batch download")
+	log.Info().Int("totalFiles", len(entries)).Int("numLinks", numLinks).Int("connections", connectionsPerLink).Msg("Initiating download")
 
 	progressManager := NewProgressManager()
 	progressManager.StartDisplay()

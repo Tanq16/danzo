@@ -137,11 +137,11 @@ func (pm *ProgressManager) StartDisplay() {
 					clearLine()
 					fmt.Printf("[%s] %.2f%% (%s/%s) Speed: %.2f MB/s ETA: %s", outputPath, percent, formatBytes(uint64(info.Downloaded)), formatBytes(uint64(info.TotalSize)), info.Speed, info.ETA)
 					log.Debug().Str("file", outputPath).Float64("percent", percent).Str("downloaded", formatBytes(uint64(info.Downloaded))).Str("total", formatBytes(uint64(info.TotalSize))).Float64("speed_mbps", info.Speed).Str("eta", info.ETA).Msg("Download progress")
-					currentIndex++
 				} else if pm.IsAllCompleted() {
 					clearLine()
-					fmt.Printf("Active downloads completed; waiting for additional jobs or termination...")
+					fmt.Print("Performing assemble or waiting for a job...", len(pm.progressMap))
 				}
+				currentIndex++
 				pm.mutex.RUnlock()
 
 			case <-pm.doneCh:
@@ -157,16 +157,24 @@ func (pm *ProgressManager) ShowSummary() {
 	defer pm.mutex.RUnlock()
 	fmt.Printf("\r\033[K") // Clear the current line
 	fmt.Println()
+	totalSize := int64(0)
+	earliestTime := float64(0)
 	for _, info := range pm.progressMap {
 		elapsed := time.Since(info.StartTime).Seconds()
+		if earliestTime == 0 || elapsed > earliestTime {
+			earliestTime = elapsed
+		}
 		avgSpeed := float64(0)
 		if elapsed > 0 {
 			avgSpeed = float64(info.CompletedSize) / elapsed / 1024 / 1024 // MB/s
 		}
+		totalSize += info.CompletedSize
 		status := "Completed"
 		if !info.Completed {
 			status = "Incomplete"
 		}
-		log.Info().Str("file", info.OutputPath).Str("status", status).Str("size", formatBytes(uint64(info.CompletedSize))).Str("speed", fmt.Sprintf("%.2f", avgSpeed)).Str("time", fmt.Sprintf("%.2fs", elapsed)).Msg("Summary")
+		fmt.Printf("File: %s, Status: %s, Size: %s, Speed: %.2f MB/s, Time: %.2fs\n", info.OutputPath, status, formatBytes(uint64(info.CompletedSize)), avgSpeed, elapsed)
 	}
+	fmt.Println()
+	log.Info().Str("Total Data", formatBytes(uint64(totalSize))).Str("Overall Speed", fmt.Sprintf("%.2f MB/s", float64(totalSize)/earliestTime/1024/1024)).Str("Time Elapsed", fmt.Sprintf("%.2fs", earliestTime)).Msg("Summary")
 }
