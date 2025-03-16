@@ -2,7 +2,7 @@
   <img src=".github/assets/logo.png" alt="Danzo Logo" width="300">
 
   <a href="https://github.com/tanq16/danzo/actions/workflows/binary.yml"><img alt="Build" src="https://github.com/tanq16/danzo/actions/workflows/binary.yml/badge.svg"></a> <a href="https://github.com/Tanq16/danzo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/danzo"></a><br><br>
-  <a href="#features">Features</a> &bull; <a href="#install-and-usage">Install & Use</a> &bull; <a href="#tips-and-notes">Tips & Notes</a>
+  <a href="#features">Features</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a>
 </div>
 
 ---
@@ -32,7 +32,7 @@
   - Automatic numbering of existing names for single URL downloads
   - Automatic output name inference from URL path
 
-## Install and Use
+## Installation
 
 ### Release Binary (Recommended)
 
@@ -61,6 +61,8 @@ go build .
 
 ### Command Options
 
+The command line options can be printed with `danzo -h`:
+
 ```
 Danzo is a fast CLI download manager
 
@@ -87,6 +89,8 @@ Flags:
 
 Use "danzo [command] --help" for more information about a command.
 ```
+
+## Usage
 
 ### Basic Usage
 
