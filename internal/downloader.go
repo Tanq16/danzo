@@ -51,7 +51,6 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 					ProxyURL:    proxyURL,
 				}
 				progressCh := make(chan int64)
-				doneCh := make(chan struct{})
 				client := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL)
 				fileSize, err := getFileSize(config.URL, config.UserAgent, client)
 
@@ -66,36 +65,27 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 				} else {
 					progressManager.Register(entry.OutputPath, fileSize)
 				}
-				var internalWg sync.WaitGroup
-				internalWg.Add(1)
 
+				var progressWg sync.WaitGroup
+				progressWg.Add(1)
 				// Internal goroutine to forward progress updates to the manager
-				go func(outputPath string, progCh <-chan int64, doneCh chan struct{}) {
-					defer internalWg.Done()
+				go func(outputPath string, progCh <-chan int64) {
+					defer progressWg.Done()
 					var totalDownloaded int64
-					for {
-						select {
-						case bytesDownloaded, ok := <-progCh:
-							if !ok {
-								progressManager.Complete(outputPath, totalDownloaded)
-								return
-							}
-							progressManager.Update(outputPath, bytesDownloaded)
-							totalDownloaded += bytesDownloaded
-						case <-doneCh:
-							progressManager.Complete(outputPath, totalDownloaded)
-							return
-						}
+					for bytesDownloaded := range progCh {
+						progressManager.Update(outputPath, bytesDownloaded)
+						totalDownloaded += bytesDownloaded
 					}
-				}(entry.OutputPath, progressCh, doneCh)
+					progressManager.Complete(outputPath, totalDownloaded)
+				}(entry.OutputPath, progressCh)
 
 				if err == ErrRangeRequestsNotSupported {
 					err = performSimpleDownload(entry.URL, entry.OutputPath, client, config.UserAgent, progressCh)
 				} else {
 					err = downloadWithProgress(config, fileSize, progressCh)
 				}
-				close(doneCh)
-				internalWg.Wait()
+				// close(progressCh)
+				progressWg.Wait()
 
 				if err != nil {
 					logger.Error().Err(err).Msg("Download failed")

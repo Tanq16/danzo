@@ -54,11 +54,11 @@ func (pm *ProgressManager) Update(outputPath string, bytesDownloaded int64) {
 func (pm *ProgressManager) Complete(outputPath string, totalDownloaded int64) {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
-	log.Debug().Msg("REACHED HERE - Complete")
 	if info, exists := pm.progressMap[outputPath]; exists {
 		info.Completed = true
 		info.CompletedSize = totalDownloaded
 	}
+	log.Debug().Str("file", outputPath).Int64("totalDownloaded", totalDownloaded).Msg("COMPLETE CALLED")
 }
 
 func (pm *ProgressManager) IsAllCompleted() bool {
@@ -144,7 +144,7 @@ func (pm *ProgressManager) StartDisplay() {
 			pm.mutex.RUnlock()
 		}
 
-		displayProgress()
+		// displayProgress()
 		for {
 			select {
 			case <-ticker.C:

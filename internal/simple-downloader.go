@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -20,7 +21,6 @@ func SimpleDownload(url string, outputPath string) error {
 
 	client := createHTTPClient(3*time.Minute, 90*time.Second, "")
 	progressCh := make(chan int64)
-	// doneCh := make(chan struct{})
 
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
@@ -39,8 +39,11 @@ func SimpleDownload(url string, outputPath string) error {
 	log.Debug().Str("url", url).Int64("fileSize", fileSize).Msg("Registering ProgressManager")
 	progressManager.Register(outputPath, fileSize)
 
+	var progressWg sync.WaitGroup
+	progressWg.Add(1)
 	// Internal goroutine to forward progress updates to the manager
 	go func() {
+		defer progressWg.Done()
 		var totalDownloaded int64
 		for bytesDownloaded := range progressCh {
 			progressManager.Update(outputPath, bytesDownloaded)
@@ -51,7 +54,7 @@ func SimpleDownload(url string, outputPath string) error {
 
 	err = performSimpleDownload(url, outputPath, client, ToolUserAgent, progressCh)
 	close(progressCh)
-	// close(doneCh)
+	progressWg.Wait()
 	return err
 }
 

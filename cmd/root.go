@@ -120,13 +120,12 @@ func Execute() {
 }
 
 func init() {
-	// rootCmd.Flags().StringVarP(&url, "url", "u", "", "URL to download")
 	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (required with --url/-u)")
 	rootCmd.Flags().StringVarP(&urlListFile, "urllist", "l", "", "Path to YAML file containing URLs and output paths")
-	rootCmd.Flags().IntVarP(&numLinks, "workers", "w", 1, "Number of links to download in parallel (default: 1)")
-	rootCmd.Flags().IntVarP(&connections, "connections", "c", 4, "Number of connections per download (default: 4)")
-	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout (eg., 5s, 10m; default: 3m)")
-	rootCmd.Flags().DurationVarP(&kaTimeout, "keep-alive-timeout", "k", 90*time.Second, "Keep-alive timeout for client (eg./ 10s, 1m, 80s; default: 90s)")
+	rootCmd.Flags().IntVarP(&numLinks, "workers", "w", 1, "Number of links to download in parallel")
+	rootCmd.Flags().IntVarP(&connections, "connections", "c", 4, "Number of connections per download")
+	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout (eg. 5s, 10m)")
+	rootCmd.Flags().DurationVarP(&kaTimeout, "keep-alive-timeout", "k", 90*time.Second, "Keep-alive timeout for client (eg. 10s, 1m, 80s)")
 	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", internal.ToolUserAgent, "User agent")
 	rootCmd.Flags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
