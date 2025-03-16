@@ -108,6 +108,21 @@ func ReadDownloadList(filePath string) ([]DownloadEntry, error) {
 	return entries, nil
 }
 
+func RenewOutputPath(outputPath string) string {
+	dir := filepath.Dir(outputPath)
+	base := filepath.Base(outputPath)
+	ext := filepath.Ext(base)
+	name := base[:len(base)-len(ext)]
+	index := 1
+	for {
+		outputPath = filepath.Join(dir, fmt.Sprintf("%s-(%d)%s", name, index, ext))
+		if _, err := os.Stat(outputPath); os.IsNotExist(err) {
+			return outputPath
+		}
+		index++
+	}
+}
+
 func createHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL string, highThreadMode bool) *http.Client {
 	transport := &http.Transport{
 		MaxIdleConns:        100,

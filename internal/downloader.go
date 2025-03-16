@@ -11,7 +11,7 @@ import (
 
 func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int, timeout time.Duration, kaTimeout time.Duration, userAgent string, proxyURL string) error {
 	log := GetLogger("downloader")
-	log.Info().Int("totalFiles", len(entries)).Int("numLinks", numLinks).Int("connections", connectionsPerLink).Msg("Initiating download")
+	log.Info().Int("totalFiles", len(entries)).Int("workers", numLinks).Int("connections", connectionsPerLink).Msg("Initiating download")
 
 	progressManager := NewProgressManager()
 	progressManager.StartDisplay()
@@ -80,8 +80,16 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 					progressManager.Complete(outputPath, totalDownloaded)
 				}(entry.OutputPath, progressCh)
 
-				if err == ErrRangeRequestsNotSupported {
-					err = performSimpleDownload(entry.URL, entry.OutputPath, client, config.UserAgent, progressCh)
+				if err == ErrRangeRequestsNotSupported || config.Connections == 1 {
+					logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD with 1 connection")
+					simpleClient := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
+					err = performSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
+					close(progressCh)
+				} else if fileSize/int64(config.Connections) < 20*1024*1024 {
+					logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD bcz low file size")
+					simpleClient := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
+					err = performSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
+					close(progressCh)
 				} else {
 					err = downloadWithProgress(config, client, fileSize, progressCh)
 				}
@@ -112,24 +120,21 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 
 func downloadWithProgress(config DownloadConfig, client *http.Client, fileSize int64, progressCh chan<- int64) error {
 	log := GetLogger("download-worker")
-	// client := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL)
 	log.Debug().Str("size", formatBytes(uint64(fileSize))).Msg("File size determined")
 	job := DownloadJob{
 		Config:    config,
 		FileSize:  fileSize,
 		StartTime: time.Now(),
 	}
+	tempDir := filepath.Join(filepath.Dir(config.OutputPath), ".danzo-temp")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		log.Error().Err(err).Str("dir", tempDir).Msg("Error creating temp directory")
+		return fmt.Errorf("error creating temp directory: %v", err)
+	}
 
 	// Setup chunks
 	mutex := &sync.Mutex{}
 	chunkSize := fileSize / int64(config.Connections)
-	minChunkSize := int64(2 * 1024 * 1024) // 2MB minimum
-	if chunkSize < minChunkSize && fileSize > minChunkSize {
-		newConnections := max(int(fileSize/minChunkSize), 1)
-		log.Debug().Int("oldConnections", config.Connections).Int("newConnections", newConnections).Msg("Adjust connections for min. chunk size")
-		config.Connections = newConnections
-		chunkSize = fileSize / int64(config.Connections)
-	}
 	log.Debug().Int("connections", config.Connections).Str("chunkSize", formatBytes(uint64(chunkSize))).Msg("Download configuration")
 	var currentPosition int64 = 0
 	for i := range config.Connections {

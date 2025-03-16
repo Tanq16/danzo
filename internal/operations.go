@@ -63,10 +63,6 @@ func downloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, 
 	log := GetLogger("chunk").With().Int("chunkId", chunk.ID).Logger()
 	defer wg.Done()
 	tempDir := filepath.Join(filepath.Dir(job.Config.OutputPath), ".danzo-temp")
-	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		log.Error().Err(err).Str("dir", tempDir).Msg("Error creating temp directory")
-		return
-	}
 	tempFileName := filepath.Join(tempDir, fmt.Sprintf("%s.part%d", filepath.Base(job.Config.OutputPath), chunk.ID))
 	if fileInfo, err := os.Stat(tempFileName); err == nil {
 		expectedSize := chunk.EndByte - chunk.StartByte + 1

@@ -42,66 +42,66 @@ var rootCmd = &cobra.Command{
 			log.Fatal().Msg("Cannot specify url argument and --urllist together, choose one")
 		}
 		url := ""
-		if len(args) > 1 {
+		if len(args) > 0 {
+			// Handle single URL download
 			url = args[0]
 			if _, err := u.Parse(url); err != nil {
 				log.Fatal().Err(err).Msg("Invalid URL format")
 			}
-		}
-
-		// Handle single URL download
-		if url != "" {
 			if output == "" {
 				parsedURL, _ := u.Parse(url)
 				output = strings.Split(parsedURL.Path, "/")[len(strings.Split(parsedURL.Path, "/"))-1]
 				log.Debug().Str("output", output).Msg("Output file path not specified, using URL path")
 			}
 			entries := []internal.DownloadEntry{{URL: url, OutputPath: output}}
+			if _, err := os.Stat(output); err == nil {
+				entries[0].OutputPath = internal.RenewOutputPath(output)
+			}
 			err := internal.BatchDownload(entries, 1, connections, timeout, kaTimeout, userAgent, proxyURL)
 			if err != nil {
 				log.Fatal().Err(err).Msg("Download failed")
 			}
 			return
-		}
-
-		// Handle batch download from URL list file
-		entries, err := internal.ReadDownloadList(urlListFile)
-		if err != nil {
-			log.Fatal().Err(err).Msg("Failed to read URL list file")
-		}
-		connectionsPerLink := connections
-		maxConnections := 64
-		if numLinks*connectionsPerLink > maxConnections {
-			connectionsPerLink = max(maxConnections/numLinks, 1)
-			log.Warn().Int("connections", connectionsPerLink).Int("numLinks", numLinks).Msg("adjusted connections to below max limit")
-		}
-		err = internal.BatchDownload(entries, numLinks, connectionsPerLink, timeout, kaTimeout, userAgent, proxyURL)
-		if err != nil {
-			log.Fatal().Err(err).Msg("Batch download completed with errors")
-		}
-	},
-}
-
-var simpleCmd = &cobra.Command{
-	Use:   "simple",
-	Short: "Simple mode for single threaded direct download",
-	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		url := args[0]
-		if _, err := u.Parse(url); err != nil {
-			log.Fatal().Err(err).Msg("Invalid URL format")
-		}
-		if output == "" {
-			parsedURL, _ := u.Parse(url)
-			output = strings.Split(parsedURL.Path, "/")[len(strings.Split(parsedURL.Path, "/"))-1]
-			log.Debug().Str("output", output).Msg("Output file path not specified, using URL path")
-		}
-		err := internal.SimpleDownload(url, output)
-		if err != nil {
-			log.Fatal().Err(err).Msg("Download failed")
+		} else {
+			// Handle batch download from URL list file
+			entries, err := internal.ReadDownloadList(urlListFile)
+			if err != nil {
+				log.Fatal().Err(err).Msg("Failed to read URL list file")
+			}
+			connectionsPerLink := connections
+			maxConnections := 64
+			if numLinks*connectionsPerLink > maxConnections {
+				connectionsPerLink = max(maxConnections/numLinks, 1)
+				log.Warn().Int("connections", connectionsPerLink).Int("numLinks", numLinks).Msg("adjusted connections to below max limit")
+			}
+			err = internal.BatchDownload(entries, numLinks, connectionsPerLink, timeout, kaTimeout, userAgent, proxyURL)
+			if err != nil {
+				log.Fatal().Err(err).Msg("Batch download completed with errors")
+			}
 		}
 	},
 }
+
+// var simpleCmd = &cobra.Command{
+// 	Use:   "simple",
+// 	Short: "Simple mode for single threaded direct download",
+// 	Args:  cobra.ExactArgs(1),
+// 	Run: func(cmd *cobra.Command, args []string) {
+// 		url := args[0]
+// 		if _, err := u.Parse(url); err != nil {
+// 			log.Fatal().Err(err).Msg("Invalid URL format")
+// 		}
+// 		if output == "" {
+// 			parsedURL, _ := u.Parse(url)
+// 			output = strings.Split(parsedURL.Path, "/")[len(strings.Split(parsedURL.Path, "/"))-1]
+// 			log.Debug().Str("output", output).Msg("Output file path not specified, using URL path")
+// 		}
+// 		err := internal.SimpleDownload(url, output)
+// 		if err != nil {
+// 			log.Fatal().Err(err).Msg("Download failed")
+// 		}
+// 	},
+// }
 
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
@@ -136,6 +136,6 @@ func init() {
 	rootCmd.AddCommand(cleanCmd)
 	cleanCmd.Flags().StringVarP(&cleanOutput, "output", "o", "", "Output file path")
 
-	rootCmd.AddCommand(simpleCmd)
-	simpleCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path")
+	// rootCmd.AddCommand(simpleCmd)
+	// simpleCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path")
 }

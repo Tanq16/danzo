@@ -144,7 +144,7 @@ func (pm *ProgressManager) StartDisplay() {
 			pm.mutex.RUnlock()
 		}
 
-		// displayProgress()
+		displayProgress()
 		for {
 			select {
 			case <-ticker.C:
