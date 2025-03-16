@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -51,11 +52,11 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 					ProxyURL:    proxyURL,
 				}
 				progressCh := make(chan int64)
-				client := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL)
+				useHighThreadMode := config.Connections > 6
+				client := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, useHighThreadMode)
 				fileSize, err := getFileSize(config.URL, config.UserAgent, client)
 
 				if err == ErrRangeRequestsNotSupported {
-					// file size unknown, so can't show progress; so track bytes downloaded
 					logger.Debug().Str("url", entry.URL).Msg("Range requests not supported, using simple download")
 					progressManager.Register(entry.OutputPath, -1) // -1 means unknown size
 				} else if err != nil {
@@ -82,9 +83,8 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 				if err == ErrRangeRequestsNotSupported {
 					err = performSimpleDownload(entry.URL, entry.OutputPath, client, config.UserAgent, progressCh)
 				} else {
-					err = downloadWithProgress(config, fileSize, progressCh)
+					err = downloadWithProgress(config, client, fileSize, progressCh)
 				}
-				// close(progressCh)
 				progressWg.Wait()
 
 				if err != nil {
@@ -110,9 +110,9 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 	return nil
 }
 
-func downloadWithProgress(config DownloadConfig, fileSize int64, progressCh chan<- int64) error {
+func downloadWithProgress(config DownloadConfig, client *http.Client, fileSize int64, progressCh chan<- int64) error {
 	log := GetLogger("download-worker")
-	client := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL)
+	// client := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL)
 	log.Debug().Str("size", formatBytes(uint64(fileSize))).Msg("File size determined")
 	job := DownloadJob{
 		Config:    config,

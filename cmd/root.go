@@ -38,12 +38,15 @@ var rootCmd = &cobra.Command{
 		if len(args) == 0 && urlListFile == "" {
 			log.Fatal().Msg("No URL or URL list provided")
 		}
-		url := args[0]
-		if _, err := u.Parse(url); err != nil {
-			log.Fatal().Err(err).Msg("Invalid URL format")
+		if urlListFile != "" && len(args) > 0 {
+			log.Fatal().Msg("Cannot specify url argument and --urllist together, choose one")
 		}
-		if urlListFile != "" && url != "" {
-			log.Fatal().Msg("Cannot specify both argument and --urllist, choose one")
+		url := ""
+		if len(args) > 1 {
+			url = args[0]
+			if _, err := u.Parse(url); err != nil {
+				log.Fatal().Err(err).Msg("Invalid URL format")
+			}
 		}
 
 		// Handle single URL download

@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const bufferSize = 1024 * 1024 * 2 // 2MB buffer
+const bufferSize = 1024 * 1024 * 8 // 8MB buffer
 const ToolUserAgent = "danzo/1337"
 
 var chunkIDRegex = regexp.MustCompile(`\.part(\d+)$`)
@@ -108,7 +108,7 @@ func ReadDownloadList(filePath string) ([]DownloadEntry, error) {
 	return entries, nil
 }
 
-func createHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL string) *http.Client {
+func createHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL string, highThreadMode bool) *http.Client {
 	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100, // for connection reuse
@@ -118,7 +118,9 @@ func createHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL
 		// These two seem to reduce performance drastically with custom dial context
 		// DisableKeepAlives:   false,
 		// ForceAttemptHTTP2:   true,
-		DialContext: (&net.Dialer{
+	}
+	if highThreadMode {
+		transport.DialContext = (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
 			DualStack: true,
@@ -128,7 +130,7 @@ func createHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL
 					setSocketOptions(fd)
 				})
 			},
-		}).DialContext,
+		}).DialContext
 	}
 	if proxyURL != "" {
 		proxyURLParsed, err := url.Parse(proxyURL)

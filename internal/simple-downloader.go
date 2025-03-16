@@ -19,7 +19,7 @@ func SimpleDownload(url string, outputPath string) error {
 		progressManager.ShowSummary()
 	}()
 
-	client := createHTTPClient(3*time.Minute, 90*time.Second, "")
+	client := createHTTPClient(3*time.Minute, 90*time.Second, "", false)
 	progressCh := make(chan int64)
 
 	req, err := http.NewRequest("HEAD", url, nil)
