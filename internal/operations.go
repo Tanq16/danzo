@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+var ErrRangeRequestsNotSupported = errors.New("server doesn't support range requests")
+
 func getFileSize(url string, userAgent string, client *http.Client) (int64, error) {
 	log := GetLogger("filesize")
 	req, err := http.NewRequest("HEAD", url, nil)
@@ -27,7 +29,8 @@ func getFileSize(url string, userAgent string, client *http.Client) (int64, erro
 	}
 	defer resp.Body.Close()
 	if resp.Header.Get("Accept-Ranges") != "bytes" {
-		return 0, errors.New("server doesn't support range requests")
+		log.Warn().Msg("Server doesn't support range requests, will use simple download")
+		return 0, ErrRangeRequestsNotSupported
 	}
 	contentLength := resp.Header.Get("Content-Length")
 	if contentLength == "" {
@@ -43,6 +46,49 @@ func getFileSize(url string, userAgent string, client *http.Client) (int64, erro
 	log.Debug().Int64("bytes", size).Msg("File size determined")
 	return size, nil
 }
+
+func parseContentLength(contentLength string) (int64, error) {
+	var size int64
+	_, err := fmt.Sscanf(contentLength, "%d", &size)
+	if err != nil {
+		return -1, fmt.Errorf("invalid content length: %v", err)
+	}
+	if size <= 0 {
+		return -1, fmt.Errorf("invalid file size reported by server")
+	}
+	return size, nil
+}
+
+// func getFileSize(url string, userAgent string, client *http.Client) (int64, error) {
+// 	log := GetLogger("filesize")
+// 	req, err := http.NewRequest("HEAD", url, nil)
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	req.Header.Set("User-Agent", userAgent)
+// 	log.Debug().Str("url", url).Msg("Sending HEAD request")
+// 	resp, err := client.Do(req)
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	defer resp.Body.Close()
+// 	if resp.Header.Get("Accept-Ranges") != "bytes" {
+// 		return 0, errors.New("server doesn't support range requests")
+// 	}
+// 	contentLength := resp.Header.Get("Content-Length")
+// 	if contentLength == "" {
+// 		return 0, errors.New("server didn't provide Content-Length header")
+// 	}
+// 	size, err := strconv.ParseInt(contentLength, 10, 64)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("invalid content length: %v", err)
+// 	}
+// 	if size <= 0 {
+// 		return 0, errors.New("invalid file size reported by server")
+// 	}
+// 	log.Debug().Int64("bytes", size).Msg("File size determined")
+// 	return size, nil
+// }
 
 func downloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, wg *sync.WaitGroup, progressCh chan<- int64, mutex *sync.Mutex) {
 	log := GetLogger("chunk").With().Int("chunkId", chunk.ID).Logger()

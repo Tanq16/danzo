@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	u "net/url"
 	"os"
-	"runtime"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -12,7 +13,7 @@ import (
 )
 
 var (
-	url         string
+	// url         string
 	output      string
 	connections int
 	timeout     time.Duration
@@ -32,18 +33,25 @@ var rootCmd = &cobra.Command{
 		internal.InitLogger(debug)
 		log.Debug().Msg("Debug logging enabled")
 	},
+	Args: cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		if urlListFile != "" && url != "" {
-			log.Fatal().Msg("Cannot specify both --url and --urllist, choose one")
+		if len(args) == 0 && urlListFile == "" {
+			log.Fatal().Msg("No URL or URL list provided")
 		}
-		if urlListFile == "" && url == "" {
-			log.Fatal().Msg("Must specify either --url or --urllist")
+		url := args[0]
+		if _, err := u.Parse(url); err != nil {
+			log.Fatal().Err(err).Msg("Invalid URL format")
+		}
+		if urlListFile != "" && url != "" {
+			log.Fatal().Msg("Cannot specify both argument and --urllist, choose one")
 		}
 
 		// Handle single URL download
 		if url != "" {
 			if output == "" {
-				log.Fatal().Msg("Output file path is required with --url")
+				parsedURL, _ := u.Parse(url)
+				output = strings.Split(parsedURL.Path, "/")[len(strings.Split(parsedURL.Path, "/"))-1]
+				log.Debug().Str("output", output).Msg("Output file path not specified, using URL path")
 			}
 			entries := []internal.DownloadEntry{{URL: url, OutputPath: output}}
 			err := internal.BatchDownload(entries, 1, connections, timeout, kaTimeout, userAgent, proxyURL)
@@ -71,6 +79,27 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+var simpleCmd = &cobra.Command{
+	Use:   "simple",
+	Short: "Simple mode for single threaded direct download",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		url := args[0]
+		if _, err := u.Parse(url); err != nil {
+			log.Fatal().Err(err).Msg("Invalid URL format")
+		}
+		if output == "" {
+			parsedURL, _ := u.Parse(url)
+			output = strings.Split(parsedURL.Path, "/")[len(strings.Split(parsedURL.Path, "/"))-1]
+			log.Debug().Str("output", output).Msg("Output file path not specified, using URL path")
+		}
+		err := internal.SimpleDownload(url, output)
+		if err != nil {
+			log.Fatal().Err(err).Msg("Download failed")
+		}
+	},
+}
+
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
 	Short: "Clean up temporary files",
@@ -91,17 +120,20 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&url, "url", "u", "", "URL to download")
+	// rootCmd.Flags().StringVarP(&url, "url", "u", "", "URL to download")
 	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (required with --url/-u)")
 	rootCmd.Flags().StringVarP(&urlListFile, "urllist", "l", "", "Path to YAML file containing URLs and output paths")
 	rootCmd.Flags().IntVarP(&numLinks, "workers", "w", 1, "Number of links to download in parallel (default: 1)")
-	rootCmd.Flags().IntVarP(&connections, "connections", "c", min(runtime.NumCPU(), 32), "Number of connections per download (default: CPU cores)")
+	rootCmd.Flags().IntVarP(&connections, "connections", "c", 4, "Number of connections per download (default: 4)")
 	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout (eg., 5s, 10m; default: 3m)")
 	rootCmd.Flags().DurationVarP(&kaTimeout, "keep-alive-timeout", "k", 90*time.Second, "Keep-alive timeout for client (eg./ 10s, 1m, 80s; default: 90s)")
-	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", "Danzo/1337", "User agent")
+	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", internal.ToolUserAgent, "User agent")
 	rootCmd.Flags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 
 	rootCmd.AddCommand(cleanCmd)
 	cleanCmd.Flags().StringVarP(&cleanOutput, "output", "o", "", "Output file path")
+
+	rootCmd.AddCommand(simpleCmd)
+	simpleCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path")
 }

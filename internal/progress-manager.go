@@ -54,6 +54,7 @@ func (pm *ProgressManager) Update(outputPath string, bytesDownloaded int64) {
 func (pm *ProgressManager) Complete(outputPath string, totalDownloaded int64) {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
+	log.Debug().Msg("REACHED HERE - Complete")
 	if info, exists := pm.progressMap[outputPath]; exists {
 		info.Completed = true
 		info.CompletedSize = totalDownloaded
@@ -84,66 +85,70 @@ func (pm *ProgressManager) StartDisplay() {
 			fmt.Printf("\r\033[K") // Clear the current line
 		}
 
+		displayProgress := func() {
+			pm.mutex.RLock()
+			activePaths := map[int]string{}
+			innerIndex := 0
+			for path, info := range pm.progressMap {
+				if !info.Completed {
+					activePaths[innerIndex] = path
+					innerIndex++
+				}
+			}
+			if len(activePaths) > 0 {
+				if currentIndex >= len(activePaths) {
+					currentIndex = 0
+				}
+				outputPath := activePaths[currentIndex]
+				info := pm.progressMap[outputPath]
+				now := time.Now()
+				lastTime, exists := lastUpdateTimes[outputPath]
+				if !exists {
+					lastTime = info.StartTime
+					lastDownloaded[outputPath] = 0
+				}
+				timeDiff := now.Sub(lastTime).Seconds()
+				byteDiff := info.Downloaded - lastDownloaded[outputPath]
+				if timeDiff > 0 {
+					info.Speed = float64(byteDiff) / timeDiff / 1024 / 1024 // MB/s
+					lastUpdateTimes[outputPath] = now
+					lastDownloaded[outputPath] = info.Downloaded
+				}
+				elapsed := time.Since(info.StartTime).Seconds()
+				if elapsed > 0 {
+					info.AvgSpeed = float64(info.Downloaded) / elapsed / 1024 / 1024 // MB/s
+				}
+				if info.Speed > 0 {
+					etaSeconds := int64(float64(info.TotalSize-info.Downloaded) / (info.Speed * 1024 * 1024)) // from MB/s to B/s
+					if etaSeconds < 60 {
+						info.ETA = fmt.Sprintf("%ds", etaSeconds)
+					} else if etaSeconds < 3600 {
+						info.ETA = fmt.Sprintf("%dm %ds", etaSeconds/60, etaSeconds%60)
+					} else {
+						info.ETA = fmt.Sprintf("%dh %dm", etaSeconds/3600, (etaSeconds%3600)/60)
+					}
+				} else {
+					info.ETA = "calculating..."
+				}
+				percent := float64(info.Downloaded) / float64(info.TotalSize) * 100
+
+				// Display progress
+				clearLine()
+				fmt.Printf("[%s] %.2f%% (%s/%s) Speed: %.2f MB/s ETA: %s", outputPath, percent, formatBytes(uint64(info.Downloaded)), formatBytes(uint64(info.TotalSize)), info.Speed, info.ETA)
+				log.Debug().Str("file", outputPath).Float64("percent", percent).Str("downloaded", formatBytes(uint64(info.Downloaded))).Str("total", formatBytes(uint64(info.TotalSize))).Float64("speed_mbps", info.Speed).Str("eta", info.ETA).Msg("Download progress")
+			} else if pm.IsAllCompleted() {
+				clearLine()
+				fmt.Print("Performing assemble or waiting for a job...")
+			}
+			currentIndex++
+			pm.mutex.RUnlock()
+		}
+
+		displayProgress()
 		for {
 			select {
 			case <-ticker.C:
-				pm.mutex.RLock()
-				activePaths := map[int]string{}
-				innerIndex := 0
-				for path, info := range pm.progressMap {
-					if !info.Completed {
-						activePaths[innerIndex] = path
-						innerIndex++
-					}
-				}
-				if len(activePaths) > 0 {
-					if currentIndex >= len(activePaths) {
-						currentIndex = 0
-					}
-					outputPath := activePaths[currentIndex]
-					info := pm.progressMap[outputPath]
-					now := time.Now()
-					lastTime, exists := lastUpdateTimes[outputPath]
-					if !exists {
-						lastTime = info.StartTime
-						lastDownloaded[outputPath] = 0
-					}
-					timeDiff := now.Sub(lastTime).Seconds()
-					byteDiff := info.Downloaded - lastDownloaded[outputPath]
-					if timeDiff > 0 {
-						info.Speed = float64(byteDiff) / timeDiff / 1024 / 1024 // MB/s
-						lastUpdateTimes[outputPath] = now
-						lastDownloaded[outputPath] = info.Downloaded
-					}
-					elapsed := time.Since(info.StartTime).Seconds()
-					if elapsed > 0 {
-						info.AvgSpeed = float64(info.Downloaded) / elapsed / 1024 / 1024 // MB/s
-					}
-					if info.Speed > 0 {
-						etaSeconds := int64(float64(info.TotalSize-info.Downloaded) / (info.Speed * 1024 * 1024)) // from MB/s to B/s
-						if etaSeconds < 60 {
-							info.ETA = fmt.Sprintf("%ds", etaSeconds)
-						} else if etaSeconds < 3600 {
-							info.ETA = fmt.Sprintf("%dm %ds", etaSeconds/60, etaSeconds%60)
-						} else {
-							info.ETA = fmt.Sprintf("%dh %dm", etaSeconds/3600, (etaSeconds%3600)/60)
-						}
-					} else {
-						info.ETA = "calculating..."
-					}
-					percent := float64(info.Downloaded) / float64(info.TotalSize) * 100
-
-					// Display progress
-					clearLine()
-					fmt.Printf("[%s] %.2f%% (%s/%s) Speed: %.2f MB/s ETA: %s", outputPath, percent, formatBytes(uint64(info.Downloaded)), formatBytes(uint64(info.TotalSize)), info.Speed, info.ETA)
-					log.Debug().Str("file", outputPath).Float64("percent", percent).Str("downloaded", formatBytes(uint64(info.Downloaded))).Str("total", formatBytes(uint64(info.TotalSize))).Float64("speed_mbps", info.Speed).Str("eta", info.ETA).Msg("Download progress")
-				} else if pm.IsAllCompleted() {
-					clearLine()
-					fmt.Print("Performing assemble or waiting for a job...")
-				}
-				currentIndex++
-				pm.mutex.RUnlock()
-
+				displayProgress()
 			case <-pm.doneCh:
 				clearLine()
 				return

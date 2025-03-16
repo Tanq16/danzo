@@ -16,6 +16,8 @@ import (
 )
 
 const bufferSize = 1024 * 1024 * 2 // 2MB buffer
+const ToolUserAgent = "danzo/1337"
+
 var chunkIDRegex = regexp.MustCompile(`\.part(\d+)$`)
 
 type DownloadConfig struct {

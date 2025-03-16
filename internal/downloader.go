@@ -54,12 +54,18 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 				doneCh := make(chan struct{})
 				client := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL)
 				fileSize, err := getFileSize(config.URL, config.UserAgent, client)
-				if err != nil {
+
+				if err == ErrRangeRequestsNotSupported {
+					// file size unknown, so can't show progress; so track bytes downloaded
+					logger.Debug().Str("url", entry.URL).Msg("Range requests not supported, using simple download")
+					progressManager.Register(entry.OutputPath, -1) // -1 means unknown size
+				} else if err != nil {
 					logger.Error().Err(err).Str("output", entry.OutputPath).Msg("Failed to get file size")
 					errorCh <- fmt.Errorf("error getting file size for %s: %v", entry.URL, err)
 					continue
+				} else {
+					progressManager.Register(entry.OutputPath, fileSize)
 				}
-				progressManager.Register(entry.OutputPath, fileSize)
 				var internalWg sync.WaitGroup
 				internalWg.Add(1)
 
@@ -83,7 +89,11 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 					}
 				}(entry.OutputPath, progressCh, doneCh)
 
-				err = downloadWithProgress(config, fileSize, progressCh)
+				if err == ErrRangeRequestsNotSupported {
+					err = performSimpleDownload(entry.URL, entry.OutputPath, client, config.UserAgent, progressCh)
+				} else {
+					err = downloadWithProgress(config, fileSize, progressCh)
+				}
 				close(doneCh)
 				internalWg.Wait()
 
