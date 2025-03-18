@@ -13,7 +13,6 @@ import (
 )
 
 var (
-	// url         string
 	output      string
 	connections int
 	timeout     time.Duration
@@ -82,27 +81,6 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// var simpleCmd = &cobra.Command{
-// 	Use:   "simple",
-// 	Short: "Simple mode for single threaded direct download",
-// 	Args:  cobra.ExactArgs(1),
-// 	Run: func(cmd *cobra.Command, args []string) {
-// 		url := args[0]
-// 		if _, err := u.Parse(url); err != nil {
-// 			log.Fatal().Err(err).Msg("Invalid URL format")
-// 		}
-// 		if output == "" {
-// 			parsedURL, _ := u.Parse(url)
-// 			output = strings.Split(parsedURL.Path, "/")[len(strings.Split(parsedURL.Path, "/"))-1]
-// 			log.Debug().Str("output", output).Msg("Output file path not specified, using URL path")
-// 		}
-// 		err := internal.SimpleDownload(url, output)
-// 		if err != nil {
-// 			log.Fatal().Err(err).Msg("Download failed")
-// 		}
-// 	},
-// }
-
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
 	Short: "Clean up temporary files",
@@ -135,7 +113,4 @@ func init() {
 
 	rootCmd.AddCommand(cleanCmd)
 	cleanCmd.Flags().StringVarP(&cleanOutput, "output", "o", "", "Output file path")
-
-	// rootCmd.AddCommand(simpleCmd)
-	// simpleCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path")
 }
