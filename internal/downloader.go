@@ -52,7 +52,7 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 					ProxyURL:    proxyURL,
 				}
 				progressCh := make(chan int64)
-				useHighThreadMode := config.Connections > 6
+				useHighThreadMode := config.Connections > 5
 				client := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, useHighThreadMode)
 				fileSize, err := getFileSize(config.URL, config.UserAgent, client)
 

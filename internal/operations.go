@@ -64,17 +64,25 @@ func downloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, 
 	defer wg.Done()
 	tempDir := filepath.Join(filepath.Dir(job.Config.OutputPath), ".danzo-temp")
 	tempFileName := filepath.Join(tempDir, fmt.Sprintf("%s.part%d", filepath.Base(job.Config.OutputPath), chunk.ID))
+	expectedSize := chunk.EndByte - chunk.StartByte + 1
+	resumeOffset := int64(0)
 	if fileInfo, err := os.Stat(tempFileName); err == nil {
-		expectedSize := chunk.EndByte - chunk.StartByte + 1
-		if fileInfo.Size() == expectedSize {
-			log.Debug().Str("file", filepath.Base(tempFileName)).Int64("size", expectedSize).Msg("Chunk already downloaded, skipping")
+		resumeOffset = fileInfo.Size()
+		if resumeOffset == expectedSize {
+			log.Debug().Str("file", filepath.Base(tempFileName)).Int64("size", chunk.Downloaded).Msg("Chunk already downloaded, skipping")
 			mutex.Lock()
 			job.TempFiles = append(job.TempFiles, tempFileName)
 			mutex.Unlock()
-			chunk.Downloaded = expectedSize
+			chunk.Downloaded = resumeOffset
 			chunk.Completed = true
-			progressCh <- expectedSize
+			progressCh <- resumeOffset
 			return
+		} else if resumeOffset > 0 && resumeOffset < expectedSize { // Resume incomplete chunk
+			log.Debug().Str("file", filepath.Base(tempFileName)).Int64("size", resumeOffset).Int64("total", expectedSize).Msg("Resuming incomplete chunk")
+		} else if chunk.Downloaded > 0 {
+			log.Warn().Str("file", filepath.Base(tempFileName)).Int64("size", resumeOffset).Int64("expected", expectedSize).Msg("Temporary file larger than expected, removing and redownloading")
+			os.Remove(tempFileName)
+			resumeOffset = 0
 		}
 	}
 	maxRetries := 5
@@ -82,15 +90,22 @@ func downloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, 
 		if retry > 0 {
 			log.Debug().Int("attempt", retry+1).Int("maxRetries", maxRetries).Msg("Retrying download of chunk")
 			time.Sleep(time.Duration(retry+1) * 500 * time.Millisecond) // Backoff
-			if chunk.Downloaded > 0 {
-				progressCh <- -chunk.Downloaded
-				chunk.Downloaded = 0
+			if fileInfo, err := os.Stat(tempFileName); err == nil {
+				currentSize := fileInfo.Size()
+				if currentSize != chunk.Downloaded && chunk.Downloaded > 0 {
+					log.Debug().Int64("fileSize", currentSize).Int64("downloaded", chunk.Downloaded).Msg("Resetting chunk download")
+					os.Remove(tempFileName)
+					progressCh <- -chunk.Downloaded // Subtract from progress
+					chunk.Downloaded = 0
+					resumeOffset = 0
+				}
 			}
 		}
-		if err := doDownloadChunk(job, chunk, client, tempFileName, progressCh); err != nil {
+		if err := doDownloadChunk(job, chunk, client, tempFileName, progressCh, resumeOffset); err != nil {
 			log.Error().Err(err).Int("attempt", retry+1).Msg("Error downloading chunk")
 			continue
 		}
+		// On success
 		mutex.Lock()
 		job.TempFiles = append(job.TempFiles, tempFileName)
 		mutex.Unlock()
@@ -100,13 +115,26 @@ func downloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, 
 	log.Error().Int("maxRetries", maxRetries).Msg("Failed to download chunk after multiple attempts")
 }
 
-func doDownloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, tempFileName string, progressCh chan<- int64) error {
+func doDownloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, tempFileName string, progressCh chan<- int64, resumeOffset int64) error {
 	log := GetLogger("download").With().Int("chunkId", chunk.ID).Logger()
+	flag := os.O_WRONLY | os.O_CREATE
+	if resumeOffset > 0 {
+		flag |= os.O_APPEND
+	} else {
+		flag |= os.O_TRUNC
+	}
+	tempFile, err := os.OpenFile(tempFileName, flag, 0644)
+	if err != nil {
+		return fmt.Errorf("error opening temp file: %v", err)
+	}
+	defer tempFile.Close()
+
+	startByte := chunk.StartByte + resumeOffset
+	rangeHeader := fmt.Sprintf("bytes=%d-%d", startByte, chunk.EndByte)
 	req, err := http.NewRequest("GET", job.Config.URL, nil)
 	if err != nil {
 		return err
 	}
-	rangeHeader := fmt.Sprintf("bytes=%d-%d", chunk.StartByte, chunk.EndByte)
 	req.Header.Set("Range", rangeHeader)
 	req.Header.Set("User-Agent", job.Config.UserAgent)
 	req.Header.Set("Connection", "keep-alive")
@@ -123,13 +151,14 @@ func doDownloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client
 	if contentRange == "" {
 		return errors.New("missing Content-Range header")
 	}
-	tempFile, err := os.Create(tempFileName)
-	if err != nil {
-		return err
+
+	if resumeOffset > 0 {
+		progressCh <- resumeOffset
+		chunk.Downloaded = resumeOffset
 	}
-	defer tempFile.Close()
+	remainingBytes := chunk.EndByte - startByte + 1
 	buffer := make([]byte, bufferSize)
-	expectedSize := chunk.EndByte - chunk.StartByte + 1
+	newBytes := int64(0)
 	for {
 		bytesRead, err := resp.Body.Read(buffer)
 		if bytesRead > 0 {
@@ -137,6 +166,7 @@ func doDownloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client
 			if writeErr != nil {
 				return writeErr
 			}
+			newBytes += int64(bytesRead)
 			chunk.Downloaded += int64(bytesRead)
 			progressCh <- int64(bytesRead)
 		}
@@ -147,10 +177,15 @@ func doDownloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client
 			return err
 		}
 	}
-	if chunk.Downloaded != expectedSize {
-		return fmt.Errorf("size mismatch: expected %d bytes, got %d bytes", expectedSize, chunk.Downloaded)
+	if newBytes != remainingBytes {
+		log.Error().Int64("remainingBytes", remainingBytes).Int64("newBytes", newBytes).Int64("totalDownloaded", chunk.Downloaded).Int64("resumeOffset", resumeOffset).Msg("Size mismatch on chunk download")
+		return fmt.Errorf("size mismatch: expected %d remaining bytes, got %d bytes this session", remainingBytes, newBytes)
 	}
-	log.Debug().Int64("expectedSize", expectedSize).Int64("downloadedSize", chunk.Downloaded).Msg("Chunk download completed")
+	totalExpectedSize := chunk.EndByte - chunk.StartByte + 1
+	if chunk.Downloaded != totalExpectedSize {
+		return fmt.Errorf("total size mismatch: expected %d total bytes, got %d bytes", totalExpectedSize, chunk.Downloaded)
+	}
+	log.Debug().Int64("totalExpectedSize", totalExpectedSize).Int64("remainingBytes", remainingBytes).Int64("downloadedThisSession", newBytes).Int64("totalDownloaded", chunk.Downloaded).Msg("Chunk download completed")
 	return nil
 }
 
