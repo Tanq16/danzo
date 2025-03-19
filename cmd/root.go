@@ -25,9 +25,12 @@ var (
 	numLinks    int
 )
 
+var DanzoVersion = "dev"
+
 var rootCmd = &cobra.Command{
-	Use:   "danzo",
-	Short: "Danzo is a fast CLI download manager",
+	Use:     "danzo",
+	Short:   "Danzo is a fast CLI download manager",
+	Version: DanzoVersion,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		internal.InitLogger(debug)
 		log.Debug().Msg("Debug logging enabled")

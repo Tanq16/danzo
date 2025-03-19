@@ -70,7 +70,7 @@ jobs:
 
       - name: Build Binary
         run: |
-          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -ldflags="-s -w" -o danzo-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows' && '.exe' || '' }}
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -ldflags="-s -w -X github.com/tanq16/danzo/cmd.DanzoVersion=${{ needs.create-release.outputs.version }}" -o danzo-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows' && '.exe' || '' }}
 
       - name: Upload Release Asset
         run: |
