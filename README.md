@@ -31,6 +31,7 @@
 - Configurable (optional, except for batch YAML config) output filenames
   - Automatic numbering of existing names for single URL downloads
   - Automatic output name inference from URL path
+- Resumable downloads for both single-threaded and multi-threaded downloads
 
 ## Installation
 
@@ -151,15 +152,25 @@ danzo -l downloads.yaml -w 3 -c 16
 > [!NOTE]
 > Danzo caps the total number of parallel workers at 64. Specifically `#workers * #connections <= 64`. This is a generous default to prevent overwhelming the system.
 
-### Cleaning Temporary Files
+### Resumable Downloads & Temporary Files
 
-Danzo stores partial downloads on disk in the `.danzo-temp` directory (situated in the same path as the associated output path). If a download event is interrupted or failed, the temporary files can be cleared by using the `clean` command:
+Single-connection downloads store a `OUTPUTPATH.part` file in the current working directory while multi-connection downloads store partial files named `OUTPUTPATH.part1`, `OUTPUTPATH.part2`, etc. in the `.danzo-temp` directory.
+
+These partial downloads on disk are useful when a download event is interrupted or failed. In that case, the temporary files are used to resume the download.
+
+> [!WARNING]
+> A resume operation is triggered automatically when the same output path is encountered. However, the feature will only work correctly if the number of connections are exactly the same. Otherwise, the resulting assembled file may contain faulty bytes.
+
+To clear the temporary (partially downloaded) files, use the `clean` command:
 
 ```bash
 danzo clean -o "./path/for/download.zip"
 ```
 
 For batch downloads, you may need to run the clean command for each output path individually if they don't share the same parent directory.
+
+> [!NOTE]
+> The `clean` command is helpful only when your downloads have failed or were interrupted. Otherwise, Danzo automatically runs a clean for a download event once it is successful.
 
 ## Tips and Notes
 
@@ -171,4 +182,8 @@ For batch downloads, you may need to run the clean command for each output path 
 - Debug mode (`--debug`) provides detailed information about the download process.
 - Temporary files are automatically cleaned up after successful downloads.
 - Use `-a randomize` to randomly assign a user agent for every HTTP client. The full list of user agents considered are stored in the [helpers.go](https://github.com/Tanq16/danzo/blob/main/internal/helpers.go) file.
-- The tool automatically activates "high-thread-mode" when using more than 6 connections, which optimizes socket buffer sizes for better performance.
+- The tool automatically activates "high-thread-mode" when using more than 5 connections, which optimizes socket buffer sizes for better performance.
+- Maximizing throughput - Danzo supports 2 (automatically handled) modes of HTTP clients:
+  - Simple: this client has a default configuration and usually helps with lower number of connections; Danzo uses this mode for upto 5 connections (including the default of 4)
+  - Specialized: this client has a custom configuration and significantly benefits high-thread mode; Danzo automatically switches to this mode for high-thread mode (>=6 connections)
+  - Example: A large download with the specicalized client and 2 threads will run at ~4 MB/s. The same download with a simple client would run at ~20 MB/s. Next, the same download with the simple client but 30 threads would also run at 20 MB/s. However, the exact same download with the specialized client and 30 threads will run at ~60 MB/s. This example is a simple real-world observation meant to demonstrate the need for striking a balance between number of threads and download size to obtain maximum throughput.
