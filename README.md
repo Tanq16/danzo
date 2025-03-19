@@ -20,7 +20,7 @@
 - Automatic optimization of chunk size vs. threads
   - Direct single-threaded download preference for small chunk sizes
   - Fallback to single thread operation for lack of byte-range support
-  - Automatic configuration of TCP dialer high-thread mode (>6 connection threads)
+  - Automatic configuration of TCP dialer high-thread mode (>5 connection threads)
 - Real-time rotating progress display with average speed and ETA
 - Multi-worker (second threading layer) batch file downloads with a YAML config
 - Customizable download parameters
