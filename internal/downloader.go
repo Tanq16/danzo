@@ -2,9 +2,6 @@ package internal
 
 import (
 	"fmt"
-	"net/http"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 )
@@ -19,7 +16,7 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 		close(progressManager.doneCh)
 		progressManager.ShowSummary()
 		for _, entry := range entries {
-			os.RemoveAll(filepath.Join(filepath.Dir(entry.OutputPath), ".danzo-temp"))
+			Clean(entry.OutputPath)
 		}
 	}()
 
@@ -42,7 +39,7 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 				if userAgent == "randomize" {
 					userAgent = getRandomUserAgent()
 				}
-				config := DownloadConfig{
+				config := downloadConfig{
 					URL:         entry.URL,
 					OutputPath:  entry.OutputPath,
 					Connections: connectionsPerLink,
@@ -114,75 +111,6 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 	}
 	if len(errors) > 0 {
 		return fmt.Errorf("batch download completed with %d errors: %v", len(errors), errors)
-	}
-	return nil
-}
-
-func downloadWithProgress(config DownloadConfig, client *http.Client, fileSize int64, progressCh chan<- int64) error {
-	log := GetLogger("download-worker")
-	log.Debug().Str("size", formatBytes(uint64(fileSize))).Msg("File size determined")
-	job := DownloadJob{
-		Config:    config,
-		FileSize:  fileSize,
-		StartTime: time.Now(),
-	}
-	tempDir := filepath.Join(filepath.Dir(config.OutputPath), ".danzo-temp")
-	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		log.Error().Err(err).Str("dir", tempDir).Msg("Error creating temp directory")
-		return fmt.Errorf("error creating temp directory: %v", err)
-	}
-
-	// Setup chunks
-	mutex := &sync.Mutex{}
-	chunkSize := fileSize / int64(config.Connections)
-	log.Debug().Int("connections", config.Connections).Str("chunkSize", formatBytes(uint64(chunkSize))).Msg("Download configuration")
-	var currentPosition int64 = 0
-	for i := range config.Connections {
-		startByte := currentPosition
-		endByte := startByte + chunkSize - 1
-		if i == config.Connections-1 {
-			endByte = fileSize - 1
-		}
-		if endByte >= fileSize {
-			endByte = fileSize - 1
-		}
-		if endByte >= startByte {
-			job.Chunks = append(job.Chunks, DownloadChunk{
-				ID:        i,
-				StartByte: startByte,
-				EndByte:   endByte,
-			})
-		}
-		currentPosition = endByte + 1
-	}
-	log.Debug().Str("output", config.OutputPath).Int("chunks", len(job.Chunks)).Msg("Download divided into chunks")
-
-	// Start connection goroutines
-	var wg sync.WaitGroup
-	for i := range job.Chunks {
-		wg.Add(1)
-		go downloadChunk(&job, &job.Chunks[i], client, &wg, progressCh, mutex)
-	}
-
-	// Wait for all downloads to complete
-	wg.Wait()
-	close(progressCh)
-	allCompleted := true
-	var incompleteChunks []int
-	for i, chunk := range job.Chunks {
-		if !chunk.Completed {
-			allCompleted = false
-			incompleteChunks = append(incompleteChunks, i)
-		}
-	}
-	if !allCompleted {
-		return fmt.Errorf("download incomplete: %d chunks failed: %v", len(incompleteChunks), incompleteChunks)
-	}
-
-	// Assemble the file
-	err := assembleFile(job)
-	if err != nil {
-		return fmt.Errorf("error assembling file: %v", err)
 	}
 	return nil
 }

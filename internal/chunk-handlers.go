@@ -15,51 +15,51 @@ import (
 
 var ErrRangeRequestsNotSupported = errors.New("server doesn't support range requests")
 
-func getFileSize(url string, userAgent string, client *http.Client) (int64, error) {
-	log := GetLogger("filesize")
-	req, err := http.NewRequest("HEAD", url, nil)
-	if err != nil {
-		return 0, err
-	}
-	req.Header.Set("User-Agent", userAgent)
-	log.Debug().Str("url", url).Msg("Sending HEAD request")
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-	if resp.Header.Get("Accept-Ranges") != "bytes" {
-		log.Warn().Msg("Server doesn't support range requests, will use simple download")
-		return 0, ErrRangeRequestsNotSupported
-	}
-	contentLength := resp.Header.Get("Content-Length")
-	if contentLength == "" {
-		return 0, errors.New("server didn't provide Content-Length header")
-	}
-	size, err := strconv.ParseInt(contentLength, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid content length: %v", err)
-	}
-	if size <= 0 {
-		return 0, errors.New("invalid file size reported by server")
-	}
-	log.Debug().Int64("bytes", size).Msg("File size determined")
-	return size, nil
-}
+// func getFileSize(url string, userAgent string, client *http.Client) (int64, error) {
+// 	log := GetLogger("filesize")
+// 	req, err := http.NewRequest("HEAD", url, nil)
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	req.Header.Set("User-Agent", userAgent)
+// 	log.Debug().Str("url", url).Msg("Sending HEAD request")
+// 	resp, err := client.Do(req)
+// 	if err != nil {
+// 		return 0, err
+// 	}
+// 	defer resp.Body.Close()
+// 	if resp.Header.Get("Accept-Ranges") != "bytes" {
+// 		log.Warn().Msg("Server doesn't support range requests, will use simple download")
+// 		return 0, ErrRangeRequestsNotSupported
+// 	}
+// 	contentLength := resp.Header.Get("Content-Length")
+// 	if contentLength == "" {
+// 		return 0, errors.New("server didn't provide Content-Length header")
+// 	}
+// 	size, err := strconv.ParseInt(contentLength, 10, 64)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("invalid content length: %v", err)
+// 	}
+// 	if size <= 0 {
+// 		return 0, errors.New("invalid file size reported by server")
+// 	}
+// 	log.Debug().Int64("bytes", size).Msg("File size determined")
+// 	return size, nil
+// }
 
-func parseContentLength(contentLength string) (int64, error) {
-	var size int64
-	_, err := fmt.Sscanf(contentLength, "%d", &size)
-	if err != nil {
-		return -1, fmt.Errorf("invalid content length: %v", err)
-	}
-	if size <= 0 {
-		return -1, fmt.Errorf("invalid file size reported by server")
-	}
-	return size, nil
-}
+// func parseContentLength(contentLength string) (int64, error) {
+// 	var size int64
+// 	_, err := fmt.Sscanf(contentLength, "%d", &size)
+// 	if err != nil {
+// 		return -1, fmt.Errorf("invalid content length: %v", err)
+// 	}
+// 	if size <= 0 {
+// 		return -1, fmt.Errorf("invalid file size reported by server")
+// 	}
+// 	return size, nil
+// }
 
-func downloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, wg *sync.WaitGroup, progressCh chan<- int64, mutex *sync.Mutex) {
+func chunkedDownload(job *downloadJob, chunk *downloadChunk, client *http.Client, wg *sync.WaitGroup, progressCh chan<- int64, mutex *sync.Mutex) {
 	log := GetLogger("chunk").With().Int("chunkId", chunk.ID).Logger()
 	defer wg.Done()
 	tempDir := filepath.Join(filepath.Dir(job.Config.OutputPath), ".danzo-temp")
@@ -101,7 +101,7 @@ func downloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, 
 				}
 			}
 		}
-		if err := doDownloadChunk(job, chunk, client, tempFileName, progressCh, resumeOffset); err != nil {
+		if err := downloadSingleChunk(job, chunk, client, tempFileName, progressCh, resumeOffset); err != nil {
 			log.Error().Err(err).Int("attempt", retry+1).Msg("Error downloading chunk")
 			continue
 		}
@@ -115,7 +115,7 @@ func downloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, 
 	log.Error().Int("maxRetries", maxRetries).Msg("Failed to download chunk after multiple attempts")
 }
 
-func doDownloadChunk(job *DownloadJob, chunk *DownloadChunk, client *http.Client, tempFileName string, progressCh chan<- int64, resumeOffset int64) error {
+func downloadSingleChunk(job *downloadJob, chunk *downloadChunk, client *http.Client, tempFileName string, progressCh chan<- int64, resumeOffset int64) error {
 	log := GetLogger("download").With().Int("chunkId", chunk.ID).Logger()
 	flag := os.O_WRONLY | os.O_CREATE
 	if resumeOffset > 0 {
@@ -197,7 +197,7 @@ func extractChunkID(filename string) (int, error) {
 	return strconv.Atoi(matches[1])
 }
 
-func assembleFile(job DownloadJob) error {
+func assembleFile(job downloadJob) error {
 	log := GetLogger("assembler")
 	allChunksCompleted := true
 	for i, chunk := range job.Chunks {

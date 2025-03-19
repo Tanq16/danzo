@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -20,7 +22,7 @@ const ToolUserAgent = "danzo/1337"
 
 var chunkIDRegex = regexp.MustCompile(`\.part(\d+)$`)
 
-type DownloadConfig struct {
+type downloadConfig struct {
 	URL         string
 	OutputPath  string
 	Connections int
@@ -30,7 +32,7 @@ type DownloadConfig struct {
 	UserAgent   string
 }
 
-type DownloadChunk struct {
+type downloadChunk struct {
 	ID         int
 	StartByte  int64
 	EndByte    int64
@@ -42,10 +44,10 @@ type DownloadChunk struct {
 	FinishTime time.Time
 }
 
-type DownloadJob struct {
-	Config    DownloadConfig
+type downloadJob struct {
+	Config    downloadConfig
 	FileSize  int64
-	Chunks    []DownloadChunk
+	Chunks    []downloadChunk
 	StartTime time.Time
 	TempFiles []string
 	FileHash  string
@@ -160,6 +162,38 @@ func createHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL
 		Timeout:   timeout,
 		Transport: transport,
 	}
+}
+
+func getFileSize(url string, userAgent string, client *http.Client) (int64, error) {
+	log := GetLogger("filesize")
+	req, err := http.NewRequest("HEAD", url, nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	log.Debug().Str("url", url).Msg("Sending HEAD request")
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.Header.Get("Accept-Ranges") != "bytes" {
+		log.Warn().Msg("Server doesn't support range requests, will use simple download")
+		return 0, ErrRangeRequestsNotSupported
+	}
+	contentLength := resp.Header.Get("Content-Length")
+	if contentLength == "" {
+		return 0, errors.New("server didn't provide Content-Length header")
+	}
+	size, err := strconv.ParseInt(contentLength, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid content length: %v", err)
+	}
+	if size <= 0 {
+		return 0, errors.New("invalid file size reported by server")
+	}
+	log.Debug().Int64("bytes", size).Msg("File size determined")
+	return size, nil
 }
 
 func formatBytes(bytes uint64) string {
