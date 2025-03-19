@@ -82,7 +82,7 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 					simpleClient := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
 					err = performSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
 					close(progressCh)
-				} else if fileSize/int64(config.Connections) < 20*1024*1024 {
+				} else if fileSize/int64(config.Connections) < 10*1024*1024 {
 					logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD bcz low file size")
 					simpleClient := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
 					err = performSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)

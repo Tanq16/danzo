@@ -7,7 +7,7 @@ on:
   issue_comment:
     types: [created]
   workflow_run:
-    workflows: ["Docker Publish", "Build Binary"]
+    workflows: ["Build Binary"]
     types: [completed]
   pull_request:
     types: [opened, closed, edited, review_requested]
