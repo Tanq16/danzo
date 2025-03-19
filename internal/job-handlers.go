@@ -10,54 +10,6 @@ import (
 	"time"
 )
 
-// func SimpleDownload(url string, outputPath string) error {
-// 	log := GetLogger("simple-download")
-// 	progressManager := NewProgressManager()
-// 	progressManager.StartDisplay()
-// 	defer func() {
-// 		close(progressManager.doneCh)
-// 		progressManager.ShowSummary()
-// 	}()
-
-// 	client := createHTTPClient(3*time.Minute, 90*time.Second, "", false)
-// 	progressCh := make(chan int64)
-
-// 	req, err := http.NewRequest("HEAD", url, nil)
-// 	if err != nil {
-// 		return fmt.Errorf("error creating HEAD request: %v", err)
-// 	}
-// 	req.Header.Set("User-Agent", ToolUserAgent)
-// 	resp, err := client.Do(req)
-// 	var fileSize int64 = -1
-// 	if err == nil {
-// 		defer resp.Body.Close()
-// 		contentLength := resp.Header.Get("Content-Length")
-// 		if contentLength != "" {
-// 			fileSize, _ = parseContentLength(contentLength)
-// 		}
-// 	}
-// 	log.Debug().Str("url", url).Int64("fileSize", fileSize).Msg("Registering ProgressManager")
-// 	progressManager.Register(outputPath, fileSize)
-
-// 	var progressWg sync.WaitGroup
-// 	progressWg.Add(1)
-// 	// Internal goroutine to forward progress updates to the manager
-// 	go func() {
-// 		defer progressWg.Done()
-// 		var totalDownloaded int64
-// 		for bytesDownloaded := range progressCh {
-// 			progressManager.Update(outputPath, bytesDownloaded)
-// 			totalDownloaded += bytesDownloaded
-// 		}
-// 		progressManager.Complete(outputPath, totalDownloaded)
-// 	}()
-
-// 	err = performSimpleDownload(url, outputPath, client, ToolUserAgent, progressCh)
-// 	close(progressCh)
-// 	progressWg.Wait()
-// 	return err
-// }
-
 func performSimpleDownload(url string, outputPath string, client *http.Client, userAgent string, progressCh chan<- int64) error {
 	log := GetLogger("simple-download")
 	outputDir := filepath.Dir(outputPath)
