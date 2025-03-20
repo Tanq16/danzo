@@ -13,7 +13,7 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 	progressManager := NewProgressManager()
 	progressManager.StartDisplay()
 	defer func() {
-		close(progressManager.doneCh)
+		progressManager.Stop()
 		progressManager.ShowSummary()
 		for _, entry := range entries {
 			Clean(entry.OutputPath)
