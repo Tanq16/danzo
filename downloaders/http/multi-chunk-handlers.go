@@ -1,4 +1,4 @@
-package internal
+package danzohttp
 
 import (
 	"errors"
@@ -7,16 +7,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
-	"strconv"
 	"sync"
 	"time"
+
+	"github.com/tanq16/danzo/utils"
 )
 
-var ErrRangeRequestsNotSupported = errors.New("server doesn't support range requests")
-
-func chunkedDownload(job *downloadJob, chunk *downloadChunk, client *http.Client, wg *sync.WaitGroup, progressCh chan<- int64, mutex *sync.Mutex) {
-	log := GetLogger("chunk").With().Int("chunkId", chunk.ID).Logger()
+func chunkedDownload(job *utils.DownloadJob, chunk *utils.DownloadChunk, client *http.Client, wg *sync.WaitGroup, progressCh chan<- int64, mutex *sync.Mutex) {
+	log := utils.GetLogger("chunk").With().Int("chunkId", chunk.ID).Logger()
 	defer wg.Done()
 	tempDir := filepath.Join(filepath.Dir(job.Config.OutputPath), ".danzo-temp")
 	tempFileName := filepath.Join(tempDir, fmt.Sprintf("%s.part%d", filepath.Base(job.Config.OutputPath), chunk.ID))
@@ -71,8 +69,8 @@ func chunkedDownload(job *downloadJob, chunk *downloadChunk, client *http.Client
 	log.Error().Int("maxRetries", maxRetries).Msg("Failed to download chunk after multiple attempts")
 }
 
-func downloadSingleChunk(job *downloadJob, chunk *downloadChunk, client *http.Client, tempFileName string, progressCh chan<- int64, resumeOffset int64) error {
-	log := GetLogger("download").With().Int("chunkId", chunk.ID).Logger()
+func downloadSingleChunk(job *utils.DownloadJob, chunk *utils.DownloadChunk, client *http.Client, tempFileName string, progressCh chan<- int64, resumeOffset int64) error {
+	log := utils.GetLogger("download").With().Int("chunkId", chunk.ID).Logger()
 	flag := os.O_WRONLY | os.O_CREATE
 	if resumeOffset > 0 {
 		flag |= os.O_APPEND
@@ -113,7 +111,7 @@ func downloadSingleChunk(job *downloadJob, chunk *downloadChunk, client *http.Cl
 		chunk.Downloaded = resumeOffset
 	}
 	remainingBytes := chunk.EndByte - startByte + 1
-	buffer := make([]byte, bufferSize)
+	buffer := make([]byte, utils.DefaultBufferSize)
 	newBytes := int64(0)
 	for {
 		bytesRead, err := resp.Body.Read(buffer)
@@ -142,81 +140,5 @@ func downloadSingleChunk(job *downloadJob, chunk *downloadChunk, client *http.Cl
 		return fmt.Errorf("total size mismatch: expected %d total bytes, got %d bytes", totalExpectedSize, chunk.Downloaded)
 	}
 	log.Debug().Int64("totalExpectedSize", totalExpectedSize).Int64("remainingBytes", remainingBytes).Int64("downloadedThisSession", newBytes).Int64("totalDownloaded", chunk.Downloaded).Msg("Chunk download completed")
-	return nil
-}
-
-func extractChunkID(filename string) (int, error) {
-	matches := chunkIDRegex.FindStringSubmatch(filename)
-	if len(matches) < 2 {
-		return -1, fmt.Errorf("could not extract chunk ID from %s", filename)
-	}
-	return strconv.Atoi(matches[1])
-}
-
-func assembleFile(job downloadJob) error {
-	log := GetLogger("assembler")
-	allChunksCompleted := true
-	for i, chunk := range job.Chunks {
-		if !chunk.Completed {
-			log.Warn().Int("chunkId", i).Msg("Chunk was not completed")
-			allChunksCompleted = false
-		}
-	}
-	if !allChunksCompleted {
-		return errors.New("not all chunks were completed successfully")
-	}
-	tempFiles := make([]string, len(job.TempFiles))
-	copy(tempFiles, job.TempFiles)
-	sort.Slice(tempFiles, func(i, j int) bool {
-		idI, errI := extractChunkID(tempFiles[i])
-		idJ, errJ := extractChunkID(tempFiles[j])
-		if errI != nil || errJ != nil {
-			log.Error().Err(errors.Join(errI, errJ)).Str("file1", tempFiles[i]).Str("file2", tempFiles[j]).Msg("Error sorting chunk files")
-			return tempFiles[i] < tempFiles[j] // Fallback to string comparison
-		}
-		return idI < idJ
-	})
-	log.Debug().Int("count", len(tempFiles)).Msg("Assembling chunks in order")
-	for i, file := range tempFiles {
-		chunkID, _ := extractChunkID(file)
-		log.Debug().Int("index", i).Int("chunkId", chunkID).Str("file", file).Msg("Chunk order")
-	}
-	destFile, err := os.Create(job.Config.OutputPath)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	var totalWritten int64 = 0
-	for _, tempFilePath := range tempFiles {
-		tempFile, err := os.Open(tempFilePath)
-		if err != nil {
-			return fmt.Errorf("error opening chunk file %s: %v", tempFilePath, err)
-		}
-		fileInfo, err := tempFile.Stat()
-		if err != nil {
-			tempFile.Close()
-			return fmt.Errorf("error getting chunk file info: %v", err)
-		}
-		chunkSize := fileInfo.Size()
-		written, err := io.Copy(destFile, tempFile)
-		tempFile.Close()
-		if err != nil {
-			return fmt.Errorf("error copying chunk data: %v", err)
-		}
-		if written != chunkSize {
-			return fmt.Errorf("error: wrote %d bytes but chunk size is %d", written, chunkSize)
-		}
-		totalWritten += written
-	}
-	if totalWritten != job.FileSize {
-		return fmt.Errorf("error: total written bytes (%d) doesn't match expected file size (%d)", totalWritten, job.FileSize)
-	}
-
-	// Cleanup temporary files
-	for _, tempFilePath := range tempFiles {
-		os.Remove(tempFilePath)
-	}
-	log.Debug().Int64("totalBytes", totalWritten).Str("outputFile", job.Config.OutputPath).Msg("File assembly completed")
 	return nil
 }
