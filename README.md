@@ -28,9 +28,9 @@
   - Custom timeout settings
   - Configurable worker and connection threads (capped at 64 total)
 - Support for HTTP or HTTPS proxies
-- Configurable (optional, except for batch YAML config) output filenames
-  - Automatic numbering of existing names for single URL downloads
-  - Automatic output name inference from URL path
+- Configurable (optional) output filenames
+  - Automatic numbering of existing names (for single direct URL downloads only)
+  - Automatic output name inference from URL path or Content Disposition headers
 - Resumable downloads for both single-threaded and multi-threaded downloads
 
 ## Installation

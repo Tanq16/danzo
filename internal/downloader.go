@@ -2,6 +2,8 @@ package internal
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,7 +40,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 			defer wg.Done()
 			logger := log.With().Int("workerID", workerID).Logger()
 			for entry := range entriesCh {
-				logger.Debug().Str("output", entry.OutputPath).Msg("Worker starting download")
+				logger.Debug().Str("tempName", entry.OutputPath).Msg("Worker starting download")
 				if userAgent == "randomize" {
 					userAgent = utils.GetRandomUserAgent()
 				}
@@ -54,7 +56,16 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 				progressCh := make(chan int64)
 				useHighThreadMode := config.Connections > 5
 				client := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, useHighThreadMode)
-				fileSize, err := utils.GetFileSize(config.URL, config.UserAgent, client)
+				fileSize, fileName, err := utils.GetFileInfo(config.URL, config.UserAgent, client)
+				if config.OutputPath == "" && fileName != "" {
+					config.OutputPath = fileName
+					entry.OutputPath = fileName
+				} else if config.OutputPath == "" {
+					parsedURL, _ := url.Parse(config.URL)
+					config.OutputPath = strings.Split(parsedURL.Path, "/")[len(strings.Split(parsedURL.Path, "/"))-1]
+					entry.OutputPath = config.OutputPath
+				}
+				logger.Debug().Str("output", config.OutputPath).Msg("Output path determined")
 
 				if err == utils.ErrRangeRequestsNotSupported {
 					logger.Debug().Str("url", entry.URL).Msg("Range requests not supported, using simple download")

@@ -3,11 +3,13 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"mime"
 	"net"
 	"net/http"
-	"net/url"
+	u "net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -101,7 +103,7 @@ func CreateHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL
 		}).DialContext
 	}
 	if proxyURL != "" {
-		proxyURLParsed, err := url.Parse(proxyURL)
+		proxyURLParsed, err := u.Parse(proxyURL)
 		if err != nil {
 			log.Error().Err(err).Str("proxy", proxyURL).Msg("Invalid proxy URL, proceeding without proxy")
 		} else {
@@ -115,32 +117,46 @@ func CreateHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL
 	}
 }
 
-func GetFileSize(url string, userAgent string, client *http.Client) (int64, error) {
+func GetFileInfo(url string, userAgent string, client *http.Client) (int64, string, error) {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	req.Header.Set("User-Agent", userAgent)
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
 	defer resp.Body.Close()
+	filename := ""
+	filenameRegex := regexp.MustCompile(`[^a-zA-Z0-9_\-\. ]+`)
+	if contentDisposition := resp.Header.Get("Content-Disposition"); contentDisposition != "" {
+		if _, params, err := mime.ParseMediaType(contentDisposition); err == nil {
+			if fn, ok := params["filename"]; ok && fn != "" {
+				filename = filenameRegex.ReplaceAllString(fn, "_")
+			} else if fn, ok := params["filename*"]; ok && fn != "" {
+				if strings.HasPrefix(fn, "UTF-8''") {
+					unescaped, _ := u.PathUnescape(strings.TrimPrefix(fn, "UTF-8''"))
+					filename = filenameRegex.ReplaceAllString(unescaped, "_")
+				}
+			}
+		}
+	}
 	if resp.Header.Get("Accept-Ranges") != "bytes" {
-		return 0, ErrRangeRequestsNotSupported
+		return 0, filename, ErrRangeRequestsNotSupported
 	}
 	contentLength := resp.Header.Get("Content-Length")
 	if contentLength == "" {
-		return 0, errors.New("server didn't provide Content-Length header")
+		return 0, filename, errors.New("server didn't provide Content-Length header")
 	}
 	size, err := strconv.ParseInt(contentLength, 10, 64)
 	if err != nil {
-		return 0, err
+		return 0, filename, err
 	}
 	if size <= 0 {
-		return 0, errors.New("invalid file size reported by server")
+		return 0, filename, errors.New("invalid file size reported by server")
 	}
-	return size, nil
+	return size, filename, nil
 }
 
 func FormatBytes(bytes uint64) string {

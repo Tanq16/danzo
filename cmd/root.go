@@ -4,7 +4,6 @@ import (
 	"fmt"
 	u "net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -14,17 +13,17 @@ import (
 )
 
 var (
-	output        string
-	connections   int
-	timeout       time.Duration
-	kaTimeout     time.Duration
-	userAgent     string
-	proxyURL      string
-	debug         bool
-	urlListFile   string
-	numLinks      int
-	cleanOutput   bool
-	customization string
+	output      string
+	connections int
+	timeout     time.Duration
+	kaTimeout   time.Duration
+	userAgent   string
+	proxyURL    string
+	debug       bool
+	urlListFile string
+	numLinks    int
+	cleanOutput bool
+	// customization string
 )
 
 var DanzoVersion = "dev"
@@ -60,11 +59,11 @@ var rootCmd = &cobra.Command{
 			if _, err := u.Parse(url); err != nil {
 				log.Fatal().Err(err).Msg("Invalid URL format")
 			}
-			if output == "" {
-				parsedURL, _ := u.Parse(url)
-				output = strings.Split(parsedURL.Path, "/")[len(strings.Split(parsedURL.Path, "/"))-1]
-				log.Debug().Str("output", output).Msg("Output file path not specified, using URL path")
-			}
+			// if output == "" {
+			// 	parsedURL, _ := u.Parse(url)
+			// 	output = strings.Split(parsedURL.Path, "/")[len(strings.Split(parsedURL.Path, "/"))-1]
+			// 	log.Debug().Str("output", output).Msg("Output file path not specified, using URL path")
+			// }
 			entries := []utils.DownloadEntry{{URL: url, OutputPath: output, Type: utils.DetermineDownloadType(url)}}
 			if _, err := os.Stat(output); err == nil {
 				entries[0].OutputPath = utils.RenewOutputPath(output)
@@ -94,18 +93,6 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// var cleanCmd = &cobra.Command{
-// 	Use:   "clean",
-// 	Short: "Clean up temporary files",
-// 	Run: func(cmd *cobra.Command, args []string) {
-// 		err := utils.Clean(cleanOutput)
-// 		if err != nil {
-// 			log.Fatal().Err(err).Msg("Error cleaning up temporary files")
-// 		}
-// 		log.Info().Msg("Temporary files cleaned up")
-// 	},
-// }
-
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -117,93 +104,14 @@ func init() {
 	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (Danzo infers file name if not provided)")
 	rootCmd.Flags().StringVarP(&urlListFile, "urllist", "l", "", "Path to YAML file containing URLs and output paths")
 	rootCmd.Flags().IntVarP(&numLinks, "workers", "w", 1, "Number of links to download in parallel")
-	rootCmd.Flags().IntVarP(&connections, "connections", "c", 4, "Number of connections per download")
+	rootCmd.Flags().IntVarP(&connections, "connections", "c", 8, "Number of connections per download (default 8, i.e., high thread mode)")
 	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout (eg. 5s, 10m)")
 	rootCmd.Flags().DurationVarP(&kaTimeout, "keep-alive-timeout", "k", 90*time.Second, "Keep-alive timeout for client (eg. 10s, 1m, 80s)")
 	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", utils.ToolUserAgent, "User agent")
 	rootCmd.Flags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)")
-	// rootCmd.Flags().StringVarP(&customization, "customization", "z", "", "Additional options for customizing behavior")
+	// rootCmd.Flags().StringVarP(&customization, "customization", "z", "", "Additional options for customizing behavior") // for future use
+
 	// flags without shorthand
 	rootCmd.Flags().BoolVar(&cleanOutput, "clean", false, "Clean up temporary files for provided output path")
 	rootCmd.Flags().BoolVar(&debug, "debug", false, "Enable debug logging")
-	// rootCmd.AddCommand(cleanCmd)
-	// cleanCmd.Flags().StringVarP(&cleanOutput, "output", "o", "", "Output file path")
 }
-
-// // Update rootCmd.Run to handle Google Drive URLs
-// func updateRootCmdToHandleGDrive() {
-// 	originalRun := rootCmd.Run
-// 	rootCmd.Run = func(cmd *cobra.Command, args []string) {
-// 		if len(args) == 0 && urlListFile == "" {
-// 			log.Fatal().Msg("No URL or URL list provided")
-// 		}
-// 		if urlListFile != "" && len(args) > 0 {
-// 			log.Fatal().Msg("Cannot specify url argument and --urllist together, choose one")
-// 		}
-
-// 		// Check if we have Google Drive URLs
-// 		hasGDrive := false
-
-// 		if len(args) > 0 {
-// 			url := args[0]
-// 			hasGDrive = gdrive.IsGoogleDriveURL(url)
-// 		} else if urlListFile != "" {
-// 			entries, err := utils.ReadDownloadList(urlListFile)
-// 			if err != nil {
-// 				log.Fatal().Err(err).Msg("Failed to read URL list file")
-// 			}
-
-// 			for _, entry := range entries {
-// 				if gdrive.IsGoogleDriveURL(entry.URL) {
-// 					hasGDrive = true
-// 					break
-// 				}
-// 			}
-// 		}
-
-// 		// If no Google Drive URLs, use original command
-// 		if !hasGDrive {
-// 			originalRun(cmd, args)
-// 			return
-// 		}
-
-// 		// Handle Google Drive URLs
-// 		log.Info().Msg("Google Drive URL(s) detected, using Google Drive handler")
-
-// 		if len(args) > 0 {
-// 			// Single URL
-// 			url := args[0]
-// 			if output == "" {
-// 				log.Fatal().Msg("Output path is required for Google Drive downloads")
-// 			}
-
-// 			entries := []utils.DownloadEntry{{URL: url, OutputPath: output}}
-// 			err := gdrive.BatchDownloadWithGDriveSupport(entries, 1, connections, timeout, kaTimeout, userAgent, proxyURL)
-// 			if err != nil {
-// 				log.Fatal().Err(err).Msg("Download failed")
-// 			}
-// 		} else {
-// 			// Batch download
-// 			entries, err := utils.ReadDownloadList(urlListFile)
-// 			if err != nil {
-// 				log.Fatal().Err(err).Msg("Failed to read URL list file")
-// 			}
-
-// 			connectionsPerLink := connections
-// 			maxConnections := 64
-// 			if numLinks*connectionsPerLink > maxConnections {
-// 				connectionsPerLink = max(maxConnections/numLinks, 1)
-// 				log.Warn().Int("connections", connectionsPerLink).Int("numLinks", numLinks).Msg("adjusted connections to below max limit")
-// 			}
-
-// 			err = gdrive.BatchDownloadWithGDriveSupport(entries, numLinks, connectionsPerLink, timeout, kaTimeout, userAgent, proxyURL)
-// 			if err != nil {
-// 				log.Fatal().Err(err).Msg("Batch download completed with errors")
-// 			}
-// 		}
-// 	}
-// }
-
-// func init() {
-// 	updateRootCmdToHandleGDrive()
-// }
