@@ -69,26 +69,20 @@ Danzo is a fast CLI download manager
 
 Usage:
   danzo [flags]
-  danzo [command]
-
-Available Commands:
-  clean       Clean up temporary files
-  completion  Generate the autocompletion script for the specified shell
-  help        Help about any command
 
 Flags:
-  -c, --connections int               Number of connections per download (default 4)
+      --clean                         Clean up temporary files for provided output path
+  -c, --connections int               Number of connections per download (default 8, i.e., high thread mode) (default 8)
       --debug                         Enable debug logging
   -h, --help                          help for danzo
   -k, --keep-alive-timeout duration   Keep-alive timeout for client (eg. 10s, 1m, 80s) (default 1m30s)
-  -o, --output string                 Output file path (required with --url/-u)
+  -o, --output string                 Output file path (Danzo infers file name if not provided)
   -p, --proxy string                  HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)
   -t, --timeout duration              Connection timeout (eg. 5s, 10m) (default 3m0s)
   -l, --urllist string                Path to YAML file containing URLs and output paths
   -a, --user-agent string             User agent (default "danzo/1337")
+  -v, --version                       version for danzo
   -w, --workers int                   Number of links to download in parallel (default 1)
-
-Use "danzo [command] --help" for more information about a command.
 ```
 
 ## Usage
@@ -161,10 +155,12 @@ These partial downloads on disk are useful when a download event is interrupted 
 > [!WARNING]
 > A resume operation is triggered automatically when the same output path is encountered. However, the feature will only work correctly if the number of connections are exactly the same. Otherwise, the resulting assembled file may contain faulty bytes.
 
-To clear the temporary (partially downloaded) files, use the `clean` command:
+To clear the temporary (partially downloaded) files, use the command with the `clean` flag:
 
 ```bash
-danzo clean -o "./path/for/download.zip"
+danzo --clean -o "./path/for/download.zip"
+# or if output was in current directory -
+danzo --clean
 ```
 
 For batch downloads, you may need to run the clean command for each output path individually if they don't share the same parent directory.

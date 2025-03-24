@@ -1,202 +1,239 @@
-package gdrive
+// package main
 
-import (
-	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
-	"os"
-	"path/filepath"
-	"time"
+// import (
+// 	"context"
+// 	"encoding/json"
+// 	"fmt"
+// 	"io"
+// 	"net/http"
+// 	"net/url"
+// 	"os"
+// 	"strings"
+// 	"time"
 
-	"github.com/rs/zerolog"
-	// "github.com/tanq16/danzo/internal"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/drive/v3"
-	"google.golang.org/api/option"
-)
+// 	"golang.org/x/oauth2"
+// 	"golang.org/x/oauth2/google"
+// 	"google.golang.org/api/drive/v3"
+// 	"google.golang.org/api/option"
+// )
 
-const (
-	// OAuth 2.0 credentials for device flow
-	clientID     = "your-client-id.apps.googleusercontent.com" // Replace with actual client ID
-	clientSecret = "your-client-secret"                        // Replace with actual client secret
-)
+// // DeviceCodeResponse represents the response from Google's device code API
+// type DeviceCodeResponse struct {
+// 	DeviceCode              string `json:"device_code"`
+// 	UserCode                string `json:"user_code"`
+// 	VerificationURL         string `json:"verification_url"`
+// 	ExpiresIn               int    `json:"expires_in"`
+// 	Interval                int    `json:"interval"`
+// 	VerificationURIComplete string `json:"verification_uri_complete"`
+// }
 
-var (
-	// OAuth 2.0 config
-	config = &oauth2.Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Scopes:       []string{drive.DriveReadonlyScope},
-		Endpoint:     google.Endpoint,
-		RedirectURL:  "urn:ietf:wg:oauth:2.0:oob",
-	}
-)
+// // TokenResponse represents the OAuth token response
+// type TokenResponse struct {
+// 	AccessToken  string `json:"access_token"`
+// 	RefreshToken string `json:"refresh_token"`
+// 	ExpiresIn    int    `json:"expires_in"`
+// 	TokenType    string `json:"token_type"`
+// 	IDToken      string `json:"id_token,omitempty"`
+// 	Scope        string `json:"scope,omitempty"`
+// }
 
-// Auth handles Google Drive authentication
-type Auth struct {
-	log         zerolog.Logger
-	tokenFile   string
-	oauthConfig *oauth2.Config
-}
+// func main() {
+// 	ctx := context.Background()
 
-// NewAuth creates a new Auth instance
-func NewAuth() *Auth {
-	log := zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.InfoLevel).With().Str("module", "gdrive-auth").Logger()
+// 	// Client ID from your Google Cloud Console
+// 	// This ID needs to be configured for the device auth flow
+// 	clientID := "114168928839-1b0mndmhfip9oscs7u820ga1u6g1kkht.apps.googleusercontent.com"
 
-	// Get user's home directory for storing token
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to get user home directory")
-		homeDir = "."
-	}
+// 	// Request a device code
+// 	deviceCode, err := getDeviceCode(ctx, clientID, []string{drive.DriveFileScope})
+// 	if err != nil {
+// 		fmt.Printf("Error getting device code: %v\n", err)
+// 		os.Exit(1)
+// 	}
 
-	// Create .danzo directory if it doesn't exist
-	danzoDir := filepath.Join(homeDir, ".danzo")
-	if err := os.MkdirAll(danzoDir, 0700); err != nil {
-		log.Error().Err(err).Msg("Failed to create .danzo directory")
-	}
+// 	// Show user instructions
+// 	fmt.Printf("\n=== Google Drive Authentication Required ===\n")
+// 	fmt.Printf("1. Go to: %s\n", deviceCode.VerificationURL)
+// 	fmt.Printf("2. Enter code: %s\n", deviceCode.UserCode)
+// 	fmt.Printf("3. Waiting for you to complete the authorization...\n\n")
+// 	fmt.Scanf("Press Enter to continue...")
 
-	tokenFile := filepath.Join(danzoDir, "gdrive_token.json")
+// 	// Poll for token
+// 	token, err := pollForToken(ctx, clientID, deviceCode)
+// 	if err != nil {
+// 		fmt.Printf("Error getting token: %v\n", err)
+// 		os.Exit(1)
+// 	}
 
-	return &Auth{
-		log:         log,
-		tokenFile:   tokenFile,
-		oauthConfig: config,
-	}
-}
+// 	fmt.Println("Authentication successful!")
 
-// getTokenFromFile loads the token from the local file
-func (a *Auth) getTokenFromFile() (*oauth2.Token, error) {
-	a.log.Debug().Str("tokenFile", a.tokenFile).Msg("Attempting to load token from file")
+// 	// Create OAuth2 configuration for token setup
+// 	config := &oauth2.Config{
+// 		ClientID: clientID,
+// 		Endpoint: google.Endpoint,
+// 		Scopes:   []string{drive.DriveMetadataReadonlyScope},
+// 	}
 
-	f, err := os.Open(a.tokenFile)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
+// 	// Create HTTP client with token
+// 	client := config.Client(ctx, token)
 
-	token := &oauth2.Token{}
-	err = json.NewDecoder(f).Decode(token)
-	return token, err
-}
+// 	// Create Drive service
+// 	srv, err := drive.NewService(ctx, option.WithHTTPClient(client))
+// 	if err != nil {
+// 		fmt.Printf("Unable to create Drive service: %v\n", err)
+// 		os.Exit(1)
+// 	}
 
-// saveToken saves the token to the local file
-func (a *Auth) saveToken(token *oauth2.Token) error {
-	a.log.Debug().Str("tokenFile", a.tokenFile).Msg("Saving token to file")
+// 	// List files to verify authentication
+// 	files, err := srv.Files.List().PageSize(10).Fields("nextPageToken, files(id, name)").Do()
+// 	if err != nil {
+// 		fmt.Printf("Unable to list files: %v\n", err)
+// 		os.Exit(1)
+// 	}
 
-	f, err := os.OpenFile(a.tokenFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
+// 	// Print files
+// 	if len(files.Files) == 0 {
+// 		fmt.Println("No files found.")
+// 	} else {
+// 		fmt.Println("Files:")
+// 		for _, file := range files.Files {
+// 			fmt.Printf("%s (%s)\n", file.Name, file.Id)
+// 		}
+// 	}
+// }
 
-	return json.NewEncoder(f).Encode(token)
-}
+// // getDeviceCode requests a device code from Google's OAuth server
+// func getDeviceCode(ctx context.Context, clientID string, scopes []string) (*DeviceCodeResponse, error) {
+// 	client := &http.Client{Timeout: 30 * time.Second}
 
-// getTokenFromDeviceFlow gets a token using the device flow
-func (a *Auth) getTokenFromDeviceFlow(ctx context.Context) (*oauth2.Token, error) {
-	a.log.Info().Msg("Starting device authentication flow")
+// 	data := url.Values{}
+// 	data.Set("client_id", clientID)
+// 	data.Set("scope", strings.Join(scopes, " "))
 
-	// Get a device code
-	// deviceConfig := &oauth2.Config{
-	// 	Config:     a.oauthConfig,
-	// 	HTTPClient: http.DefaultClient,
-	// }
-	deviceCode, err := a.oauthConfig.DeviceAuth(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get device code: %v", err)
-	}
+// 	req, err := http.NewRequestWithContext(
+// 		ctx,
+// 		"POST",
+// 		"https://oauth2.googleapis.com/device/code",
+// 		strings.NewReader(data.Encode()),
+// 	)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	// Instructions for the user
-	fmt.Printf("\n=== Google Drive Authentication Required ===\n")
-	fmt.Printf("1. Visit: %s\n", deviceCode.VerificationURI)
-	fmt.Printf("2. Enter code: %s\n", deviceCode.UserCode)
-	fmt.Printf("3. Waiting for authentication...")
+// 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	// Wait for user to authorize
-	token, err := a.oauthConfig.DeviceAccessToken(ctx, deviceCode)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get token: %v", err)
-	}
+// 	resp, err := client.Do(req)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer resp.Body.Close()
 
-	fmt.Println("Authentication successful!")
-	return token, nil
-}
+// 	if resp.StatusCode != http.StatusOK {
+// 		body, _ := io.ReadAll(resp.Body)
+// 		return nil, fmt.Errorf("failed to get device code, status: %d, response: %s", resp.StatusCode, string(body))
+// 	}
 
-// GetClient returns an HTTP client with valid OAuth credentials
-func (a *Auth) GetClient(ctx context.Context) (*http.Client, error) {
-	// Try to load token from file
-	token, err := a.getTokenFromFile()
-	if err != nil {
-		a.log.Info().Msg("No stored token found, starting device flow")
-		// No token found, get one via device flow
-		token, err = a.getTokenFromDeviceFlow(ctx)
-		if err != nil {
-			return nil, err
-		}
-		// Save the token
-		if err := a.saveToken(token); err != nil {
-			a.log.Error().Err(err).Msg("Failed to save token")
-		}
-	}
+// 	var deviceCode DeviceCodeResponse
+// 	err = json.NewDecoder(resp.Body).Decode(&deviceCode)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	// Check if token is expired and refresh if needed
-	if token.Expiry.Before(time.Now()) {
-		a.log.Info().Msg("Token expired, refreshing")
-		tokenSource := a.oauthConfig.TokenSource(ctx, token)
-		newToken, err := tokenSource.Token()
-		if err != nil {
-			a.log.Error().Err(err).Msg("Failed to refresh token")
-			// Try device flow again
-			newToken, err = a.getTokenFromDeviceFlow(ctx)
-			if err != nil {
-				return nil, err
-			}
-		}
+// 	return &deviceCode, nil
+// }
 
-		// Save the new token
-		if err := a.saveToken(newToken); err != nil {
-			a.log.Error().Err(err).Msg("Failed to save refreshed token")
-		}
-		token = newToken
-	}
+// // pollForToken polls Google's OAuth server for a token
+// func pollForToken(ctx context.Context, clientID string, deviceCode *DeviceCodeResponse) (*oauth2.Token, error) {
+// 	client := &http.Client{Timeout: 30 * time.Second}
 
-	return a.oauthConfig.Client(ctx, token), nil
-}
+// 	// Calculate deadline based on the expires_in value
+// 	// deadline := time.Now().Add(time.Duration(deviceCode.ExpiresIn) * time.Second)
 
-// GetDriveService returns a Drive service client
-func (a *Auth) GetDriveService(ctx context.Context) (*drive.Service, error) {
-	client, err := a.GetClient(ctx)
-	if err != nil {
-		return nil, err
-	}
+// 	// Wait at least the specified interval between requests
+// 	// interval := time.Duration(deviceCode.Interval) * time.Second
+// 	// if interval < 5*time.Second {
+// 	// 	interval = 5 * time.Second // Min 5 seconds to be safe
+// 	// }
 
-	srv, err := drive.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		return nil, fmt.Errorf("unable to create drive service: %v", err)
-	}
+// 	data := url.Values{}
+// 	data.Set("client_id", clientID)
+// 	data.Set("device_code", deviceCode.DeviceCode)
+// 	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
 
-	return srv, nil
-}
+// 	req, err := http.NewRequestWithContext(
+// 		ctx,
+// 		"POST",
+// 		"https://oauth2.googleapis.com/token",
+// 		strings.NewReader(data.Encode()),
+// 	)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-// CheckAuth verifies if authentication is working
-func (a *Auth) CheckAuth(ctx context.Context) error {
-	a.log.Debug().Msg("Checking authentication")
+// 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	srv, err := a.GetDriveService(ctx)
-	if err != nil {
-		return err
-	}
+// 	resp, err := client.Do(req)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	// Try to list files (just 1 to verify auth works)
-	_, err = srv.Files.List().PageSize(1).Do()
-	if err != nil {
-		return errors.New("authentication failed: " + err.Error())
-	}
+// 	body, err := io.ReadAll(resp.Body)
+// 	resp.Body.Close()
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	a.log.Debug().Msg("Authentication check successful")
-	return nil
-}
+// 	token := &oauth2.Token{}
+// 	if resp.StatusCode == http.StatusOK {
+// 		var tokenResp TokenResponse
+// 		err = json.Unmarshal(body, &tokenResp)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+
+// 		token = &oauth2.Token{
+// 			AccessToken:  tokenResp.AccessToken,
+// 			RefreshToken: tokenResp.RefreshToken,
+// 			TokenType:    tokenResp.TokenType,
+// 			Expiry:       time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second),
+// 		}
+
+// 		return token, nil
+// 	}
+// 	return nil, fmt.Errorf("failed to get token, status: %d, response: %s", resp.StatusCode, string(body))
+
+// 	// Check for authorization_pending error (which is expected while waiting)
+// 	// var errResp map[string]interface{}
+// 	// if err := json.Unmarshal(body, &errResp); err == nil {
+// 	// if errCode, ok := errResp["error"].(string); ok {
+// 	// if errCode == "authorization_pending" {
+// 	// 	// This is normal while waiting for the user to authorize
+// 	// 	fmt.Print(".") // Progress indicator
+// 	// 	continue
+// 	// } else if errCode == "slow_down" {
+// 	// 	// Google is telling us to slow down our polling
+// 	// 	ticker.Reset(interval + 5*time.Second)
+// 	// 	continue
+// 	// }
+// 	// }
+// 	// }
+
+// 	// Only handle unexpected errors
+// 	// if resp.StatusCode != http.StatusBadRequest {
+// 	// return nil, fmt.Errorf("unexpected response: %s", string(body))
+// 	// }
+// 	// ticker := time.NewTicker(interval)
+// 	// defer ticker.Stop()
+
+// 	// for {
+// 	// 	select {
+// 	// 	case <-ctx.Done():
+// 	// 		return nil, ctx.Err()
+// 	// 	case <-ticker.C:
+// 	// 		if time.Now().After(deadline) {
+// 	// 			return nil, fmt.Errorf("authorization timed out")
+// 	// 		}
+
+// 	// 	}
+// 	// }
+// }
