@@ -59,11 +59,6 @@ var rootCmd = &cobra.Command{
 			if _, err := u.Parse(url); err != nil {
 				log.Fatal().Err(err).Msg("Invalid URL format")
 			}
-			// if output == "" {
-			// 	parsedURL, _ := u.Parse(url)
-			// 	output = strings.Split(parsedURL.Path, "/")[len(strings.Split(parsedURL.Path, "/"))-1]
-			// 	log.Debug().Str("output", output).Msg("Output file path not specified, using URL path")
-			// }
 			entries := []utils.DownloadEntry{{URL: url, OutputPath: output, Type: utils.DetermineDownloadType(url)}}
 			if _, err := os.Stat(output); err == nil {
 				entries[0].OutputPath = utils.RenewOutputPath(output)
