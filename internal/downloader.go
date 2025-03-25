@@ -134,7 +134,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 				case "gdrive":
 					logger.Debug().Str("url", entry.URL).Msg("Google Drive URL detected")
 					simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
-					apiKey, err := danzogdrive.GetAPIKey()
+					apiKey, err := danzogdrive.GetAuthToken()
 					if err != nil {
 						logger.Error().Err(err).Msg("Failed to get API key")
 						errorCh <- fmt.Errorf("error getting API key: %v", err)
@@ -147,8 +147,9 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 						continue
 					}
 					if config.OutputPath == "" {
-						config.OutputPath = metadata["name"].(string)
-						entry.OutputPath = metadata["name"].(string)
+						inferredFileName := utils.RenewOutputPath(metadata["name"].(string))
+						config.OutputPath = inferredFileName
+						entry.OutputPath = inferredFileName
 					}
 					fileSize := metadata["size"].(string)
 					fileSizeInt, err := strconv.ParseInt(fileSize, 10, 64)

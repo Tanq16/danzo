@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/tanq16/danzo/utils"
 )
@@ -33,10 +34,21 @@ func PerformSimpleDownload(url string, outputPath string, client *http.Client, u
 	}
 	defer outFile.Close()
 
+	// Extract OAuth token for Google Drive download ONLY
+	urlToken := []string{}
+	if strings.HasPrefix(url, "https://www.googleapis.com/drive/v3/files") {
+		urlToken = append(urlToken, strings.Split(url, "|")...)
+		url = urlToken[0]
+	}
 	req, err := http.NewRequest("GET", url, nil)
+	// Set OAuth bearer token for Google Drive download ONLY
+	if len(urlToken) > 1 {
+		req.Header.Set("Authorization", "Bearer "+urlToken[1])
+	}
 	if err != nil {
 		return fmt.Errorf("error creating GET request: %v", err)
 	}
+
 	if resumeOffset > 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", resumeOffset))
 		log.Debug().Int64("resumeOffset", resumeOffset).Msg("Setting Range header for resume")
@@ -66,7 +78,7 @@ func PerformSimpleDownload(url string, outputPath string, client *http.Client, u
 	} else if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
-	buffer := make([]byte, utils.DefaultBufferSize) // from helpers.go
+	buffer := make([]byte, utils.DefaultBufferSize)
 	var newBytes int64 = 0
 	var totalDownloaded int64 = resumeOffset
 	for {
