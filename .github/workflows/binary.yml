@@ -70,14 +70,13 @@ jobs:
 
       - name: Build Binary
         run: |
-          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -ldflags="-s -w -X github.com/tanq16/danzo/cmd.DanzoVersion=${{ needs.create-release.outputs.version }}" -o danzo-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows' && '.exe' || '' }} .
-          zip danzo-${{ matrix.os }}-${{ matrix.arch }}.zip danzo-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows' && '.exe' || '' }} LICENSE README.md
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -ldflags="-s -w -X github.com/tanq16/danzo/cmd.DanzoVersion=${{ needs.create-release.outputs.version }}" -o danzo${{ matrix.os == 'windows' && '.exe' || '' }} .
+          zip danzo-${{ matrix.os }}-${{ matrix.arch }}.zip danzo LICENSE README.md
 
       - name: Upload Release Asset
         run: |
           gh release upload "${{ needs.create-release.outputs.version }}" \
-            "danzo-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.os == 'windows' && '.exe' || '' }}.zip" \
-            --clobber
+            "danzo-${{ matrix.os }}-${{ matrix.arch }}.zip" --clobber
         env:
           GH_TOKEN: ${{ github.token }}
 
