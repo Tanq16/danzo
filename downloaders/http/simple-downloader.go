@@ -1,4 +1,4 @@
-package internal
+package danzohttp
 
 import (
 	"fmt"
@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
-	"time"
+	"strings"
+
+	"github.com/tanq16/danzo/utils"
 )
 
-func performSimpleDownload(url string, outputPath string, client *http.Client, userAgent string, progressCh chan<- int64) error {
-	log := GetLogger("simple-download")
+func PerformSimpleDownload(url string, outputPath string, client *http.Client, userAgent string, progressCh chan<- int64) error {
+	log := utils.GetLogger("simple-download")
 	outputDir := filepath.Dir(outputPath)
 	tempOutputPath := fmt.Sprintf("%s.part", outputPath)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
@@ -33,10 +34,21 @@ func performSimpleDownload(url string, outputPath string, client *http.Client, u
 	}
 	defer outFile.Close()
 
+	// Extract OAuth token for Google Drive download ONLY
+	urlToken := []string{}
+	if strings.HasPrefix(url, "https://www.googleapis.com/drive/v3/files") {
+		urlToken = append(urlToken, strings.Split(url, "|")...)
+		url = urlToken[0]
+	}
 	req, err := http.NewRequest("GET", url, nil)
+	// Set OAuth bearer token for Google Drive download ONLY
+	if len(urlToken) > 1 {
+		req.Header.Set("Authorization", "Bearer "+urlToken[1])
+	}
 	if err != nil {
 		return fmt.Errorf("error creating GET request: %v", err)
 	}
+
 	if resumeOffset > 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", resumeOffset))
 		log.Debug().Int64("resumeOffset", resumeOffset).Msg("Setting Range header for resume")
@@ -66,7 +78,7 @@ func performSimpleDownload(url string, outputPath string, client *http.Client, u
 	} else if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
-	buffer := make([]byte, bufferSize) // from helpers.go
+	buffer := make([]byte, utils.DefaultBufferSize)
 	var newBytes int64 = 0
 	var totalDownloaded int64 = resumeOffset
 	for {
@@ -90,75 +102,6 @@ func performSimpleDownload(url string, outputPath string, client *http.Client, u
 	log.Debug().Int64("resumeOffset", resumeOffset).Int64("downloadedThisSession", newBytes).Int64("totalDownloaded", totalDownloaded).Msg("Simple download completed")
 	if err := os.Rename(tempOutputPath, outputPath); err != nil {
 		return fmt.Errorf("error renaming (finalizing) output file: %v", err)
-	}
-	return nil
-}
-
-func downloadWithProgress(config downloadConfig, client *http.Client, fileSize int64, progressCh chan<- int64) error {
-	log := GetLogger("download-worker")
-	log.Debug().Str("size", formatBytes(uint64(fileSize))).Msg("File size determined")
-	job := downloadJob{
-		Config:    config,
-		FileSize:  fileSize,
-		StartTime: time.Now(),
-	}
-	tempDir := filepath.Join(filepath.Dir(config.OutputPath), ".danzo-temp")
-	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		log.Error().Err(err).Str("dir", tempDir).Msg("Error creating temp directory")
-		return fmt.Errorf("error creating temp directory: %v", err)
-	}
-
-	// Setup chunks
-	mutex := &sync.Mutex{}
-	chunkSize := fileSize / int64(config.Connections)
-	log.Debug().Int("connections", config.Connections).Str("chunkSize", formatBytes(uint64(chunkSize))).Msg("Download configuration")
-	var currentPosition int64 = 0
-	for i := range config.Connections {
-		startByte := currentPosition
-		endByte := startByte + chunkSize - 1
-		if i == config.Connections-1 {
-			endByte = fileSize - 1
-		}
-		if endByte >= fileSize {
-			endByte = fileSize - 1
-		}
-		if endByte >= startByte {
-			job.Chunks = append(job.Chunks, downloadChunk{
-				ID:        i,
-				StartByte: startByte,
-				EndByte:   endByte,
-			})
-		}
-		currentPosition = endByte + 1
-	}
-	log.Debug().Str("output", config.OutputPath).Int("chunks", len(job.Chunks)).Msg("Download divided into chunks")
-
-	// Start connection goroutines
-	var wg sync.WaitGroup
-	for i := range job.Chunks {
-		wg.Add(1)
-		go chunkedDownload(&job, &job.Chunks[i], client, &wg, progressCh, mutex)
-	}
-
-	// Wait for all downloads to complete
-	wg.Wait()
-	close(progressCh)
-	allCompleted := true
-	var incompleteChunks []int
-	for i, chunk := range job.Chunks {
-		if !chunk.Completed {
-			allCompleted = false
-			incompleteChunks = append(incompleteChunks, i)
-		}
-	}
-	if !allCompleted {
-		return fmt.Errorf("download incomplete: %d chunks failed: %v", len(incompleteChunks), incompleteChunks)
-	}
-
-	// Assemble the file
-	err := assembleFile(job)
-	if err != nil {
-		return fmt.Errorf("error assembling file: %v", err)
 	}
 	return nil
 }

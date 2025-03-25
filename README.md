@@ -28,10 +28,11 @@
   - Custom timeout settings
   - Configurable worker and connection threads (capped at 64 total)
 - Support for HTTP or HTTPS proxies
-- Configurable (optional, except for batch YAML config) output filenames
-  - Automatic numbering of existing names for single URL downloads
-  - Automatic output name inference from URL path
+- Configurable (optional) output filenames
+  - Automatic numbering of existing names (for single direct URL downloads only)
+  - Automatic output name inference from URL path or Content Disposition headers
 - Resumable downloads for both single-threaded and multi-threaded downloads
+- Resumable Google Drive downloads through API keys and OAuth2.0 credential keys
 
 ## Installation
 
@@ -69,26 +70,20 @@ Danzo is a fast CLI download manager
 
 Usage:
   danzo [flags]
-  danzo [command]
-
-Available Commands:
-  clean       Clean up temporary files
-  completion  Generate the autocompletion script for the specified shell
-  help        Help about any command
 
 Flags:
-  -c, --connections int               Number of connections per download (default 4)
+      --clean                         Clean up temporary files for provided output path
+  -c, --connections int               Number of connections per download (default 8, i.e., high thread mode) (default 8)
       --debug                         Enable debug logging
   -h, --help                          help for danzo
   -k, --keep-alive-timeout duration   Keep-alive timeout for client (eg. 10s, 1m, 80s) (default 1m30s)
-  -o, --output string                 Output file path (required with --url/-u)
+  -o, --output string                 Output file path (Danzo infers file name if not provided)
   -p, --proxy string                  HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)
   -t, --timeout duration              Connection timeout (eg. 5s, 10m) (default 3m0s)
   -l, --urllist string                Path to YAML file containing URLs and output paths
   -a, --user-agent string             User agent (default "danzo/1337")
+  -v, --version                       version for danzo
   -w, --workers int                   Number of links to download in parallel (default 1)
-
-Use "danzo [command] --help" for more information about a command.
 ```
 
 ## Usage
@@ -161,16 +156,61 @@ These partial downloads on disk are useful when a download event is interrupted 
 > [!WARNING]
 > A resume operation is triggered automatically when the same output path is encountered. However, the feature will only work correctly if the number of connections are exactly the same. Otherwise, the resulting assembled file may contain faulty bytes.
 
-To clear the temporary (partially downloaded) files, use the `clean` command:
+To clear the temporary (partially downloaded) files, use the command with the `clean` flag:
 
 ```bash
-danzo clean -o "./path/for/download.zip"
+danzo --clean -o "./path/for/download.zip"
+# or if output was in current directory -
+danzo --clean
 ```
 
 For batch downloads, you may need to run the clean command for each output path individually if they don't share the same parent directory.
 
 > [!NOTE]
 > The `clean` command is helpful only when your downloads have failed or were interrupted. Otherwise, Danzo automatically runs a clean for a download event once it is successful.
+
+### Google Drive Downloads
+
+Downloading a file from a Drive URL requires authentication, which Danzo supports in 2 ways:
+
+- `API Key`: The API key is automatically picked up from the `GDRIVE_API_KEY` environment variable.
+  - This requires the end-user to create an API key after enabling the drive API [here](https://console.cloud.google.com/apis/dashboard).
+  - Users should visit the [GCP credentials console](https://console.cloud.google.com/apis/credentials), and then create an API key.
+  - Then, click the key and restrict it to only the Google Drive API. Save this somewhere safe (**this is a secret**).
+- `OAuth2.0 Device Code`: This requires an OAuth client credential file passed to Danzo via the `GDRIVE_CREDENTIALS` environment credentials (similar to how `rclone` does it).
+  - Users should enable the necessary APIs like shown in the `API Key` section before this.
+  - Then, visit the [GCP credentials console](https://console.cloud.google.com/apis/credentials) and create an "OAuth2.0 Client ID".
+  - Download and save the credential JSON file in a safe location (**this is a secret**).
+  - During authentication, Danzo will produce a URL to authenticate via the device code flow; users should copy that into a browser.
+  - In the browser, allow access to the credential (this effectively allows the credntial you downloaded to act on your behalf and read all your GDrive files).
+  - Moving forward after allowing the credential and clicking "Continue", a webpage will appear with an error like "*This site can’t be reached*". THIS IS OKAY!
+  - The URL bar will have a link of the form *http ://localhost/?state=state-token&code=**4/0.....AOwVQ**&scope=https://www.googleapis.com/auth/drive.readonly*.
+  - The `code=....&`, i.e., the part after the `=` and before the next `&` sign (highlighted in bold in the previous URL) is what you need to copy and paste into the Danzo terminal waiting for input, then press return.
+  - Danzo will exchange this for an authentication token and save it to `.danzo-token.json`.
+  - If you re-attempt the use of `GDRIVE_CREDENTIALS`, Danzo will reuse the token from current directory if it exists, refresh it if possible, and fallback to reauthentication.
+
+> [!TIP]
+> The API Key method only works on files that are either publicly shared or shared with your user. It cannot be used to download private files that you own. So for your own files, use the OAuth device code method.
+
+Danzo can be used in this manner to download Google Drive files:
+
+```bash
+GDRIVE_API_KEY=$(cat ~/secrets/gdrive-api.key) \
+danzo "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link"
+```
+
+OR
+
+```bash
+GDRIVE_API_KEY=~/secrets/gdrive-oauth.key \
+danzo "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link"
+```
+
+> [!WARNING]
+> Danzo does not perform multi-connection download for Google Drive files; instead it uses the simple download method. For Google Drive specifically, this does not present a loss in bandwidth; however, remember that Google does throttle repeated downloads after a while.
+
+> [!NOTE]
+> Users who have never logged into GCP may be required to create a new GCP Project. This is normal and doesn't cost anything.
 
 ## Tips and Notes
 
@@ -181,9 +221,11 @@ For batch downloads, you may need to run the clean command for each output path 
 - For servers with rate limiting, reducing the number of connections might help.
 - Debug mode (`--debug`) provides detailed information about the download process.
 - Temporary files are automatically cleaned up after successful downloads.
-- Use `-a randomize` to randomly assign a user agent for every HTTP client. The full list of user agents considered are stored in the [helpers.go](https://github.com/Tanq16/danzo/blob/main/internal/helpers.go) file.
+- Use `-a randomize` to randomly assign a user agent for every HTTP client.
+  - The full list of user agents considered are stored in the [vars.go](https://github.com/Tanq16/danzo/blob/main/utils/vars.go) file.
 - The tool automatically activates "high-thread-mode" when using more than 5 connections, which optimizes socket buffer sizes for better performance.
 - Maximizing throughput - Danzo supports 2 (automatically handled) modes of HTTP clients:
   - Simple: this client has a default configuration and usually helps with lower number of connections; Danzo uses this mode for upto 5 connections (including the default of 4)
   - Specialized: this client has a custom configuration and significantly benefits high-thread mode; Danzo automatically switches to this mode for high-thread mode (>=6 connections)
   - Example: A large download with the specicalized client and 2 threads will run at ~4 MB/s. The same download with a simple client would run at ~20 MB/s. Next, the same download with the simple client but 30 threads would also run at 20 MB/s. However, the exact same download with the specialized client and 30 threads will run at ~60 MB/s. This example is a simple real-world observation meant to demonstrate the need for striking a balance between number of threads and download size to obtain maximum throughput.
+- Danzo is specifically design so that the item being downloaded is only represented simply as an argument. Danzo automatically adjusts methods, nuances, and strategies to ensure URLs of various types are handled in the intended way.

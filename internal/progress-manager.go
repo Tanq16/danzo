@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"github.com/tanq16/danzo/utils"
 )
 
 type ProgressInfo struct {
@@ -67,17 +68,6 @@ func (pm *ProgressManager) Complete(outputPath string, totalDownloaded int64) {
 		info.CompletedSize = totalDownloaded
 	}
 	log.Debug().Str("file", outputPath).Int64("totalDownloaded", totalDownloaded).Msg("COMPLETE CALLED")
-}
-
-func (pm *ProgressManager) IsAllCompleted() bool {
-	pm.mutex.RLock()
-	defer pm.mutex.RUnlock()
-	for _, info := range pm.progressMap {
-		if !info.Completed {
-			return false
-		}
-	}
-	return len(pm.progressMap) > 0
 }
 
 func (pm *ProgressManager) StartDisplay() {
@@ -163,11 +153,11 @@ func (pm *ProgressManager) updateDisplay() {
 				progressBar += strings.Repeat(" ", progressWidth-filledWidth-1)
 			}
 			progressBar += "]"
-			fmt.Printf("%s: %s %.1f%% %s/%s %.2f MB/s ETA: %s\n", fileName, progressBar, percent*100, formatBytes(uint64(info.Downloaded)), formatBytes(uint64(info.TotalSize)), info.Speed, eta)
+			fmt.Printf("%s: %s %.1f%% %s/%s %.2f MB/s ETA: %s\n", fileName, progressBar, percent*100, utils.FormatBytes(uint64(info.Downloaded)), utils.FormatBytes(uint64(info.TotalSize)), info.Speed, eta)
 		} else {
 			// total size unknown
 			progressBar = "[" + strings.Repeat("=", 15) + ">" + strings.Repeat(" ", 14) + "]"
-			fmt.Printf("%s: %s %s %.2f MB/s\n", fileName, progressBar, formatBytes(uint64(info.Downloaded)), info.Speed)
+			fmt.Printf("%s: %s %s %.2f MB/s\n", fileName, progressBar, utils.FormatBytes(uint64(info.Downloaded)), info.Speed)
 		}
 		pm.numLines++
 	}
@@ -192,11 +182,11 @@ func (pm *ProgressManager) ShowSummary() {
 		if !info.Completed {
 			status = "Incomplete"
 		}
-		fmt.Printf("Status: %s,  Size: %s,  File: %s\n", status, formatBytes(uint64(info.CompletedSize)), info.OutputPath)
+		fmt.Printf("Status: %s,  Size: %s,  File: %s\n", status, utils.FormatBytes(uint64(info.CompletedSize)), info.OutputPath)
 	}
 	fmt.Println()
 	overallSpeed := float64(totalSize) / earliestTime / 1024 / 1024
-	log.Info().Str("Total Data", formatBytes(uint64(totalSize))).Str("Overall Speed", fmt.Sprintf("%.2f MB/s", overallSpeed)).Str("Time Elapsed", fmt.Sprintf("%.2fs", earliestTime)).Msg("Summary")
+	log.Info().Str("Total Data", utils.FormatBytes(uint64(totalSize))).Str("Overall Speed", fmt.Sprintf("%.2f MB/s", overallSpeed)).Str("Time Elapsed", fmt.Sprintf("%.2fs", earliestTime)).Msg("Summary")
 }
 
 func (pm *ProgressManager) Stop() {

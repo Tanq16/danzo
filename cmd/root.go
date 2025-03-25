@@ -4,12 +4,12 @@ import (
 	"fmt"
 	u "net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal"
+	"github.com/tanq16/danzo/utils"
 )
 
 var (
@@ -20,9 +20,10 @@ var (
 	userAgent   string
 	proxyURL    string
 	debug       bool
-	cleanOutput string
 	urlListFile string
 	numLinks    int
+	cleanOutput bool
+	// customization string
 )
 
 var DanzoVersion = "dev"
@@ -32,11 +33,19 @@ var rootCmd = &cobra.Command{
 	Short:   "Danzo is a fast CLI download manager",
 	Version: DanzoVersion,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		internal.InitLogger(debug)
+		utils.InitLogger(debug)
 		log.Debug().Msg("Debug logging enabled")
 	},
 	Args: cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
+		if cleanOutput {
+			err := utils.Clean(output)
+			if err != nil {
+				log.Fatal().Err(err).Msg("Error cleaning up temporary files")
+			}
+			log.Info().Msg("Temporary files cleaned up")
+			return
+		}
 		if len(args) == 0 && urlListFile == "" {
 			log.Fatal().Msg("No URL or URL list provided")
 		}
@@ -50,14 +59,9 @@ var rootCmd = &cobra.Command{
 			if _, err := u.Parse(url); err != nil {
 				log.Fatal().Err(err).Msg("Invalid URL format")
 			}
-			if output == "" {
-				parsedURL, _ := u.Parse(url)
-				output = strings.Split(parsedURL.Path, "/")[len(strings.Split(parsedURL.Path, "/"))-1]
-				log.Debug().Str("output", output).Msg("Output file path not specified, using URL path")
-			}
-			entries := []internal.DownloadEntry{{URL: url, OutputPath: output}}
+			entries := []utils.DownloadEntry{{URL: url, OutputPath: output, Type: utils.DetermineDownloadType(url)}}
 			if _, err := os.Stat(output); err == nil {
-				entries[0].OutputPath = internal.RenewOutputPath(output)
+				entries[0].OutputPath = utils.RenewOutputPath(output)
 			}
 			err := internal.BatchDownload(entries, 1, connections, timeout, kaTimeout, userAgent, proxyURL)
 			if err != nil {
@@ -66,7 +70,7 @@ var rootCmd = &cobra.Command{
 			return
 		} else {
 			// Handle batch download from URL list file
-			entries, err := internal.ReadDownloadList(urlListFile)
+			entries, err := utils.ReadDownloadList(urlListFile)
 			if err != nil {
 				log.Fatal().Err(err).Msg("Failed to read URL list file")
 			}
@@ -84,18 +88,6 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-var cleanCmd = &cobra.Command{
-	Use:   "clean",
-	Short: "Clean up temporary files",
-	Run: func(cmd *cobra.Command, args []string) {
-		err := internal.Clean(cleanOutput)
-		if err != nil {
-			log.Fatal().Err(err).Msg("Error cleaning up temporary files")
-		}
-		log.Info().Msg("Temporary files cleaned up")
-	},
-}
-
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -104,16 +96,17 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (required with --url/-u)")
+	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (Danzo infers file name if not provided)")
 	rootCmd.Flags().StringVarP(&urlListFile, "urllist", "l", "", "Path to YAML file containing URLs and output paths")
 	rootCmd.Flags().IntVarP(&numLinks, "workers", "w", 1, "Number of links to download in parallel")
-	rootCmd.Flags().IntVarP(&connections, "connections", "c", 4, "Number of connections per download")
+	rootCmd.Flags().IntVarP(&connections, "connections", "c", 8, "Number of connections per download (default 8, i.e., high thread mode)")
 	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout (eg. 5s, 10m)")
 	rootCmd.Flags().DurationVarP(&kaTimeout, "keep-alive-timeout", "k", 90*time.Second, "Keep-alive timeout for client (eg. 10s, 1m, 80s)")
-	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", internal.ToolUserAgent, "User agent")
+	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", utils.ToolUserAgent, "User agent")
 	rootCmd.Flags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)")
-	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
+	// rootCmd.Flags().StringVarP(&customization, "customization", "z", "", "Additional options for customizing behavior") // for future use
 
-	rootCmd.AddCommand(cleanCmd)
-	cleanCmd.Flags().StringVarP(&cleanOutput, "output", "o", "", "Output file path")
+	// flags without shorthand
+	rootCmd.Flags().BoolVar(&cleanOutput, "clean", false, "Clean up temporary files for provided output path")
+	rootCmd.Flags().BoolVar(&debug, "debug", false, "Enable debug logging")
 }

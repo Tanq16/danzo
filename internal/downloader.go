@@ -2,12 +2,19 @@ package internal
 
 import (
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	danzogdrive "github.com/tanq16/danzo/downloaders/gdrive"
+	danzohttp "github.com/tanq16/danzo/downloaders/http"
+	"github.com/tanq16/danzo/utils"
 )
 
-func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int, timeout time.Duration, kaTimeout time.Duration, userAgent string, proxyURL string) error {
-	log := GetLogger("downloader")
+func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLink int, timeout time.Duration, kaTimeout time.Duration, userAgent string, proxyURL string) error {
+	log := utils.GetLogger("downloader")
 	log.Info().Int("totalFiles", len(entries)).Int("workers", numLinks).Int("connections", connectionsPerLink).Msg("Initiating download")
 
 	progressManager := NewProgressManager()
@@ -16,13 +23,13 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 		progressManager.Stop()
 		progressManager.ShowSummary()
 		for _, entry := range entries {
-			Clean(entry.OutputPath)
+			utils.Clean(entry.OutputPath)
 		}
 	}()
 
 	var wg sync.WaitGroup
 	errorCh := make(chan error, len(entries))
-	entriesCh := make(chan DownloadEntry, len(entries))
+	entriesCh := make(chan utils.DownloadEntry, len(entries))
 	for _, entry := range entries {
 		entriesCh <- entry
 	}
@@ -35,11 +42,11 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 			defer wg.Done()
 			logger := log.With().Int("workerID", workerID).Logger()
 			for entry := range entriesCh {
-				logger.Debug().Str("output", entry.OutputPath).Msg("Worker starting download")
+				logger.Debug().Str("tempName", entry.OutputPath).Msg("Worker starting download")
 				if userAgent == "randomize" {
-					userAgent = getRandomUserAgent()
+					userAgent = utils.GetRandomUserAgent()
 				}
-				config := downloadConfig{
+				config := utils.DownloadConfig{
 					URL:         entry.URL,
 					OutputPath:  entry.OutputPath,
 					Connections: connectionsPerLink,
@@ -50,53 +57,129 @@ func BatchDownload(entries []DownloadEntry, numLinks int, connectionsPerLink int
 				}
 				progressCh := make(chan int64)
 				useHighThreadMode := config.Connections > 5
-				client := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, useHighThreadMode)
-				fileSize, err := getFileSize(config.URL, config.UserAgent, client)
+				client := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, useHighThreadMode)
 
-				if err == ErrRangeRequestsNotSupported {
-					logger.Debug().Str("url", entry.URL).Msg("Range requests not supported, using simple download")
-					progressManager.Register(entry.OutputPath, -1) // -1 means unknown size
-				} else if err != nil {
-					logger.Error().Err(err).Str("output", entry.OutputPath).Msg("Failed to get file size")
-					errorCh <- fmt.Errorf("error getting file size for %s: %v", entry.URL, err)
-					continue
-				} else {
-					progressManager.Register(entry.OutputPath, fileSize)
-				}
-
-				var progressWg sync.WaitGroup
-				progressWg.Add(1)
-				// Internal goroutine to forward progress updates to the manager
-				go func(outputPath string, progCh <-chan int64) {
-					defer progressWg.Done()
-					var totalDownloaded int64
-					for bytesDownloaded := range progCh {
-						progressManager.Update(outputPath, bytesDownloaded)
-						totalDownloaded += bytesDownloaded
+				urlType := utils.DetermineDownloadType(config.URL)
+				switch urlType {
+				// Default is HTTP download
+				case "http":
+					fileSize, fileName, err := utils.GetFileInfo(config.URL, config.UserAgent, client)
+					if config.OutputPath == "" && fileName != "" {
+						config.OutputPath = fileName
+						entry.OutputPath = fileName
+					} else if config.OutputPath == "" {
+						parsedURL, _ := url.Parse(config.URL)
+						config.OutputPath = strings.Split(parsedURL.Path, "/")[len(strings.Split(parsedURL.Path, "/"))-1]
+						entry.OutputPath = config.OutputPath
 					}
-					progressManager.Complete(outputPath, totalDownloaded)
-				}(entry.OutputPath, progressCh)
+					logger.Debug().Str("output", config.OutputPath).Msg("Output path determined")
 
-				if err == ErrRangeRequestsNotSupported || config.Connections == 1 {
-					logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD with 1 connection")
-					simpleClient := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
-					err = performSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
-					close(progressCh)
-				} else if fileSize/int64(config.Connections) < 10*1024*1024 {
-					logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD bcz low file size")
-					simpleClient := createHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
-					err = performSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
-					close(progressCh)
-				} else {
-					err = downloadWithProgress(config, client, fileSize, progressCh)
-				}
-				progressWg.Wait()
+					if err == utils.ErrRangeRequestsNotSupported {
+						logger.Debug().Str("url", entry.URL).Msg("Range requests not supported, using simple download")
+						progressManager.Register(entry.OutputPath, -1) // -1 means unknown size
+					} else if err != nil {
+						logger.Error().Err(err).Str("output", entry.OutputPath).Msg("Failed to get file size")
+						errorCh <- fmt.Errorf("error getting file size for %s: %v", entry.URL, err)
+						continue
+					} else {
+						progressManager.Register(entry.OutputPath, fileSize)
+					}
 
-				if err != nil {
-					logger.Error().Err(err).Msg("Download failed")
-					errorCh <- fmt.Errorf("error downloading %s: %v", entry.URL, err)
-				} else {
-					logger.Debug().Str("output", entry.OutputPath).Msg("Download completed successfully")
+					var progressWg sync.WaitGroup
+					progressWg.Add(1)
+					// Internal goroutine to forward progress updates to the manager
+					go func(outputPath string, progCh <-chan int64) {
+						defer progressWg.Done()
+						var totalDownloaded int64
+						for bytesDownloaded := range progCh {
+							progressManager.Update(outputPath, bytesDownloaded)
+							totalDownloaded += bytesDownloaded
+						}
+						progressManager.Complete(outputPath, totalDownloaded)
+					}(entry.OutputPath, progressCh)
+
+					if err == utils.ErrRangeRequestsNotSupported || config.Connections == 1 {
+						logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD with 1 connection")
+						simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
+						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
+						close(progressCh)
+					} else if fileSize/int64(config.Connections) < 10*1024*1024 {
+						logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD bcz low file size")
+						simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
+						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
+						close(progressCh)
+					} else {
+						err = danzohttp.PerformMultiDownload(config, client, fileSize, progressCh)
+					}
+					progressWg.Wait()
+					if err != nil {
+						logger.Error().Err(err).Msg("Download failed")
+						errorCh <- fmt.Errorf("error downloading %s: %v", entry.URL, err)
+					} else {
+						logger.Debug().Str("output", entry.OutputPath).Msg("Download completed successfully")
+					}
+				// YouTube download (with yt-dlp as dependency)
+				case "youtube":
+					// TODO
+				// AWS S3 download
+				case "s3":
+					// TODO
+				// FTP and FTPS download
+				case "ftp":
+					// TODO
+				// SFTP download
+				case "sftp":
+					// TODO
+				// Google Drive download
+				case "gdrive":
+					logger.Debug().Str("url", entry.URL).Msg("Google Drive URL detected")
+					simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
+					apiKey, err := danzogdrive.GetAuthToken()
+					if err != nil {
+						logger.Error().Err(err).Msg("Failed to get API key")
+						errorCh <- fmt.Errorf("error getting API key: %v", err)
+						continue
+					}
+					metadata, fileID, err := danzogdrive.GetFileMetadata(entry.URL, simpleClient, apiKey)
+					if err != nil {
+						logger.Error().Err(err).Msg("Failed to get file metadata")
+						errorCh <- fmt.Errorf("error getting file metadata: %v", err)
+						continue
+					}
+					if config.OutputPath == "" {
+						inferredFileName := utils.RenewOutputPath(metadata["name"].(string))
+						config.OutputPath = inferredFileName
+						entry.OutputPath = inferredFileName
+					}
+					fileSize := metadata["size"].(string)
+					fileSizeInt, err := strconv.ParseInt(fileSize, 10, 64)
+					if err != nil {
+						progressManager.Register(entry.OutputPath, -1) // -1 means unknown size
+					} else {
+						progressManager.Register(entry.OutputPath, fileSizeInt)
+					}
+
+					var progressWg sync.WaitGroup
+					progressWg.Add(1)
+					go func(outputPath string, progCh <-chan int64) {
+						defer progressWg.Done()
+						var totalDownloaded int64
+						for bytesDownloaded := range progCh {
+							progressManager.Update(outputPath, bytesDownloaded)
+							totalDownloaded += bytesDownloaded
+						}
+						progressManager.Complete(outputPath, totalDownloaded)
+					}(entry.OutputPath, progressCh)
+
+					err = danzogdrive.PerformGDriveDownload(config, apiKey, fileID, simpleClient, progressCh)
+					close(progressCh)
+					progressWg.Wait()
+					if err != nil {
+						logger.Error().Err(err).Msg("Download failed")
+						errorCh <- fmt.Errorf("error downloading %s: %v", entry.URL, err)
+					} else {
+						logger.Debug().Str("output", entry.OutputPath).Msg("Download completed successfully")
+					}
 				}
 			}
 		}(i + 1)
