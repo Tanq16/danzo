@@ -39,7 +39,7 @@
 ### Release Binary (Recommended)
 
 1. Download the appropriate binary for your system from the [latest release](https://github.com/tanq16/danzo/releases/latest)
-2. Make the binary executable (Linux/macOS) with `chmod +x danzo-*` and optionally rename to just `danzo`
+2. Unzip the file and make the binary executable (Linux/macOS) with `chmod +x danzo`
 3. Run the binary:
 
 ```bash
@@ -184,7 +184,7 @@ Downloading a file from a Drive URL requires authentication, which Danzo support
   - During authentication, Danzo will produce a URL to authenticate via the device code flow; users should copy that into a browser.
   - In the browser, allow access to the credential (this effectively allows the credntial you downloaded to act on your behalf and read all your GDrive files).
   - Moving forward after allowing the credential and clicking "Continue", a webpage will appear with an error like "*This site can’t be reached*". THIS IS OKAY!
-  - The URL bar will have a link of the form *http ://localhost/?state=state-token&code=**4/0.....AOwVQ**&scope=https://www.googleapis.com/auth/drive.readonly*.
+  - The URL bar will have a link of the form *http ://localhost/?state=state-token&code=**4/0.....AOwVQ**&scope=https:// www.googleapis.com/auth/drive.readonly*.
   - The `code=....&`, i.e., the part after the `=` and before the next `&` sign (highlighted in bold in the previous URL) is what you need to copy and paste into the Danzo terminal waiting for input, then press return.
   - Danzo will exchange this for an authentication token and save it to `.danzo-token.json`.
   - If you re-attempt the use of `GDRIVE_CREDENTIALS`, Danzo will reuse the token from current directory if it exists, refresh it if possible, and fallback to reauthentication.
@@ -202,7 +202,7 @@ danzo "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link"
 OR
 
 ```bash
-GDRIVE_API_KEY=~/secrets/gdrive-oauth.key \
+GDRIVE_CREDENTIALS=~/secrets/gdrive-oauth.key \
 danzo "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link"
 ```
 
