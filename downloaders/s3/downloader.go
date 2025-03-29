@@ -141,7 +141,7 @@ func GetAllObjectsFromFolder(bucket, prefix string, s3Client *s3.Client) ([]S3Jo
 				objects = append(objects, S3Job{
 					Bucket: bucket,
 					Key:    *obj.Key,
-					Output: *obj.Key,
+					Output: filepath.Join(bucket, *obj.Key),
 					Size:   int64(*obj.Size),
 				})
 			}
