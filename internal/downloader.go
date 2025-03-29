@@ -167,12 +167,22 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 					} else {
 						s3Workers = connectionsPerLink
 					}
+					s3JobsCh := make(chan danzos3.S3Job, len(S3Jobs))
+					var s3JobWg sync.WaitGroup
+					s3JobWg.Add(1)
+					go func() {
+						defer s3JobWg.Done()
+						for _, s3Job := range S3Jobs {
+							s3JobsCh <- s3Job
+						}
+						close(s3JobsCh)
+					}()
 					for i := range s3Workers {
 						s3wg.Add(1)
-						go func(workerID int) {
+						go func(workerID int, s3JobsCh <-chan danzos3.S3Job) {
 							defer s3wg.Done()
 							logger := log.With().Int("workerID", workerID).Logger()
-							for _, s3Job := range S3Jobs {
+							for s3Job := range s3JobsCh {
 								logger.Debug().Str("object", s3Job.Key).Msg("Downloading")
 								progressManager.Register(s3Job.Output, s3Job.Size)
 								s3FolderProgressCh := make(chan int64)
@@ -199,8 +209,9 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 									logger.Debug().Str("output", entry.OutputPath).Msg("S3 Download completed successfully")
 								}
 							}
-						}(i + 1)
+						}(i+1, s3JobsCh)
 					}
+					s3JobWg.Wait()
 					s3wg.Wait()
 					progressWg.Wait()
 				// FTP and FTPS download
