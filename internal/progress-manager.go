@@ -107,7 +107,6 @@ func (pm *ProgressManager) updateDisplay() {
 		return
 	}
 	pm.numLines = 0
-	fmt.Println("Download Progress:")
 	pm.numLines++
 
 	for _, outputPath := range keys {

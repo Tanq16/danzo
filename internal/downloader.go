@@ -123,13 +123,41 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 					// YouTube download (with yt-dlp as dependency)
 				case "youtube":
 					logger.Debug().Str("url", entry.URL).Msg("YouTube URL detected")
-					err := danzoyoutube.DownloadYouTubeVideo(entry.URL, entry.OutputPath)
+					processedURL, format, dType, output, err := danzoyoutube.ProcessURL(entry.URL)
+					if err != nil {
+						logger.Error().Err(err).Msg("Failed to process YouTube URL")
+						errorCh <- fmt.Errorf("error processing YouTube URL %s: %v", entry.URL, err)
+						continue
+					}
+					config.OutputPath = output
+					entry.OutputPath = output
+					entry.URL = processedURL
+					// For YouTube, we register with unknown size and only update at the end
+					progressManager.Register(entry.OutputPath, -1)
+					var progressWg sync.WaitGroup
+					progressWg.Add(1)
+					go func(outputPath string, progCh <-chan int64) {
+						defer progressWg.Done()
+						var totalDownloaded int64
+						for bytesDownloaded := range progCh {
+							totalDownloaded += bytesDownloaded
+						}
+						progressManager.Complete(outputPath, totalDownloaded)
+					}(entry.OutputPath, progressCh)
+
+					err = danzoyoutube.DownloadYouTubeVideo(entry.URL, entry.OutputPath, format, dType, progressCh, len(entries) < 2)
+					close(progressCh)
+					progressWg.Wait()
+
 					if err != nil {
 						logger.Error().Err(err).Msg("YouTube download failed")
 						errorCh <- fmt.Errorf("error downloading %s: %v", entry.URL, err)
 					} else {
 						logger.Debug().Str("output", entry.OutputPath).Msg("YouTube download completed successfully")
 					}
+				// Mega.nz download
+				case "mega":
+					// TODO
 				// AWS S3 download
 				case "s3":
 					logger.Debug().Str("url", entry.URL).Msg("S3 URL detected")
