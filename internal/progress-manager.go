@@ -107,7 +107,6 @@ func (pm *ProgressManager) updateDisplay() {
 		return
 	}
 	pm.numLines = 0
-	pm.numLines++
 
 	for _, outputPath := range keys {
 		info := pm.progressMap[outputPath]
