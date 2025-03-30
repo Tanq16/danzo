@@ -2,14 +2,15 @@
   <img src=".github/assets/logo.png" alt="Danzo Logo" width="300">
 
   <a href="https://github.com/tanq16/danzo/actions/workflows/binary.yml"><img alt="Build" src="https://github.com/tanq16/danzo/actions/workflows/binary.yml/badge.svg"></a> <a href="https://github.com/Tanq16/danzo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/danzo"></a><br><br>
-  <a href="#features">Features</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a>
+  <p>Danzo is a cross-platform and cross-architecture all-in-one CLI file download utility designed for multi-threaded downloads, progress tracking, and an intuitive command structure.</p><br>
+  <a href="#features">Features</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a><br>
 </div>
 
 ---
 
-***Danzo*** is a cross-platform and cross-architecture CLI downloader utility designed for multi-threaded downloads, progress tracking, and an intuitive command structure. Danzo maximizes download speeds by using a large number of goroutines.
+*Yes, it's named after a Naruto character who collects and uses multiple "items", reprentative of parallel connections used in this tool.*
 
-*Side note - yes, the name is the same as a Naruto character with a hobby of collecting and using multiple "items", reprentative of parallel connections used in this tool.*
+Overall, Danzo supports the following protocols: **HTTP**, **HTTPS**, **Google Drive**, **YouTube**, **AWS S3**. Additional protocols are continuously being added. Danzo aims to maximize download speeds by using a large number of goroutines.
 
 ## Features
 
@@ -33,22 +34,26 @@
   - Automatic output name inference from URL path or Content Disposition headers
 - Resumable downloads for both single-threaded and multi-threaded downloads
 - Resumable Google Drive downloads through API keys and OAuth2.0 credential keys
+- YouTube video and audio downloads with a simple quality selection
+- AWS S3 object and folder downloads multi-threaded download
 
 ## Installation
 
 ### Release Binary (Recommended)
 
-1. Download the appropriate binary for your system from the [latest release](https://github.com/tanq16/danzo/releases/latest)
-2. Unzip the file and make the binary executable (Linux/macOS) with `chmod +x danzo`
-3. Run the binary:
+- Download the appropriate binary for your system from the [latest release](https://github.com/tanq16/danzo/releases/latest)
+- Unzip the file, make the binary executable (Linux/macOS) with `chmod +x danzo`, and run as
 
 ```bash
 danzo "https://example.com/largefile.zip"
 ```
 
-### Using Go
+### Using Go (Development Version)
 
-With `Go 1.24+` installed, run the following to download the binary to your GOBIN:
+<details>
+<summary>Expand to view!</summary>
+
+With `Go 1.24+` installed, run the following to install the binary to your GOBIN:
 
 ```bash
 go install github.com/tanq16/danzo@latest
@@ -61,7 +66,9 @@ git clone https://github.com/tanq16/danzo.git && cd danzo
 go build .
 ```
 
-### Command Options
+</details>
+
+### CLI Options
 
 The command line options can be printed with `danzo -h`:
 
@@ -86,15 +93,25 @@ Flags:
   -w, --workers int                   Number of links to download in parallel (default 1)
 ```
 
+> [!TIP]
+> The help section will aid in building a command, but not explain the nuances. It's highly recommended to read through this document to understand edge cases and nuanced details to bring the most out of downloads with Danzo.
+
 ## Usage
 
 ### Basic Usage
 
-The simplest way to download a file is to provide a URL directly:
+The simplest way to download a file is to provide a URL directly and let Danzo do its thing:
 
 ```bash
 danzo https://example.com/largefile.zip
 ```
+
+Of course, this will not always yield the best result, so to optimize according to file types, read through the specific sections below.
+
+### HTTP(S) Downloads
+
+<details>
+<summary>Expand to view!</summary>
 
 The output filename will be inferred from the URL and Danzo will use 4 connection threads by default. You can also specify an output filename manually with:
 
@@ -120,7 +137,12 @@ danzo "https://example.com/largefile.zip" -c 16
 
 Lastly, if a URL does not use byte-range requests (i.e., server doesn't support partial content downloads), Danzo automatically switches to a simple, single-threaded, direct download.
 
-### Batch Download
+</details>
+
+### Batch Download Capability
+
+<details>
+<summary>Expand to view!</summary>
 
 Danzo can be provided a YAML config to allow simultaneous downloads of several URLs. Each URL in turn will use multi-threaded connection mode by default to maximize throughput. The YAML file requires following format:
 
@@ -147,7 +169,12 @@ danzo -l downloads.yaml -w 3 -c 16
 > [!NOTE]
 > Danzo caps the total number of parallel workers at 64. Specifically `#workers * #connections <= 64`. This is a generous default to prevent overwhelming the system.
 
+</details>
+
 ### Resumable Downloads & Temporary Files
+
+<details>
+<summary>Expand to view!</summary>
 
 Single-connection downloads store a `OUTPUTPATH.part` file in the current working directory while multi-connection downloads store partial files named `OUTPUTPATH.part1`, `OUTPUTPATH.part2`, etc. in the `.danzo-temp` directory.
 
@@ -169,7 +196,12 @@ For batch downloads, you may need to run the clean command for each output path 
 > [!NOTE]
 > The `clean` command is helpful only when your downloads have failed or were interrupted. Otherwise, Danzo automatically runs a clean for a download event once it is successful.
 
+</details>
+
 ### Google Drive Downloads
+
+<details>
+<summary>Expand to view!</summary>
 
 Downloading a file from a Drive URL requires authentication, which Danzo supports in 2 ways:
 
@@ -183,8 +215,8 @@ Downloading a file from a Drive URL requires authentication, which Danzo support
   - Download and save the credential JSON file in a safe location (**this is a secret**).
   - During authentication, Danzo will produce a URL to authenticate via the device code flow; users should copy that into a browser.
   - In the browser, allow access to the credential (this effectively allows the credntial you downloaded to act on your behalf and read all your GDrive files).
-  - Moving forward after allowing the credential and clicking "Continue", a webpage will appear with an error like "*This site can’t be reached*". THIS IS OKAY!
-  - The URL bar will have a link of the form *http ://localhost/?state=state-token&code=**4/0.....AOwVQ**&scope=https:// www.googleapis.com/auth/drive.readonly*.
+  - Moving forward after allowing the credential and clicking "Continue", a webpage will appear with an error like "*This site can't be reached*". THIS IS OKAY!
+  - The URL bar will have a link of the form `http ://localhost/?state=state-token&code=4/0.....AOwVQ&scope=https:// www.googleapis.com/auth/drive.readonly`.
   - The `code=....&`, i.e., the part after the `=` and before the next `&` sign (highlighted in bold in the previous URL) is what you need to copy and paste into the Danzo terminal waiting for input, then press return.
   - Danzo will exchange this for an authentication token and save it to `.danzo-token.json`.
   - If you re-attempt the use of `GDRIVE_CREDENTIALS`, Danzo will reuse the token from current directory if it exists, refresh it if possible, and fallback to reauthentication.
@@ -212,6 +244,85 @@ danzo "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link"
 > [!NOTE]
 > Users who have never logged into GCP may be required to create a new GCP Project. This is normal and doesn't cost anything.
 
+</details>
+
+### YouTube Downloads
+
+<details>
+<summary>Expand to view!</summary>
+
+Danzo supports downloading videos and audio from YouTube by using [yt-dlp](https://github.com/yt-dlp/yt-dlp) as a dependency. By default, it will download the best available quality.
+
+To download a YouTube video:
+
+```bash
+danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+```
+
+> [!NOTE]
+> In an effort to create a successful and simple integration, Danzo uses a default output name of `danzo-yt-dlp-video.mp4` or `danzo-yt-dlp-audio.m4a`. As such, the `-o` flag will have no effect on a YouTube download.
+
+A download type can be appended to the URL to control Danzo's behavior. These defaults were chosen based on heuristics and observed popularity.
+
+```bash
+# Download best quality
+danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||best"
+
+# Download 1080p MP4
+danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||1080p"
+
+# Download 720p MP4
+danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||720p"
+
+# Download decent quality (≤1080p)
+danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||decent"
+
+# Download audio only (m4a)
+danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||audio"
+```
+
+> [!NOTE]
+> YouTube downloads require `yt-dlp` to be installed on your system. If it's not found, Danzo will automatically download and use a compatible version. Additionally, since the STDOUT and STDERR are directly streamed from `yt-dlp` to `danzo`, YouTube videos are not tracked for progress the way HTTP downloads are. When downloading a single YouTube URL, the output from `yt-dlp` will be streamed to the user's STDOUT. But if the URL is part of a batch file, then the output is hidden and the progress appears stalled until finished.
+
+</details>
+
+### AWS S3 Downloads
+
+<details>
+<summary>Expand to view!</summary>
+
+There are 2 ways of downloading objects from S3:
+
+- Public Buckets: These are often directly exposed as HTTP(S) sites or pre-signed URLs. Either of the two can be sufficiently handled by the HTTP(S) downloaders.
+- Private Buckets: This is where keys or locally setup profiles are important. Danzo simplifies the process in which the user is responsible for securing access to S3, so they can use the resource. The profile can be specified to Danzo with an environment variable.
+
+Danzo supports downloading a single object, a single directory, or the entire bucket from AWS S3. All such connections are multi-threaded for maximum efficiency. Example:
+
+```bash
+# uses the `astro` profile to authenticate
+AWS_PROFILE=astro danzo "s3://mybucket/path/to/file.zip"
+```
+
+You can also download entire folders from S3:
+
+```bash
+danzo "s3://mybucket/some/directory/"
+```
+
+AWS session profiles are used to allow for flexibility and ease of access. As a result, specifying the environment variable (`AWS_PROFILE`) allows using a profile of the user's choice. Additionally, when not set inline or exported, Danzo uses the `default` profile.
+
+```bash
+AWS_PROFILE=myprofile danzo "s3://mybucket/path/to/file.zip"
+```
+
+> [!WARNING]
+> For successful authentication, Danzo should use a profile that is configured for the same region as the S3 bucket.
+
+> [!NOTE]
+> For S3 downloads, the `connections` flag determines how many objects will be downloaded in parallel if downloading a folder.
+
+</details>
+
 ## Tips and Notes
 
 - Large files benefit the most from multiple connections, but also add to disk IO. Be mindful of the balance between network and disk IO.
@@ -229,3 +340,4 @@ danzo "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link"
   - Specialized: this client has a custom configuration and significantly benefits high-thread mode; Danzo automatically switches to this mode for high-thread mode (>=6 connections)
   - Example: A large download with the specicalized client and 2 threads will run at ~4 MB/s. The same download with a simple client would run at ~20 MB/s. Next, the same download with the simple client but 30 threads would also run at 20 MB/s. However, the exact same download with the specialized client and 30 threads will run at ~60 MB/s. This example is a simple real-world observation meant to demonstrate the need for striking a balance between number of threads and download size to obtain maximum throughput.
 - Danzo is specifically design so that the item being downloaded is only represented simply as an argument. Danzo automatically adjusts methods, nuances, and strategies to ensure URLs of various types are handled in the intended way.
+- Automatically downloading `yt-dlp` reduces possible friction and begin a new path for automation.
