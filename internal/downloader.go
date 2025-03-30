@@ -11,6 +11,7 @@ import (
 	danzogdrive "github.com/tanq16/danzo/downloaders/gdrive"
 	danzohttp "github.com/tanq16/danzo/downloaders/http"
 	danzos3 "github.com/tanq16/danzo/downloaders/s3"
+	danzoyoutube "github.com/tanq16/danzo/downloaders/youtube"
 	"github.com/tanq16/danzo/utils"
 )
 
@@ -119,9 +120,16 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 					} else {
 						logger.Debug().Str("output", entry.OutputPath).Msg("Download completed successfully")
 					}
-				// YouTube download (with yt-dlp as dependency)
+					// YouTube download (with yt-dlp as dependency)
 				case "youtube":
-					// TODO
+					logger.Debug().Str("url", entry.URL).Msg("YouTube URL detected")
+					err := danzoyoutube.DownloadYouTubeVideo(entry.URL, entry.OutputPath)
+					if err != nil {
+						logger.Error().Err(err).Msg("YouTube download failed")
+						errorCh <- fmt.Errorf("error downloading %s: %v", entry.URL, err)
+					} else {
+						logger.Debug().Str("output", entry.OutputPath).Msg("YouTube download completed successfully")
+					}
 				// AWS S3 download
 				case "s3":
 					logger.Debug().Str("url", entry.URL).Msg("S3 URL detected")
@@ -219,8 +227,6 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 					// TODO
 				// SFTP download
 				case "sftp":
-					// TODO
-				case "mega":
 					// TODO
 				// Google Drive download
 				case "gdrive":
