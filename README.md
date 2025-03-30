@@ -50,9 +50,6 @@ danzo "https://example.com/largefile.zip"
 
 ### Using Go (Development Version)
 
-<details>
-<summary>Expand to view!</summary>
-
 With `Go 1.24+` installed, run the following to install the binary to your GOBIN:
 
 ```bash
@@ -65,8 +62,6 @@ Or, you can build from source like so:
 git clone https://github.com/tanq16/danzo.git && cd danzo
 go build .
 ```
-
-</details>
 
 ### CLI Options
 
@@ -110,9 +105,6 @@ Of course, this will not always yield the best result, so to optimize according 
 
 ### HTTP(S) Downloads
 
-<details>
-<summary>Expand to view!</summary>
-
 The output filename will be inferred from the URL and Danzo will use 4 connection threads by default. You can also specify an output filename manually with:
 
 ```bash
@@ -137,12 +129,7 @@ danzo "https://example.com/largefile.zip" -c 16
 
 Lastly, if a URL does not use byte-range requests (i.e., server doesn't support partial content downloads), Danzo automatically switches to a simple, single-threaded, direct download.
 
-</details>
-
 ### Batch Download Capability
-
-<details>
-<summary>Expand to view!</summary>
 
 Danzo can be provided a YAML config to allow simultaneous downloads of several URLs. Each URL in turn will use multi-threaded connection mode by default to maximize throughput. The YAML file requires following format:
 
@@ -169,12 +156,7 @@ danzo -l downloads.yaml -w 3 -c 16
 > [!NOTE]
 > Danzo caps the total number of parallel workers at 64. Specifically `#workers * #connections <= 64`. This is a generous default to prevent overwhelming the system.
 
-</details>
-
 ### Resumable Downloads & Temporary Files
-
-<details>
-<summary>Expand to view!</summary>
 
 Single-connection downloads store a `OUTPUTPATH.part` file in the current working directory while multi-connection downloads store partial files named `OUTPUTPATH.part1`, `OUTPUTPATH.part2`, etc. in the `.danzo-temp` directory.
 
@@ -196,12 +178,7 @@ For batch downloads, you may need to run the clean command for each output path 
 > [!NOTE]
 > The `clean` command is helpful only when your downloads have failed or were interrupted. Otherwise, Danzo automatically runs a clean for a download event once it is successful.
 
-</details>
-
 ### Google Drive Downloads
-
-<details>
-<summary>Expand to view!</summary>
 
 Downloading a file from a Drive URL requires authentication, which Danzo supports in 2 ways:
 
@@ -244,12 +221,7 @@ danzo "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link"
 > [!NOTE]
 > Users who have never logged into GCP may be required to create a new GCP Project. This is normal and doesn't cost anything.
 
-</details>
-
 ### YouTube Downloads
-
-<details>
-<summary>Expand to view!</summary>
 
 Danzo supports downloading videos and audio from YouTube by using [yt-dlp](https://github.com/yt-dlp/yt-dlp) as a dependency. By default, it will download the best available quality.
 
@@ -284,12 +256,7 @@ danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||audio"
 > [!NOTE]
 > YouTube downloads require `yt-dlp` to be installed on your system. If it's not found, Danzo will automatically download and use a compatible version. Additionally, since the STDOUT and STDERR are directly streamed from `yt-dlp` to `danzo`, YouTube videos are not tracked for progress the way HTTP downloads are. When downloading a single YouTube URL, the output from `yt-dlp` will be streamed to the user's STDOUT. But if the URL is part of a batch file, then the output is hidden and the progress appears stalled until finished.
 
-</details>
-
 ### AWS S3 Downloads
-
-<details>
-<summary>Expand to view!</summary>
 
 There are 2 ways of downloading objects from S3:
 
@@ -320,8 +287,6 @@ AWS_PROFILE=myprofile danzo "s3://mybucket/path/to/file.zip"
 
 > [!NOTE]
 > For S3 downloads, the `connections` flag determines how many objects will be downloaded in parallel if downloading a folder.
-
-</details>
 
 ## Tips and Notes
 
