@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -91,21 +92,25 @@ func (pm *ProgressManager) updateDisplay() {
 	if pm.numLines > 0 {
 		fmt.Printf("\033[%dA\033[J", pm.numLines)
 	}
+	var keys []string
 	numActive := 0
-	for _, info := range pm.progressMap {
+	for outputPath, info := range pm.progressMap {
+		keys = append(keys, outputPath)
 		if !info.Completed {
 			numActive++
 		}
 	}
+	sort.Strings(keys)
 	if numActive == 0 && len(pm.progressMap) > 0 {
 		fmt.Println("All downloads completed.")
 		pm.numLines = 1
 		return
 	}
 	pm.numLines = 0
-	fmt.Println("Download Progress:")
 	pm.numLines++
-	for outputPath, info := range pm.progressMap {
+
+	for _, outputPath := range keys {
+		info := pm.progressMap[outputPath]
 		if info.Completed {
 			continue
 		}

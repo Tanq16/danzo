@@ -10,6 +10,8 @@ import (
 
 	danzogdrive "github.com/tanq16/danzo/downloaders/gdrive"
 	danzohttp "github.com/tanq16/danzo/downloaders/http"
+	danzos3 "github.com/tanq16/danzo/downloaders/s3"
+	danzoyoutube "github.com/tanq16/danzo/downloaders/youtube"
 	"github.com/tanq16/danzo/utils"
 )
 
@@ -103,7 +105,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 						simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
 						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
 						close(progressCh)
-					} else if fileSize/int64(config.Connections) < 10*1024*1024 {
+					} else if fileSize/int64(config.Connections) < 2*utils.DefaultBufferSize {
 						logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD bcz low file size")
 						simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
 						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
@@ -118,12 +120,136 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 					} else {
 						logger.Debug().Str("output", entry.OutputPath).Msg("Download completed successfully")
 					}
-				// YouTube download (with yt-dlp as dependency)
+					// YouTube download (with yt-dlp as dependency)
 				case "youtube":
+					logger.Debug().Str("url", entry.URL).Msg("YouTube URL detected")
+					processedURL, format, dType, output, err := danzoyoutube.ProcessURL(entry.URL)
+					if err != nil {
+						logger.Error().Err(err).Msg("Failed to process YouTube URL")
+						errorCh <- fmt.Errorf("error processing YouTube URL %s: %v", entry.URL, err)
+						continue
+					}
+					config.OutputPath = output
+					entry.OutputPath = output
+					entry.URL = processedURL
+					// For YouTube, we register with unknown size and only update at the end
+					progressManager.Register(entry.OutputPath, -1)
+					var progressWg sync.WaitGroup
+					progressWg.Add(1)
+					go func(outputPath string, progCh <-chan int64) {
+						defer progressWg.Done()
+						var totalDownloaded int64
+						for bytesDownloaded := range progCh {
+							totalDownloaded += bytesDownloaded
+						}
+						progressManager.Complete(outputPath, totalDownloaded)
+					}(entry.OutputPath, progressCh)
+
+					err = danzoyoutube.DownloadYouTubeVideo(entry.URL, entry.OutputPath, format, dType, progressCh, len(entries) < 2)
+					close(progressCh)
+					progressWg.Wait()
+
+					if err != nil {
+						logger.Error().Err(err).Msg("YouTube download failed")
+						errorCh <- fmt.Errorf("error downloading %s: %v", entry.URL, err)
+					} else {
+						logger.Debug().Str("output", entry.OutputPath).Msg("YouTube download completed successfully")
+					}
+				// Mega.nz download
+				case "mega":
 					// TODO
 				// AWS S3 download
 				case "s3":
-					// TODO
+					logger.Debug().Str("url", entry.URL).Msg("S3 URL detected")
+					s3client, err := danzos3.GetS3Client()
+					if err != nil {
+						logger.Error().Err(err).Msg("Failed to get S3 client")
+						errorCh <- fmt.Errorf("error getting S3 client: %v", err)
+						continue
+					}
+					bucket, key, fileType, size, err := danzos3.GetS3ObjectInfo(entry.URL, s3client)
+					if err != nil {
+						logger.Error().Err(err).Msg("Failed to get S3 object info")
+						errorCh <- fmt.Errorf("error getting S3 object info: %v", err)
+						continue
+					}
+
+					var S3Jobs []danzos3.S3Job
+					if fileType != "folder" {
+						S3Jobs = append(S3Jobs, danzos3.S3Job{
+							Bucket: bucket,
+							Key:    key,
+							Output: strings.Split(key, "/")[len(strings.Split(key, "/"))-1],
+							Size:   size,
+						})
+					} else {
+						S3Jobs, err = danzos3.GetAllObjectsFromFolder(bucket, key, s3client)
+						if err != nil {
+							logger.Error().Err(err).Msg("Failed to list S3 objects in folder")
+							errorCh <- fmt.Errorf("error listing S3 objects in folder: %v", err)
+							continue
+						}
+					}
+
+					// Close the progress channel because it's not used in S3 downloads
+					close(progressCh)
+					// Do all S3 downloads with connectionsPerLink number of parallel downloads
+					// NOTE: This is non-standard usage of connectionsPerLink (usually, it signifies connections per link)
+					var s3wg sync.WaitGroup
+					var progressWg sync.WaitGroup
+					s3Workers := 0
+					if len(S3Jobs) < connectionsPerLink {
+						s3Workers = len(S3Jobs)
+					} else {
+						s3Workers = connectionsPerLink
+					}
+					s3JobsCh := make(chan danzos3.S3Job, len(S3Jobs))
+					var s3JobWg sync.WaitGroup
+					s3JobWg.Add(1)
+					go func() {
+						defer s3JobWg.Done()
+						for _, s3Job := range S3Jobs {
+							s3JobsCh <- s3Job
+						}
+						close(s3JobsCh)
+					}()
+					for i := range s3Workers {
+						s3wg.Add(1)
+						go func(workerID int, s3JobsCh <-chan danzos3.S3Job) {
+							defer s3wg.Done()
+							logger := log.With().Int("workerID", workerID).Logger()
+							for s3Job := range s3JobsCh {
+								logger.Debug().Str("object", s3Job.Key).Msg("Downloading")
+								progressManager.Register(s3Job.Output, s3Job.Size)
+								s3FolderProgressCh := make(chan int64)
+								progressWg.Add(1)
+								go func(outputPath string, progCh <-chan int64) {
+									defer progressWg.Done()
+									var totalDownloaded int64
+									for bytesDownloaded := range progCh {
+										if bytesDownloaded < 0 {
+											progressManager.Register(outputPath, -bytesDownloaded)
+											continue
+										}
+										progressManager.Update(outputPath, bytesDownloaded)
+										totalDownloaded += bytesDownloaded
+									}
+									progressManager.Complete(outputPath, totalDownloaded)
+								}(s3Job.Output, s3FolderProgressCh)
+								err := danzos3.PerformS3ObjectDownload(s3Job.Bucket, s3Job.Key, s3Job.Output, s3Job.Size, s3client, s3FolderProgressCh)
+								close(s3FolderProgressCh)
+								if err != nil {
+									logger.Error().Err(err).Msg("S3 Download failed")
+									errorCh <- fmt.Errorf("error downloading %s, Object %s: %v", entry.URL, s3Job.Key, err)
+								} else {
+									logger.Debug().Str("output", entry.OutputPath).Msg("S3 Download completed successfully")
+								}
+							}
+						}(i+1, s3JobsCh)
+					}
+					s3JobWg.Wait()
+					s3wg.Wait()
+					progressWg.Wait()
 				// FTP and FTPS download
 				case "ftp":
 					// TODO

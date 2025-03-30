@@ -28,12 +28,14 @@ func DetermineDownloadType(url string) string {
 		return "gdrive"
 	} else if strings.HasPrefix(url, "s3://") {
 		return "s3"
-		// } else if strings.HasPrefix(url, "https://youtu.be") || strings.HasPrefix(url, "https://www.youtube.com") {
-		// 	return "youtube"
+	} else if strings.HasPrefix(url, "https://youtu.be") || strings.HasPrefix(url, "https://www.youtube.com") {
+		return "youtube"
 	} else if strings.HasPrefix(url, "ftp://") || strings.HasPrefix(url, "ftps://") {
 		return "ftp"
 	} else if strings.HasPrefix(url, "sftp://") {
 		return "sftp"
+	} else if strings.HasPrefix(url, "https://mega.nz") {
+		return "mega"
 	}
 	return "http"
 }
