@@ -23,19 +23,14 @@ var assetSelectMap = map[string][]string{
 }
 
 var ignoredAssets = []string{
-	"license",
-	"readme",
-	"changelog",
-	"checksums",
-	"sha256checksum",
-	".sha256",
+	"license", "readme", "changelog", "checksums", "sha256checksum", ".sha256",
 }
 
 func ParseGitURL(url string) (string, string, bool, error) {
 	processParts := strings.Split(url, "||")
-	parts := strings.Split(processParts[0][9:], "/") // Remove "github://" or "gitlab://"
+	parts := strings.Split(processParts[0][9:], "/") // Remove "github://"
 	if len(parts) < 2 {
-		return "", "", false, fmt.Errorf("invalid GitHub URL format, expected github://owner/repo or gitlab://owner/repo")
+		return "", "", false, fmt.Errorf("invalid GitHub URL format, expected github://owner/repo")
 	}
 	return parts[0], parts[1], len(processParts) == 2 && processParts[1] == "version", nil
 }
@@ -177,41 +172,35 @@ func PromptAssetSelection(assets []map[string]any, tagName string) (string, int6
 }
 
 func SelectLatestAsset(assets []map[string]any) (string, int64, error) {
-	arch := runtime.GOARCH
-	os := runtime.GOOS
-	assetKey := fmt.Sprintf("%s%s", os, arch)
-	var downloadURL string
-	var size float64
+	platformKey := fmt.Sprintf("%s%s", runtime.GOOS, runtime.GOARCH)
 	for _, asset := range assets {
-		for _, key := range assetSelectMap[assetKey] {
-			assetName, _ := asset["name"].(string)
-			if strings.Contains(strings.ToLower(assetName), key) {
-				ignore := false
-				for _, ignored := range ignoredAssets {
-					if strings.Contains(strings.ToLower(assetName), ignored) {
-						ignore = true
-						break
-					}
-				}
-				if ignore {
-					continue
-				}
-				downloadURL, _ = asset["browser_download_url"].(string)
-				size, _ = asset["size"].(float64)
+		assetName, _ := asset["name"].(string)
+		assetNameLower := strings.ToLower(assetName)
+		isIgnored := false
+		for _, ignored := range ignoredAssets {
+			if strings.Contains(assetNameLower, ignored) {
+				isIgnored = true
 				break
 			}
 		}
+		if isIgnored {
+			continue
+		}
+		for _, key := range assetSelectMap[platformKey] {
+			if strings.Contains(assetNameLower, key) {
+				downloadURL, _ := asset["browser_download_url"].(string)
+				size, _ := asset["size"].(float64)
+				return downloadURL, int64(size), nil
+			}
+		}
 	}
-	return downloadURL, int64(size), nil
+	return "", 0, nil
 }
 
-func ProcessGitHubRelease(url string, client *http.Client) (string, string, int64, error) {
-	owner, repo, userSelect, err := ParseGitURL(url)
-	if err != nil {
-		return "", "", 0, err
-	}
+func ProcessGitHubRelease(owner, repo string, userSelect bool, client *http.Client) (string, string, int64, error) {
 	var assets []map[string]any
 	var tagName string
+	var err error
 	if userSelect {
 		assets, tagName, err = AskReleaseAssets(owner, repo, client)
 		if err != nil {
@@ -245,4 +234,12 @@ func ProcessGitHubRelease(url string, client *http.Client) (string, string, int6
 	urlParts := strings.Split(downloadURL, "/")
 	filename := urlParts[len(urlParts)-1]
 	return downloadURL, filename, size, nil
+}
+
+func ProcessRelease(url string, client *http.Client) (string, string, int64, error) {
+	owner, repo, userSelect, err := ParseGitURL(url)
+	if err != nil {
+		return "", "", 0, err
+	}
+	return ProcessGitHubRelease(owner, repo, userSelect, client)
 }

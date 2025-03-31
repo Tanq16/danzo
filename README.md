@@ -3,39 +3,83 @@
 
   <a href="https://github.com/tanq16/danzo/actions/workflows/binary.yml"><img alt="Build" src="https://github.com/tanq16/danzo/actions/workflows/binary.yml/badge.svg"></a> <a href="https://github.com/Tanq16/danzo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/danzo"></a><br><br>
   <p>Danzo is a cross-platform and cross-architecture all-in-one CLI file download utility designed for multi-threaded downloads, progress tracking, and an intuitive command structure.</p><br>
-  <a href="#features">Features</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a><br>
+  <a href="#features">Features</a> &bull; <a href="#quickstart">Quickstart</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a><br>
 </div>
 
 ---
 
-*Yes, it's named after a Naruto character who collects and uses multiple "items", reprentative of parallel connections used in this tool.*
+*Just like its namesake from the Naruto series who collected powers through multiple "sources", Danzo harnesses the strength of parallel connections to supercharge your downloads.*
 
-Overall, Danzo supports the following protocols: **HTTP**, **HTTPS**, **Google Drive**, **YouTube**, **AWS S3**. Additional protocols are continuously being added. Danzo aims to maximize download speeds by using a large number of goroutines.
+Jump to [Quickstart](#quickstart) to look at the extremely simple command structure. For detailed descriptions, see [Usage](#usage). It may help to use GitHub's table of contents (hamburger menu, top right of readme) to navigate to a section of interest.
 
 ## Features
 
-- Multiple connection threads for high speed downloads and assembly
-  - Temporary directory for chunk downloads
-  - Automatic cleanup of temporary files
-  - Manual cleanup of temporary files in case of failures
-- Automatic optimization of chunk size vs. threads
-  - Direct single-threaded download preference for small chunk sizes
-  - Fallback to single thread operation for lack of byte-range support
-  - Automatic configuration of TCP dialer high-thread mode (>5 connection threads)
-- Real-time rotating progress display with average speed and ETA
-- Multi-worker (second threading layer) batch file downloads with a YAML config
-- Customizable download parameters
-  - Custom or randomized user angent strings
-  - Custom timeout settings
-  - Configurable worker and connection threads (capped at 64 total)
-- Support for HTTP or HTTPS proxies
-- Configurable (optional) output filenames
-  - Automatic numbering of existing names (for single direct URL downloads only)
-  - Automatic output name inference from URL path or Content Disposition headers
-- Resumable downloads for both single-threaded and multi-threaded downloads
-- Resumable Google Drive downloads through API keys and OAuth2.0 credential keys
-- YouTube video and audio downloads with a simple quality selection
-- AWS S3 object and folder downloads multi-threaded download
+***High-Performance Downloads***
+
+- **Multi-threaded**: Split files into chunks for parallel downloads
+- **Optimization**: Auto-adjust client for ranged or full downloads based on server support
+- **Adaptation**: Use single-threaded downloads for small files or servers without range support
+- **High-thread mode**: TCP socket optimizations when using multiple threads
+- **Resumable downloads**: Continue interrupted HTTP downloads from where they left off
+- **Live progress tracking**: Monitor speed, completion percentage, and ETA in real-time
+- **Comprehensive summary**: Download report with total size and average speed on completion
+
+***Batch Processing***
+
+- **YAML configuration**: Download multiple files simultaneously with a simple config
+- **Parallel processing**: Set concurrent downloads and connections per download
+- **Resource management**: Auto-caps at 64 total connections to prevent overload
+
+***Service & Protocol Support***
+
+- HTTP(S) downloads with range request (for chunking) support
+- Google Drive file downloads with API key or OAuth2.0 authentication
+- YouTube videos and audio download with simple quality selection (uses [yt-dlp](https://github.com/yt-dlp/yt-dlp))
+- AWS S3 objects and folder downloads using AWS profile
+- GitHub release asset downloads with automatic OS/architecture detection
+
+***Customization***
+
+- **Output handling**: 
+  - Auto-detect filenames from URLs and headers
+  - Numbered versioning for duplicate manually specified filenames
+- **Connection tuning**: Configure timeouts, HTTP(S) proxy, and user agents
+- **Tempfile management**: Auto and on-demand cleanup of temporary files
+
+***Usability***
+
+- **Simplicity**: Extremely simple command structure for ease of use
+- **Alternative to wget**: Simple, faster alternative for straightforward downloads
+- **One stop shop**: An entryway into downloading files or various kinds
+- **Cross-platform compatibility**: Works on Linux, macOS, and Windows as self-contained binaries
+
+## Quickstart
+
+```bash
+danzo https://example.com/internet-file.zip -o local.zip
+
+# Multiple connections w/ large files for faster downloads
+danzo https://example.com/largefile.zip -c 40
+
+# Batch download with multiple workers and connections per worker
+danzo -l downloads.yaml -w 4 -c 16
+
+# Download YouTube video (best quality) using yt-dlp
+danzo https://www.youtube.com/watch?v=dQw4w9WgXcQ
+
+# Download YouTube audio only using yt-dlp
+danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||audio"
+
+# Download from Google Drive (direct for public or OAuth for private)
+GDRIVE_API_KEY="your_key" danzo "https://drive.google.com/file/d/abc123/view"
+GDRIVE_CREDENTIALS=service-acc-key.json danzo "https://drive.google.com/file/d/abc123/view"
+
+# Download from AWS S3 (file or folder)
+AWS_PROFILE=myprofile danzo "s3://mybucket/path/to/file.zip"
+
+# Download a GitHub release (can auto-select based on OS/arch)
+danzo "github://username/repo"
+```
 
 ## Installation
 
@@ -129,7 +173,7 @@ danzo "https://example.com/largefile.zip" -c 16
 
 Lastly, if a URL does not use byte-range requests (i.e., server doesn't support partial content downloads), Danzo automatically switches to a simple, single-threaded, direct download.
 
-### Batch Download Capability
+#### Batch Download Capability
 
 Danzo can be provided a YAML config to allow simultaneous downloads of several URLs. Each URL in turn will use multi-threaded connection mode by default to maximize throughput. The YAML file requires following format:
 
@@ -156,7 +200,7 @@ danzo -l downloads.yaml -w 3 -c 16
 > [!NOTE]
 > Danzo caps the total number of parallel workers at 64. Specifically `#workers * #connections <= 64`. This is a generous default to prevent overwhelming the system.
 
-### Resumable Downloads & Temporary Files
+#### Resumable Downloads & Temporary Files
 
 Single-connection downloads store a `OUTPUTPATH.part` file in the current working directory while multi-connection downloads store partial files named `OUTPUTPATH.part1`, `OUTPUTPATH.part2`, etc. in the `.danzo-temp` directory.
 
@@ -288,21 +332,43 @@ AWS_PROFILE=myprofile danzo "s3://mybucket/path/to/file.zip"
 > [!NOTE]
 > For S3 downloads, the `connections` flag determines how many objects will be downloaded in parallel if downloading a folder.
 
+### GitHub Release Downloads
+
+It is often a task to download GitHub project releases because it requires figuring out the exact name of the asset file based on the OS and architecture of the machine. Danzo simplifies this process and only requires you to provide the owner and the project name. It uses that to automatically identify the correct latest release for its host's architecture and OS.
+
+```bash
+# default: latest release for your platform
+danzo "github://owner/repo"
+```
+
+Danzo also automatically falls back to a user selection process where the user is displayed the release versions and the assets, requiring the user to confirm each to trigger the correct download.
+
+If the user selection process needs to be manually kicked off, use Danzo like so:
+
+```bash
+danzo "github://owner/repo||version"
+```
+
+> [!WARNING]
+> If you provide a `||version` subcommand or if the automatic download triggers a selection process when using a YAML config for batch downloads, the continuous progress display may interfere with the selection display. This may become especially harder if multiple `github://` URLs are used. Therefore, it is recommended to use the GitHub release download feature only for one-off downloads.
+
 ## Tips and Notes
 
-- Large files benefit the most from multiple connections, but also add to disk IO. Be mindful of the balance between network and disk IO.
-- If a chunk download fails, Danzo will retry individual chunks up to 5 times.
-- For downloading through a proxy, use the `--proxy` or `-p` flag with your proxy URL (you needn't provide the HTTP scheme, Danzo matches it to that of the URL)
-- Not all servers support multi-connection downloads (range requests), in which case, Danzo auto-switches to simple downloads.
-- For servers with rate limiting, reducing the number of connections might help.
-- Debug mode (`--debug`) provides detailed information about the download process.
-- Temporary files are automatically cleaned up after successful downloads.
-- Use `-a randomize` to randomly assign a user agent for every HTTP client.
-  - The full list of user agents considered are stored in the [vars.go](https://github.com/Tanq16/danzo/blob/main/utils/vars.go) file.
-- The tool automatically activates "high-thread-mode" when using more than 5 connections, which optimizes socket buffer sizes for better performance.
-- Maximizing throughput - Danzo supports 2 (automatically handled) modes of HTTP clients:
-  - Simple: this client has a default configuration and usually helps with lower number of connections; Danzo uses this mode for upto 5 connections (including the default of 4)
-  - Specialized: this client has a custom configuration and significantly benefits high-thread mode; Danzo automatically switches to this mode for high-thread mode (>=6 connections)
-  - Example: A large download with the specicalized client and 2 threads will run at ~4 MB/s. The same download with a simple client would run at ~20 MB/s. Next, the same download with the simple client but 30 threads would also run at 20 MB/s. However, the exact same download with the specialized client and 30 threads will run at ~60 MB/s. This example is a simple real-world observation meant to demonstrate the need for striking a balance between number of threads and download size to obtain maximum throughput.
-- Danzo is specifically design so that the item being downloaded is only represented simply as an argument. Danzo automatically adjusts methods, nuances, and strategies to ensure URLs of various types are handled in the intended way.
-- Automatically downloading `yt-dlp` reduces possible friction and begin a new path for automation.
+- For troubleshooting, use `--debug` to see detailed operation logs
+- Use `-a randomize` to assign a random user agent for each HTTP client
+- When using a proxy, you only need to provide the hostname and port with `-p` - the scheme is matched to the download URL
+- Failed chunk downloads are automatically retried up to 5 times before failing
+- Reduce connection count for servers with rate limiting to avoid being blocked
+- Balance connections and file size for optimal performance - more connections aren't always better due to disk I/O overhead
+- Throughput optimization tips:
+  - For small files (<20MB), single-threaded downloads are often faster
+  - For large files on high-bandwidth connections, try 12-16 connections
+  - For very large files (>1GB), find your optimal connection count (usually 16-32)
+  - Example: A 1GB file took 54 seconds with 50 connections vs 62 seconds with 64 connections due to assembly overhead
+- YouTube downloads require `yt-dlp`, which Danzo will automatically download if not found in your PATH
+- AWS S3 downloads uses configured AWS CLI profiles - if a specific profile is not set with `AWS_PROFILE=name`, the `default` profile is used
+- For Google Drive downloads, rate limits and throttling will be enforced by Google; Danzo only uses a simple client
+- If a download is interrupted, Danzo will automatically resume from temporary files when you run the same command (requires matching connections count)
+- To change Google Drive auth methods, use environment variables:
+  - API Key: `GDRIVE_API_KEY=your_key` (can only download shared URLs)
+  - OAuth: `GDRIVE_CREDENTIALS=path/to/credentials.json` (can download private URLs also)

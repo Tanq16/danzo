@@ -34,7 +34,7 @@ func DetermineDownloadType(url string) string {
 		return "ftp"
 	} else if strings.HasPrefix(url, "sftp://") {
 		return "sftp"
-	} else if strings.HasPrefix(url, "github://") || strings.HasPrefix(url, "gitlab://") {
+	} else if strings.HasPrefix(url, "github://") {
 		return "gitrelease"
 	}
 	return "http"

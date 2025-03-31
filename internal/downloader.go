@@ -170,9 +170,9 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				// GitHub Release download
 				// =================================================================================================================
 				case "gitrelease":
-					logger.Debug().Str("url", entry.URL).Msg("GitHub/GitLab Release URL detected")
+					logger.Debug().Str("url", entry.URL).Msg("GitHub Release URL detected")
 					simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
-					downloadURL, filename, size, err := danzogitr.ProcessGitHubRelease(entry.URL, simpleClient)
+					downloadURL, filename, size, err := danzogitr.ProcessRelease(entry.URL, simpleClient)
 					if err != nil {
 						logger.Error().Err(err).Msg("Failed to process GitHub release")
 						errorCh <- fmt.Errorf("error processing GitHub release URL %s: %v", entry.URL, err)
