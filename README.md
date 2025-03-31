@@ -65,7 +65,7 @@ danzo https://example.com/largefile.zip -c 40
 danzo -l downloads.yaml -w 4 -c 16
 
 # Download YouTube video (best quality) using yt-dlp
-danzo https://www.youtube.com/watch?v=dQw4w9WgXcQ
+danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
 # Download YouTube audio only using yt-dlp
 danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||audio"
