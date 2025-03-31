@@ -9,13 +9,14 @@ import (
 	"time"
 
 	danzogdrive "github.com/tanq16/danzo/downloaders/gdrive"
+	danzogitr "github.com/tanq16/danzo/downloaders/gitrelease"
 	danzohttp "github.com/tanq16/danzo/downloaders/http"
 	danzos3 "github.com/tanq16/danzo/downloaders/s3"
 	danzoyoutube "github.com/tanq16/danzo/downloaders/youtube"
 	"github.com/tanq16/danzo/utils"
 )
 
-func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLink int, timeout time.Duration, kaTimeout time.Duration, userAgent string, proxyURL string) error {
+func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink int, timeout, kaTimeout time.Duration, userAgent, proxyURL string) error {
 	log := utils.GetLogger("downloader")
 	log.Info().Int("totalFiles", len(entries)).Int("workers", numLinks).Int("connections", connectionsPerLink).Msg("Initiating download")
 
@@ -63,7 +64,15 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 
 				urlType := utils.DetermineDownloadType(config.URL)
 				switch urlType {
-				// Default is HTTP download
+
+				// =================================================================================================================
+				// DOWNLOAD TYPES USED BY DANZO ====================================================================================
+				// EACH DOWNLOAD TYPE HAS A SPECIFIC HANDLER OR PROCESSOR ==========================================================
+				// HANDLERS ARE TRIGGERED IN THE SWITCH CASE BASED ON TYPE =========================================================
+				// =================================================================================================================
+
+				// HTTP download
+				// =================================================================================================================
 				case "http":
 					fileSize, fileName, err := utils.GetFileInfo(config.URL, config.UserAgent, client)
 					if config.OutputPath == "" && fileName != "" {
@@ -120,7 +129,9 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 					} else {
 						logger.Debug().Str("output", entry.OutputPath).Msg("Download completed successfully")
 					}
-					// YouTube download (with yt-dlp as dependency)
+
+				// YouTube download (with yt-dlp as dependency)
+				// =================================================================================================================
 				case "youtube":
 					logger.Debug().Str("url", entry.URL).Msg("YouTube URL detected")
 					processedURL, format, dType, output, err := danzoyoutube.ProcessURL(entry.URL)
@@ -155,10 +166,51 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 					} else {
 						logger.Debug().Str("output", entry.OutputPath).Msg("YouTube download completed successfully")
 					}
-				// Mega.nz download
-				case "mega":
-					// TODO
+
+				// GitHub Release download
+				// =================================================================================================================
+				case "gitrelease":
+					logger.Debug().Str("url", entry.URL).Msg("GitHub/GitLab Release URL detected")
+					simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
+					downloadURL, filename, size, err := danzogitr.ProcessGitHubRelease(entry.URL, simpleClient)
+					if err != nil {
+						logger.Error().Err(err).Msg("Failed to process GitHub release")
+						errorCh <- fmt.Errorf("error processing GitHub release URL %s: %v", entry.URL, err)
+						continue
+					}
+
+					if config.OutputPath == "" {
+						config.OutputPath = filename
+						entry.OutputPath = filename
+					}
+					logger.Debug().Str("output", config.OutputPath).Msg("Output path determined")
+
+					progressManager.Register(entry.OutputPath, size)
+					var progressWg sync.WaitGroup
+					progressWg.Add(1)
+					// Internal goroutine to forward progress updates to the manager
+					go func(outputPath string, progCh <-chan int64) {
+						defer progressWg.Done()
+						var totalDownloaded int64
+						for bytesDownloaded := range progCh {
+							progressManager.Update(outputPath, bytesDownloaded)
+							totalDownloaded += bytesDownloaded
+						}
+						progressManager.Complete(outputPath, totalDownloaded)
+					}(entry.OutputPath, progressCh)
+
+					err = danzohttp.PerformSimpleDownload(downloadURL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
+					close(progressCh)
+					progressWg.Wait()
+					if err != nil {
+						logger.Error().Err(err).Msg("GitHub release download failed")
+						errorCh <- fmt.Errorf("error downloading %s: %v", entry.URL, err)
+					} else {
+						logger.Debug().Str("output", entry.OutputPath).Msg("GitHub release download completed successfully")
+					}
+
 				// AWS S3 download
+				// =================================================================================================================
 				case "s3":
 					logger.Debug().Str("url", entry.URL).Msg("S3 URL detected")
 					s3client, err := danzos3.GetS3Client()
@@ -250,13 +302,19 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks int, connectionsPerLi
 					s3JobWg.Wait()
 					s3wg.Wait()
 					progressWg.Wait()
+
 				// FTP and FTPS download
+				// =================================================================================================================
 				case "ftp":
 					// TODO
+
 				// SFTP download
+				// =================================================================================================================
 				case "sftp":
 					// TODO
+
 				// Google Drive download
+				// =================================================================================================================
 				case "gdrive":
 					logger.Debug().Str("url", entry.URL).Msg("Google Drive URL detected")
 					simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
