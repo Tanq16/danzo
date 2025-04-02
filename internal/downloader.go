@@ -124,10 +124,12 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD with 1 connection")
 						simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
 						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
+						close(progressCh)
 					} else if fileSize/int64(config.Connections) < 2*utils.DefaultBufferSize {
 						logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD bcz low file size")
 						simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
 						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
+						close(progressCh)
 					} else {
 						err = danzohttp.PerformMultiDownload(config, client, fileSize, progressCh)
 					}
@@ -139,7 +141,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					} else {
 						logger.Debug().Str("output", entry.OutputPath).Msg("Download completed successfully")
 					}
-					close(progressCh)
+					// close(progressCh) // Closing the progress channel here would cause a panic (Multi-Download already closes it)
 					progressWg.Wait()
 
 				// YouTube download (with yt-dlp as dependency)
