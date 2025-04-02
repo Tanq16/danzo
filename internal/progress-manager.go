@@ -170,8 +170,28 @@ func (pm *ProgressManager) updateDisplay() {
 func (pm *ProgressManager) ShowSummary() {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
-	fmt.Println()
-	fmt.Println("Task Summary")
+	if pm.numLines > 0 {
+		fmt.Printf("\033[%dA\033[J", pm.numLines)
+	}
+	var keys []string
+	for outputPath := range pm.progressMap {
+		keys = append(keys, outputPath)
+	}
+	sort.Strings(keys)
+
+	for _, outputPath := range keys {
+		info := pm.progressMap[outputPath]
+		status := "Completed"
+		if !info.Completed {
+			status = "Incomplete"
+		}
+		fileName := outputPath
+		if len(fileName) > 25 {
+			fileName = "..." + fileName[len(fileName)-22:]
+		}
+		fmt.Printf("Status: %s,  Size: %s,  File: %s\n", status, utils.FormatBytes(uint64(info.CompletedSize)), fileName)
+	}
+
 	fmt.Println("============")
 	totalSize := int64(0)
 	earliestTime := float64(0)
@@ -182,15 +202,10 @@ func (pm *ProgressManager) ShowSummary() {
 			earliestTime = elapsed
 		}
 		totalSize += info.CompletedSize
-		status := "Completed"
-		if !info.Completed {
-			status = "Incomplete"
-		}
-		fmt.Printf("Status: %s,  Size: %s,  File: %s\n", status, utils.FormatBytes(uint64(info.CompletedSize)), info.OutputPath)
 	}
-	fmt.Println()
 	overallSpeed := float64(totalSize) / earliestTime / 1024 / 1024
-	log.Info().Str("Total Data", utils.FormatBytes(uint64(totalSize))).Str("Overall Speed", fmt.Sprintf("%.2f MB/s", overallSpeed)).Str("Time Elapsed", fmt.Sprintf("%.2fs", earliestTime)).Msg("Summary")
+	log.Debug().Str("Total Data", utils.FormatBytes(uint64(totalSize))).Str("Overall Speed", fmt.Sprintf("%.2f MB/s", overallSpeed)).Str("Time Elapsed", fmt.Sprintf("%.2fs", earliestTime)).Msg("Summary")
+	fmt.Printf("Total Data: %s, Overall Speed: %.2f MB/s, Time Elapsed: %.2fs\n", utils.FormatBytes(uint64(totalSize)), overallSpeed, earliestTime)
 }
 
 func (pm *ProgressManager) Stop() {
