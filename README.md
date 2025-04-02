@@ -269,23 +269,20 @@ danzo "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link"
 
 Danzo supports downloading videos and audio from YouTube by using [yt-dlp](https://github.com/yt-dlp/yt-dlp) as a dependency. Some files and merge operations may also require `ffmpeg` and `ffprobe`. If not present, Danzo will make a temporary download of the appropriate `yt-dlp` binary. However, it is recommended to have `yt-dlp`, `ffmpeg`, and `ffprobe` pre-installed.
 
-By default, Danzo will download the best available quality.
 
 To download a YouTube video:
 
 ```bash
+# By default, Danzo will download the best available quality.
 danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 ```
 
 > [!NOTE]
-> In an effort to create a successful and simple integration, Danzo uses a default output name of `danzo-yt-dlp-video.mp4` or `danzo-yt-dlp-audio.m4a`. As such, the `-o` flag will have no effect on a YouTube download.
+> In an effort to create a successful and simple integration, Danzo lets `yt-dlp` dictate the file extension for a given output. As such, the `-o` flag will not have an effect on the extension. Audio downloads will always have a `.m4a` download, while a video may have `.mp4`, or `.webm`.
 
 A download type can be appended to the URL to control Danzo's behavior. These defaults were chosen based on heuristics and observed popularity.
 
 ```bash
-# Download best quality
-danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||best"
-
 # Download 1080p MP4
 danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||1080p"
 
@@ -298,6 +295,8 @@ danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||decent"
 # Download audio only (m4a)
 danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||audio"
 ```
+
+All available types are listed in the [youtube.go](./downloaders/youtube/youtube.go) file.
 
 > [!NOTE]
 > YouTube downloads require `yt-dlp` to be installed on your system. If it's not found, Danzo will automatically download and use a compatible version. Additionally, since the STDOUT and STDERR are directly streamed from `yt-dlp` to `danzo`, YouTube videos are not tracked for progress the way HTTP downloads are. When downloading a single YouTube URL, the output from `yt-dlp` will be streamed to the user's STDOUT. But if the URL is part of a batch file, then the output is hidden and the progress appears stalled until finished.
