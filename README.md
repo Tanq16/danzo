@@ -34,7 +34,7 @@ Jump to [Quickstart](#quickstart) to look at the extremely simple command struct
 
 - HTTP(S) downloads with range request (for chunking) support
 - Google Drive file downloads with API key or OAuth2.0 authentication
-- YouTube videos and audio download with simple quality selection (uses [yt-dlp](https://github.com/yt-dlp/yt-dlp))
+- YouTube videos and audio download with simple quality selection (needs [yt-dlp](https://github.com/yt-dlp/yt-dlp) and optionally `ffmpeg` and `ffprobe`)
 - AWS S3 objects and folder downloads using AWS profile
 - GitHub release asset downloads with automatic OS/architecture detection
 
@@ -267,7 +267,9 @@ danzo "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link"
 
 ### YouTube Downloads
 
-Danzo supports downloading videos and audio from YouTube by using [yt-dlp](https://github.com/yt-dlp/yt-dlp) as a dependency. By default, it will download the best available quality.
+Danzo supports downloading videos and audio from YouTube by using [yt-dlp](https://github.com/yt-dlp/yt-dlp) as a dependency. Some files and merge operations may also require `ffmpeg` and `ffprobe`. If not present, Danzo will make a temporary download of the appropriate `yt-dlp` binary. However, it is recommended to have `yt-dlp`, `ffmpeg`, and `ffprobe` pre-installed.
+
+By default, Danzo will download the best available quality.
 
 To download a YouTube video:
 
