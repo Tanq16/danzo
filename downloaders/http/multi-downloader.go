@@ -25,7 +25,7 @@ func PerformMultiDownload(config utils.DownloadConfig, client *http.Client, file
 	}
 	tempDir := filepath.Join(filepath.Dir(config.OutputPath), ".danzo-temp")
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		log.Error().Err(err).Str("dir", tempDir).Msg("Error creating temp directory")
+		log.Debug().Err(err).Str("dir", tempDir).Msg("Error creating temp directory")
 		return fmt.Errorf("error creating temp directory: %v", err)
 	}
 
@@ -89,7 +89,7 @@ func assembleFile(job utils.DownloadJob) error {
 	allChunksCompleted := true
 	for i, chunk := range job.Chunks {
 		if !chunk.Completed {
-			log.Warn().Int("chunkId", i).Msg("Chunk was not completed")
+			log.Debug().Int("chunkId", i).Msg("Chunk was not completed")
 			allChunksCompleted = false
 		}
 	}
@@ -102,7 +102,7 @@ func assembleFile(job utils.DownloadJob) error {
 		idI, errI := extractChunkID(tempFiles[i])
 		idJ, errJ := extractChunkID(tempFiles[j])
 		if errI != nil || errJ != nil {
-			log.Error().Err(errors.Join(errI, errJ)).Str("file1", tempFiles[i]).Str("file2", tempFiles[j]).Msg("Error sorting chunk files")
+			log.Debug().Err(errors.Join(errI, errJ)).Str("file1", tempFiles[i]).Str("file2", tempFiles[j]).Msg("Error sorting chunk files")
 			return tempFiles[i] < tempFiles[j] // Fallback to string comparison
 		}
 		return idI < idJ

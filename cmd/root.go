@@ -65,7 +65,8 @@ var rootCmd = &cobra.Command{
 			}
 			err := internal.BatchDownload(entries, 1, connections, timeout, kaTimeout, userAgent, proxyURL)
 			if err != nil {
-				log.Fatal().Err(err).Msg("Download failed")
+				fmt.Println()
+				log.Fatal().Err(err).Msg("Encountered failed operation(s)")
 			}
 			return
 		} else {
@@ -78,11 +79,12 @@ var rootCmd = &cobra.Command{
 			maxConnections := 64
 			if numLinks*connectionsPerLink > maxConnections {
 				connectionsPerLink = max(maxConnections/numLinks, 1)
-				log.Warn().Int("connections", connectionsPerLink).Int("numLinks", numLinks).Msg("adjusted connections to below max limit")
+				log.Debug().Int("connections", connectionsPerLink).Int("numLinks", numLinks).Msg("adjusted connections to below max limit")
 			}
 			err = internal.BatchDownload(entries, numLinks, connectionsPerLink, timeout, kaTimeout, userAgent, proxyURL)
 			if err != nil {
-				log.Fatal().Err(err).Msg("Batch download completed with errors")
+				fmt.Println()
+				log.Fatal().Err(err).Msg("Encountered failed operation(s)")
 			}
 		}
 	},

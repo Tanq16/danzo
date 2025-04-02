@@ -115,7 +115,7 @@ func downloadYtdlp() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error writing to file: %v", err)
 	}
-	log.Info().Str("path", filePath).Msg("yt-dlp not found, downloaded automatically")
+	log.Debug().Str("path", filePath).Msg("yt-dlp not found, downloaded automatically")
 	return filePath, nil
 }
 
@@ -183,7 +183,7 @@ func DownloadYouTubeVideo(url, outputPath, format, dType string, progressCh chan
 	if err == nil {
 		totalSizeBytes = fileInfo.Size()
 	} else {
-		log.Warn().Err(err).Msg("Unable to get file size, using estimate instead")
+		log.Debug().Err(err).Msg("Unable to get file size, using estimate instead")
 		totalSizeBytes = 1
 	}
 	progressCh <- totalSizeBytes

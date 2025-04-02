@@ -64,7 +64,7 @@ func PerformSimpleDownload(url string, outputPath string, client *http.Client, u
 
 	if resumeOffset > 0 {
 		if resp.StatusCode != http.StatusPartialContent {
-			log.Warn().Int("statusCode", resp.StatusCode).Msg("Server doesn't support resume, starting from beginning")
+			log.Debug().Int("statusCode", resp.StatusCode).Msg("Server doesn't support resume, starting from beginning")
 			outFile.Close()
 			outFile, err = os.OpenFile(tempOutputPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 			if err != nil {

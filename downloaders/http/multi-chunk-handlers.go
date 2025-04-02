@@ -34,7 +34,7 @@ func chunkedDownload(job *utils.DownloadJob, chunk *utils.DownloadChunk, client 
 		} else if resumeOffset > 0 && resumeOffset < expectedSize { // Resume incomplete chunk
 			log.Debug().Str("file", filepath.Base(tempFileName)).Int64("size", resumeOffset).Int64("total", expectedSize).Msg("Resuming incomplete chunk")
 		} else if chunk.Downloaded > 0 {
-			log.Warn().Str("file", filepath.Base(tempFileName)).Int64("size", resumeOffset).Int64("expected", expectedSize).Msg("Temporary file larger than expected, removing and redownloading")
+			log.Debug().Str("file", filepath.Base(tempFileName)).Int64("size", resumeOffset).Int64("expected", expectedSize).Msg("Temporary file larger than expected, removing and redownloading")
 			os.Remove(tempFileName)
 			resumeOffset = 0
 		}
@@ -56,7 +56,7 @@ func chunkedDownload(job *utils.DownloadJob, chunk *utils.DownloadChunk, client 
 			}
 		}
 		if err := downloadSingleChunk(job, chunk, client, tempFileName, progressCh, resumeOffset); err != nil {
-			log.Error().Err(err).Int("attempt", retry+1).Msg("Error downloading chunk")
+			log.Debug().Err(err).Int("attempt", retry+1).Msg("Error downloading chunk")
 			continue
 		}
 		// On success
@@ -66,7 +66,7 @@ func chunkedDownload(job *utils.DownloadJob, chunk *utils.DownloadChunk, client 
 		chunk.Completed = true
 		return
 	}
-	log.Error().Int("maxRetries", maxRetries).Msg("Failed to download chunk after multiple attempts")
+	log.Debug().Int("maxRetries", maxRetries).Msg("Failed to download chunk after multiple attempts")
 }
 
 func downloadSingleChunk(job *utils.DownloadJob, chunk *utils.DownloadChunk, client *http.Client, tempFileName string, progressCh chan<- int64, resumeOffset int64) error {
@@ -132,7 +132,7 @@ func downloadSingleChunk(job *utils.DownloadJob, chunk *utils.DownloadChunk, cli
 		}
 	}
 	if newBytes != remainingBytes {
-		log.Error().Int64("remainingBytes", remainingBytes).Int64("newBytes", newBytes).Int64("totalDownloaded", chunk.Downloaded).Int64("resumeOffset", resumeOffset).Msg("Size mismatch on chunk download")
+		log.Debug().Int64("remainingBytes", remainingBytes).Int64("newBytes", newBytes).Int64("totalDownloaded", chunk.Downloaded).Int64("resumeOffset", resumeOffset).Msg("Size mismatch on chunk download")
 		return fmt.Errorf("size mismatch: expected %d remaining bytes, got %d bytes this session", remainingBytes, newBytes)
 	}
 	totalExpectedSize := chunk.EndByte - chunk.StartByte + 1
