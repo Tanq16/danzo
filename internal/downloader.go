@@ -152,11 +152,26 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						errorCh <- fmt.Errorf("error processing YouTube URL %s: %v", entry.URL, err)
 						continue
 					}
-					config.OutputPath = output
-					entry.OutputPath = output
+					if config.OutputPath == "" {
+						config.OutputPath = output
+						entry.OutputPath = output
+					} else {
+						existingFile, _ := os.Stat(config.OutputPath)
+						if existingFile != nil {
+							if existingFile.Size() > 0 {
+								logger.Debug().Str("output", config.OutputPath).Msg("File already exists and is complete, skipping download")
+								continue
+							}
+							config.OutputPath = utils.RenewOutputPath(config.OutputPath)
+							entry.OutputPath = config.OutputPath
+						}
+					}
 					entry.URL = processedURL
 					// For YouTube, we register with unknown size and only update at the end
 					progressManager.Register(entry.OutputPath, -1)
+					streamCh := make(chan []string, 7)
+
+					// Internal goroutine to forward progress updates to the manager
 					var progressWg sync.WaitGroup
 					progressWg.Add(1)
 					go func(outputPath string, progCh <-chan int64) {
@@ -168,7 +183,17 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						progressManager.Complete(outputPath, totalDownloaded)
 					}(entry.OutputPath, progressCh)
 
-					err = danzoyoutube.DownloadYouTubeVideo(entry.URL, entry.OutputPath, format, dType, progressCh, len(entries) < 2)
+					// Goroutine to forward streaming output to the manager
+					var streamWg sync.WaitGroup
+					streamWg.Add(1)
+					go func(outputPath string, streamCh <-chan []string) {
+						defer streamWg.Done()
+						for streamOutput := range streamCh {
+							progressManager.UpdateStreamOutput(outputPath, streamOutput)
+						}
+					}(entry.OutputPath, streamCh)
+
+					err = danzoyoutube.DownloadYouTubeVideo(entry.URL, entry.OutputPath, format, dType, progressCh, streamCh)
 					if err != nil {
 						logger.Debug().Err(err).Msg("YouTube download failed")
 						reportError := fmt.Errorf("error downloading %s: %v", entry.URL, err)
@@ -178,7 +203,9 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						logger.Debug().Str("output", entry.OutputPath).Msg("YouTube download completed successfully")
 					}
 					close(progressCh)
+					close(streamCh)
 					progressWg.Wait()
+					streamWg.Wait()
 
 				// GitHub Release download
 				// =================================================================================================================
