@@ -19,7 +19,7 @@ import (
 
 func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink int, timeout, kaTimeout time.Duration, userAgent, proxyURL string) error {
 	log := utils.GetLogger("downloader")
-	log.Info().Int("totalFiles", len(entries)).Int("workers", numLinks).Int("connections", connectionsPerLink).Msg("Initiating download")
+	log.Debug().Int("totalFiles", len(entries)).Int("workers", numLinks).Int("connections", connectionsPerLink).Msg("Initiating download")
 
 	progressManager := NewProgressManager()
 	progressManager.StartDisplay()
@@ -124,22 +124,23 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD with 1 connection")
 						simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
 						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
-						close(progressCh)
 					} else if fileSize/int64(config.Connections) < 2*utils.DefaultBufferSize {
 						logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD bcz low file size")
 						simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
 						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
-						close(progressCh)
 					} else {
 						err = danzohttp.PerformMultiDownload(config, client, fileSize, progressCh)
 					}
-					progressWg.Wait()
 					if err != nil {
 						logger.Debug().Err(err).Msg("Download failed")
-						errorCh <- fmt.Errorf("error downloading %s: %v", entry.URL, err)
+						reportError := fmt.Errorf("error downloading %s: %v", entry.URL, err)
+						errorCh <- reportError
+						progressManager.ReportError(entry.OutputPath, reportError)
 					} else {
 						logger.Debug().Str("output", entry.OutputPath).Msg("Download completed successfully")
 					}
+					close(progressCh)
+					progressWg.Wait()
 
 				// YouTube download (with yt-dlp as dependency)
 				// =================================================================================================================
@@ -168,15 +169,16 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					}(entry.OutputPath, progressCh)
 
 					err = danzoyoutube.DownloadYouTubeVideo(entry.URL, entry.OutputPath, format, dType, progressCh, len(entries) < 2)
-					close(progressCh)
-					progressWg.Wait()
-
 					if err != nil {
 						logger.Debug().Err(err).Msg("YouTube download failed")
-						errorCh <- fmt.Errorf("error downloading %s: %v", entry.URL, err)
+						reportError := fmt.Errorf("error downloading %s: %v", entry.URL, err)
+						errorCh <- reportError
+						progressManager.ReportError(entry.OutputPath, reportError)
 					} else {
 						logger.Debug().Str("output", entry.OutputPath).Msg("YouTube download completed successfully")
 					}
+					close(progressCh)
+					progressWg.Wait()
 
 				// GitHub Release download
 				// =================================================================================================================
@@ -211,14 +213,16 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					}(entry.OutputPath, progressCh)
 
 					err = danzohttp.PerformSimpleDownload(downloadURL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
-					close(progressCh)
-					progressWg.Wait()
 					if err != nil {
 						logger.Debug().Err(err).Msg("GitHub release download failed")
-						errorCh <- fmt.Errorf("error downloading %s: %v", entry.URL, err)
+						reportError := fmt.Errorf("error downloading %s: %v", entry.URL, err)
+						errorCh <- reportError
+						progressManager.ReportError(entry.OutputPath, reportError)
 					} else {
 						logger.Debug().Str("output", entry.OutputPath).Msg("GitHub release download completed successfully")
 					}
+					close(progressCh)
+					progressWg.Wait()
 
 				// AWS S3 download
 				// =================================================================================================================
@@ -300,13 +304,15 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 									progressManager.Complete(outputPath, totalDownloaded)
 								}(s3Job.Output, s3FolderProgressCh)
 								err := danzos3.PerformS3ObjectDownload(s3Job.Bucket, s3Job.Key, s3Job.Output, s3Job.Size, s3client, s3FolderProgressCh)
-								close(s3FolderProgressCh)
 								if err != nil {
 									logger.Debug().Err(err).Msg("S3 Download failed")
-									errorCh <- fmt.Errorf("error downloading %s, Object %s: %v", entry.URL, s3Job.Key, err)
+									reportError := fmt.Errorf("error downloading Object %s: %v", s3Job.Key, err)
+									errorCh <- reportError
+									progressManager.ReportError(s3Job.Output, reportError)
 								} else {
 									logger.Debug().Str("output", entry.OutputPath).Msg("S3 Download completed successfully")
 								}
+								close(s3FolderProgressCh)
 							}
 						}(i+1, s3JobsCh)
 					}
@@ -367,14 +373,16 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					}(entry.OutputPath, progressCh)
 
 					err = danzogdrive.PerformGDriveDownload(config, apiKey, fileID, simpleClient, progressCh)
-					close(progressCh)
-					progressWg.Wait()
 					if err != nil {
 						logger.Debug().Err(err).Msg("Download failed")
-						errorCh <- fmt.Errorf("error downloading %s: %v", entry.URL, err)
+						reportError := fmt.Errorf("error downloading %s: %v", entry.URL, err)
+						errorCh <- reportError
+						progressManager.ReportError(entry.OutputPath, reportError)
 					} else {
 						logger.Debug().Str("output", entry.OutputPath).Msg("Download completed successfully")
 					}
+					close(progressCh)
+					progressWg.Wait()
 				}
 			}
 		}(i + 1)

@@ -19,6 +19,9 @@ func InitLogger(debug bool) {
 		TimeFormat: time.DateTime,
 	}
 	log.Logger = zerolog.New(output).With().Timestamp().Logger()
+	if debug {
+		PMDebug = true
+	}
 }
 
 func GetLogger(component string) zerolog.Logger {

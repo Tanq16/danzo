@@ -56,7 +56,7 @@ func getAccessTokenFromCredentials(credentialsFile string) (string, error) {
 			token = newToken
 			// Save refreshed token
 			if err := saveToken(tokenFile, token); err != nil {
-				log.Warn().Err(err).Msg("Failed to save refreshed token")
+				log.Debug().Err(err).Msg("Failed to save refreshed token")
 			}
 		} else {
 			return "", errors.New("OAuth token is expired and cannot be refreshed")
@@ -73,7 +73,7 @@ func getOAuthToken(config *oauth2.Config, tokenFile string) (*oauth2.Token, erro
 		log.Debug().Str("file", tokenFile).Msg("Using existing token")
 		return token, nil
 	}
-	log.Info().Msg("No token found, need to authenticate with Google")
+	log.Debug().Msg("No token found, need to authenticate with Google")
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 	fmt.Printf("\nVisit the URL to authenticate:\n%s\n\nEnter the authorization code here and press return\n", authURL)
 	var authCode string
@@ -85,7 +85,7 @@ func getOAuthToken(config *oauth2.Config, tokenFile string) (*oauth2.Token, erro
 		return nil, fmt.Errorf("unable to exchange auth code for token: %v", err)
 	}
 	if err := saveToken(tokenFile, token); err != nil {
-		log.Warn().Err(err).Msg("Failed to save token")
+		log.Debug().Err(err).Msg("Failed to save token")
 	}
 	fmt.Printf("\033[%dA\033[J", 6)
 	return token, nil

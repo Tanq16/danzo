@@ -20,6 +20,7 @@ type ProgressInfo struct {
 	ETA           string
 	Completed     bool
 	CompletedSize int64
+	Failure       string
 	StartTime     time.Time
 }
 
@@ -71,9 +72,22 @@ func (pm *ProgressManager) Complete(outputPath string, totalDownloaded int64) {
 	log.Debug().Str("file", outputPath).Int64("totalDownloaded", totalDownloaded).Msg("COMPLETE CALLED")
 }
 
+func (pm *ProgressManager) ReportError(outputPath string, err error) {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
+	if info, exists := pm.progressMap[outputPath]; exists {
+		info.Completed = true
+		info.Failure = fmt.Sprintf("Error: %v", err)
+	}
+	log.Debug().Str("file", outputPath).Err(err).Msg("ERROR CALLED")
+}
+
 func (pm *ProgressManager) StartDisplay() {
 	go func() {
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(500 * time.Millisecond)
+		if utils.PMDebug {
+			ticker = time.NewTicker(3 * time.Second)
+		}
 		defer ticker.Stop()
 		for {
 			select {
@@ -89,30 +103,29 @@ func (pm *ProgressManager) StartDisplay() {
 func (pm *ProgressManager) updateDisplay() {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
-	if pm.numLines > 0 {
+	if pm.numLines != 0 {
 		fmt.Printf("\033[%dA\033[J", pm.numLines)
 	}
-	var keys []string
-	numActive := 0
-	for outputPath, info := range pm.progressMap {
-		keys = append(keys, outputPath)
-		if !info.Completed {
-			numActive++
-		}
-	}
-	sort.Strings(keys)
-	if numActive == 0 && len(pm.progressMap) > 0 {
-		fmt.Println("All downloads completed.")
-		pm.numLines = 1
-		return
-	}
-	pm.numLines = 0
+	var activeKeys []string
+	var completedKeys []string
+	var notActiveKeys []string
 
-	for _, outputPath := range keys {
-		info := pm.progressMap[outputPath]
+	for outputPath, info := range pm.progressMap {
 		if info.Completed {
-			continue
+			completedKeys = append(completedKeys, outputPath)
+		} else if info.Downloaded > 0 {
+			activeKeys = append(activeKeys, outputPath)
+		} else {
+			notActiveKeys = append(notActiveKeys, outputPath)
 		}
+	}
+	sort.Strings(activeKeys)
+	sort.Strings(completedKeys)
+	sort.Strings(notActiveKeys)
+
+	// Active downloads
+	for _, outputPath := range activeKeys {
+		info := pm.progressMap[outputPath]
 		fileName := outputPath
 		if len(fileName) > 25 {
 			fileName = "..." + fileName[len(fileName)-22:]
@@ -144,7 +157,6 @@ func (pm *ProgressManager) updateDisplay() {
 		}
 		info.ETA = eta
 
-		// progress bar
 		progressWidth := 30
 		var progressBar string
 		if info.TotalSize > 0 {
@@ -157,42 +169,45 @@ func (pm *ProgressManager) updateDisplay() {
 				progressBar += strings.Repeat(" ", progressWidth-filledWidth-1)
 			}
 			progressBar += "]"
-			fmt.Printf("%s: %s %.1f%% %s/%s %.2f MB/s ETA: %s\n", fileName, progressBar, percent*100, utils.FormatBytes(uint64(info.Downloaded)), utils.FormatBytes(uint64(info.TotalSize)), info.Speed, eta)
+			fmt.Printf("%s%s: %s %.1f%% %s/%s %.2f MB/s ETA: %s%s\n", utils.Color["g"], fileName, progressBar, percent*100, utils.FormatBytes(uint64(info.Downloaded)), utils.FormatBytes(uint64(info.TotalSize)), info.Speed, eta, utils.Color["R"])
 		} else {
 			// total size unknown
-			progressBar = "[" + strings.Repeat("=", 15) + ">" + strings.Repeat(" ", 14) + "]"
-			fmt.Printf("%s: %s %s %.2f MB/s\n", fileName, progressBar, utils.FormatBytes(uint64(info.Downloaded)), info.Speed)
+			progressBar = "[" + strings.Repeat(" ", 10) + strings.Repeat("*", 10) + strings.Repeat(" ", 9) + "]"
+			fmt.Printf("%s%s: %s %s %.2f MB/s%s\n", utils.Color["g"], fileName, progressBar, utils.FormatBytes(uint64(info.Downloaded)), info.Speed, utils.Color["R"])
 		}
-		pm.numLines++
 	}
+
+	// Completed downloads
+	for _, outputPath := range completedKeys {
+		info := pm.progressMap[outputPath]
+		fileName := outputPath
+		if len(fileName) > 25 {
+			fileName = "..." + fileName[len(fileName)-22:]
+		}
+		colorToUse := fmt.Sprintf("%s%s", utils.Color["b"], utils.Color["pass"])
+		if info.Failure != "" {
+			colorToUse = fmt.Sprintf("%s%s", utils.Color["r"], utils.Color["fail"])
+		}
+		fmt.Printf("%s\tSize: %s\t\tFile: %s%s\n", colorToUse, utils.FormatBytes(uint64(info.CompletedSize)), fileName, utils.Color["R"])
+	}
+
+	// Inactive downloads
+	for _, outputPath := range notActiveKeys {
+		fileName := outputPath
+		if len(fileName) > 25 {
+			fileName = "..." + fileName[len(fileName)-22:]
+		}
+		fmt.Printf("%sWaiting (or can't be shown, hang tight),  File: %s%s\n", utils.Color["G"], fileName, utils.Color["R"])
+	}
+
+	pm.numLines = len(activeKeys) + len(completedKeys) + len(notActiveKeys) // len(pm.progressMap) - (not always correct)
 }
 
 func (pm *ProgressManager) ShowSummary() {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
-	if pm.numLines > 0 {
-		fmt.Printf("\033[%dA\033[J", pm.numLines)
-	}
-	var keys []string
-	for outputPath := range pm.progressMap {
-		keys = append(keys, outputPath)
-	}
-	sort.Strings(keys)
-
-	for _, outputPath := range keys {
-		info := pm.progressMap[outputPath]
-		status := "Completed"
-		if !info.Completed {
-			status = "Incomplete"
-		}
-		fileName := outputPath
-		if len(fileName) > 25 {
-			fileName = "..." + fileName[len(fileName)-22:]
-		}
-		fmt.Printf("Status: %s,  Size: %s,  File: %s\n", status, utils.FormatBytes(uint64(info.CompletedSize)), fileName)
-	}
-
-	fmt.Println("============")
+	pm.updateDisplay()
+	fmt.Println()
 	totalSize := int64(0)
 	earliestTime := float64(0)
 
