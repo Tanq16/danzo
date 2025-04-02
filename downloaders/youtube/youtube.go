@@ -1,6 +1,7 @@
 package youtube
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -13,16 +14,21 @@ import (
 	"syscall"
 	"time"
 
+	"slices"
+
 	"github.com/tanq16/danzo/utils"
 )
 
 var ytdlpFormats = map[string]string{
-	"best":    "bestvideo+bestaudio/best",
-	"bestmp4": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
-	"decent":  "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
-	"1080p":   "bestvideo[height=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
-	"720p":    "bestvideo[height=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
-	"480p":    "bestvideo[height=480][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
+	"best":     "bestvideo+bestaudio/best",
+	"bestmp4":  "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
+	"decent":   "bestvideo[height<=1080]+bestaudio/best",
+	"decent60": "bestvideo[height<=1080][fps<=60]+bestaudio/best",
+	"cheap":    "bestvideo[height<=720]+bestaudio/best",
+	"1080p":    "bestvideo[height=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
+	"1080p60":  "bestvideo[height=1080][fps<=60][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
+	"720p":     "bestvideo[height=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
+	"480p":     "bestvideo[height=480][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
 }
 
 func isYtDlpAvailable() string {
@@ -119,8 +125,17 @@ func downloadYtdlp() (string, error) {
 	return filePath, nil
 }
 
-func DownloadYouTubeVideo(url, outputPath, format, dType string, progressCh chan<- int64, showOutput bool) error {
+func removeExtension(filePath string) string {
+	ext := filepath.Ext(filePath)
+	if ext == "" {
+		return filePath
+	}
+	return filePath[:len(filePath)-len(ext)]
+}
+
+func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh chan<- int64, outputCh chan<- []string) error {
 	log := utils.GetLogger("youtube-downloader")
+	outputPath := removeExtension(outputPathPre)
 	ytdlpPath := isYtDlpAvailable()
 	if ytdlpPath == "" {
 		var err error
@@ -138,35 +153,46 @@ func DownloadYouTubeVideo(url, outputPath, format, dType string, progressCh chan
 	var cmd *exec.Cmd
 	if dType == "audio" {
 		cmd = exec.Command(ytdlpPath,
+			"-q",
+			"--progress",
+			"--newline",
+			"--progress-delta", "1",
 			"-x",
 			"--audio-format", format,
 			"--audio-quality", "0",
-			"-o", outputPath,
+			"-o", fmt.Sprintf("%s.%%(ext)s", outputPath),
 			url,
 		)
 	} else {
 		cmd = exec.Command(ytdlpPath,
+			"-q",
+			"--progress",
+			"--newline",
+			"--progress-delta", "1",
 			"--no-warnings",
 			"-f", format,
-			"-o", outputPath,
+			"-o", fmt.Sprintf("%s.%%(ext)s", outputPath),
 			"--no-playlist",
 			url,
 		)
 	}
 
-	// Show output in real-time (if not in yaml file mode)
-	if showOutput {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	} else {
-		cmd.Stdout = nil
-		cmd.Stderr = nil
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("error creating stdout pipe: %v", err)
 	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("error creating stderr pipe: %v", err)
+	}
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("error starting yt-dlp: %v", err)
 	}
+	go processOutput(stdout, outputCh, 5)
+	go processOutput(stderr, outputCh, 2)
+	err = cmd.Wait()
 
-	err := cmd.Wait()
 	if err != nil {
 		var exitError *exec.ExitError
 		if errors.As(err, &exitError) {
@@ -189,4 +215,19 @@ func DownloadYouTubeVideo(url, outputPath, format, dType string, progressCh chan
 	progressCh <- totalSizeBytes
 	log.Debug().Str("url", url).Str("output", outputPath).Int64("size", totalSizeBytes).Msg("YouTube download completed successfully")
 	return nil
+}
+
+// processOutput reads from a pipe and sends lines to the output channel
+func processOutput(pipe io.ReadCloser, outputCh chan<- []string, maxLines int) {
+	scanner := bufio.NewScanner(pipe)
+	buffer := []string{}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		buffer = append(buffer, line)
+		if len(buffer) > maxLines {
+			buffer = buffer[len(buffer)-maxLines:]
+		}
+		outputCh <- slices.Clone(buffer)
+	}
 }

@@ -22,6 +22,7 @@ type ProgressInfo struct {
 	CompletedSize int64
 	Failure       string
 	StartTime     time.Time
+	StreamOutput  []string
 }
 
 type ProgressManager struct {
@@ -46,9 +47,10 @@ func (pm *ProgressManager) Register(outputPath string, totalSize int64) {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
 	pm.progressMap[outputPath] = &ProgressInfo{
-		OutputPath: outputPath,
-		TotalSize:  totalSize,
-		StartTime:  time.Now(),
+		OutputPath:   outputPath,
+		TotalSize:    totalSize,
+		StartTime:    time.Now(),
+		StreamOutput: []string{},
 	}
 	pm.lastUpdateTimes[outputPath] = time.Now()
 	pm.lastDownloaded[outputPath] = 0
@@ -80,6 +82,18 @@ func (pm *ProgressManager) ReportError(outputPath string, err error) {
 		info.Failure = fmt.Sprintf("Error: %v", err)
 	}
 	log.Debug().Str("file", outputPath).Err(err).Msg("ERROR CALLED")
+}
+
+func (pm *ProgressManager) UpdateStreamOutput(outputPath string, output []string) {
+	pm.mutex.Lock()
+	defer pm.mutex.Unlock()
+	if info, exists := pm.progressMap[outputPath]; exists {
+		if len(info.StreamOutput) > 7 {
+			info.StreamOutput = append(info.StreamOutput[1:], output...)
+		} else {
+			info.StreamOutput = append(info.StreamOutput, output...)
+		}
+	}
 }
 
 func (pm *ProgressManager) StartDisplay() {
@@ -122,6 +136,7 @@ func (pm *ProgressManager) updateDisplay() {
 	sort.Strings(activeKeys)
 	sort.Strings(completedKeys)
 	sort.Strings(notActiveKeys)
+	additionalLineCount := 0
 
 	// Active downloads
 	for _, outputPath := range activeKeys {
@@ -175,6 +190,16 @@ func (pm *ProgressManager) updateDisplay() {
 			progressBar = "[" + strings.Repeat(" ", 10) + strings.Repeat("*", 10) + strings.Repeat(" ", 9) + "]"
 			fmt.Printf("%s%s: %s %s %.2f MB/s%s\n", utils.Color["g"], fileName, progressBar, utils.FormatBytes(uint64(info.Downloaded)), info.Speed, utils.Color["R"])
 		}
+
+		if len(info.StreamOutput) > 0 {
+			for index, line := range info.StreamOutput {
+				fmt.Printf("\t-> %s%s%s\n", utils.Color["G"], line, utils.Color["R"])
+				additionalLineCount++
+				if index == 6 {
+					break
+				}
+			}
+		}
 	}
 
 	// Completed downloads
@@ -194,13 +219,22 @@ func (pm *ProgressManager) updateDisplay() {
 	// Inactive downloads
 	for _, outputPath := range notActiveKeys {
 		fileName := outputPath
+		info := pm.progressMap[outputPath]
 		if len(fileName) > 25 {
 			fileName = "..." + fileName[len(fileName)-22:]
 		}
-		fmt.Printf("%sWaiting (or can't be shown, hang tight),  File: %s%s\n", utils.Color["G"], fileName, utils.Color["R"])
+		fmt.Printf("%sWaiting (or can't be shown, hang tight),  File: %s%s\n", utils.Color["p"], fileName, utils.Color["R"])
+		if len(info.StreamOutput) > 0 {
+			for index, line := range info.StreamOutput {
+				fmt.Printf("\t%s-> %s%s\n", utils.Color["G"], line, utils.Color["R"])
+				additionalLineCount++
+				if index == 6 {
+					break
+				}
+			}
+		}
 	}
-
-	pm.numLines = len(activeKeys) + len(completedKeys) + len(notActiveKeys) // len(pm.progressMap) - (not always correct)
+	pm.numLines = len(activeKeys) + len(completedKeys) + len(notActiveKeys) + additionalLineCount // len(pm.progressMap) - (not always correct)
 }
 
 func (pm *ProgressManager) ShowSummary() {
