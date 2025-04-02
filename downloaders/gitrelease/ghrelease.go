@@ -26,7 +26,7 @@ var ignoredAssets = []string{
 	"license", "readme", "changelog", "checksums", "sha256checksum", ".sha256",
 }
 
-func ParseGitURL(url string) (string, string, bool, error) {
+func parseGitHubURL(url string) (string, string, bool, error) {
 	processParts := strings.Split(url, "||")
 	parts := strings.Split(processParts[0][9:], "/") // Remove "github://"
 	if len(parts) < 2 {
@@ -35,7 +35,7 @@ func ParseGitURL(url string) (string, string, bool, error) {
 	return parts[0], parts[1], len(processParts) == 2 && processParts[1] == "version", nil
 }
 
-func GetReleaseAssets(owner, repo string, client *http.Client) ([]map[string]any, string, error) {
+func getGitHubReleaseAssets(owner, repo string, client *http.Client) ([]map[string]any, string, error) {
 	log := utils.GetLogger("github-release")
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -74,7 +74,7 @@ func GetReleaseAssets(owner, repo string, client *http.Client) ([]map[string]any
 	return assetList, tagName, nil
 }
 
-func AskReleaseAssets(owner, repo string, client *http.Client) ([]map[string]any, string, error) {
+func askGitHubReleaseAssets(owner, repo string, client *http.Client) ([]map[string]any, string, error) {
 	log := utils.GetLogger("github-release")
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases", owner, repo)
 	req, err := http.NewRequest("GET", apiURL, nil)
@@ -140,7 +140,7 @@ func AskReleaseAssets(owner, repo string, client *http.Client) ([]map[string]any
 	return assetList, tagName, nil
 }
 
-func PromptAssetSelection(assets []map[string]any, tagName string) (string, int64, error) {
+func promptGitHubAssetSelection(assets []map[string]any, tagName string) (string, int64, error) {
 	fmt.Printf("\nRelease: %s\nAvailable assets:\n", tagName)
 	for i, asset := range assets {
 		name, _ := asset["name"].(string)
@@ -171,7 +171,7 @@ func PromptAssetSelection(assets []map[string]any, tagName string) (string, int6
 	return downloadURL, int64(size), nil
 }
 
-func SelectLatestAsset(assets []map[string]any) (string, int64, error) {
+func selectGitHubLatestAsset(assets []map[string]any) (string, int64, error) {
 	platformKey := fmt.Sprintf("%s%s", runtime.GOOS, runtime.GOARCH)
 	for _, asset := range assets {
 		assetName, _ := asset["name"].(string)
@@ -197,17 +197,17 @@ func SelectLatestAsset(assets []map[string]any) (string, int64, error) {
 	return "", 0, nil
 }
 
-func ProcessGitHubRelease(owner, repo string, userSelect bool, client *http.Client) (string, string, int64, error) {
+func processGitHubRelease(owner, repo string, userSelect bool, client *http.Client) (string, string, int64, error) {
 	var assets []map[string]any
 	var tagName string
 	var err error
 	if userSelect {
-		assets, tagName, err = AskReleaseAssets(owner, repo, client)
+		assets, tagName, err = askGitHubReleaseAssets(owner, repo, client)
 		if err != nil {
 			return "", "", 0, err
 		}
 	} else {
-		assets, tagName, err = GetReleaseAssets(owner, repo, client)
+		assets, tagName, err = getGitHubReleaseAssets(owner, repo, client)
 		if err != nil {
 			return "", "", 0, err
 		}
@@ -215,17 +215,17 @@ func ProcessGitHubRelease(owner, repo string, userSelect bool, client *http.Clie
 	var downloadURL string
 	var size int64
 	if userSelect {
-		downloadURL, size, err = PromptAssetSelection(assets, tagName)
+		downloadURL, size, err = promptGitHubAssetSelection(assets, tagName)
 		if err != nil {
 			return "", "", 0, err
 		}
 	} else {
-		downloadURL, size, err = SelectLatestAsset(assets)
+		downloadURL, size, err = selectGitHubLatestAsset(assets)
 		if err != nil {
 			return "", "", 0, err
 		}
 		if downloadURL == "" {
-			downloadURL, size, err = PromptAssetSelection(assets, tagName)
+			downloadURL, size, err = promptGitHubAssetSelection(assets, tagName)
 			if err != nil {
 				return "", "", 0, err
 			}
@@ -236,10 +236,10 @@ func ProcessGitHubRelease(owner, repo string, userSelect bool, client *http.Clie
 	return downloadURL, filename, size, nil
 }
 
-func ProcessRelease(url string, client *http.Client) (string, string, int64, error) {
-	owner, repo, userSelect, err := ParseGitURL(url)
+func ProcessRelease(url string, userSelectOverride bool, client *http.Client) (string, string, int64, error) {
+	owner, repo, userSelect, err := parseGitHubURL(url)
 	if err != nil {
 		return "", "", 0, err
 	}
-	return ProcessGitHubRelease(owner, repo, userSelect, client)
+	return processGitHubRelease(owner, repo, userSelect, client)
 }
