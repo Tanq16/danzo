@@ -10,6 +10,7 @@ import (
 	"time"
 
 	danzogdrive "github.com/tanq16/danzo/downloaders/gdrive"
+	danzogitc "github.com/tanq16/danzo/downloaders/gitclone"
 	danzogitr "github.com/tanq16/danzo/downloaders/gitrelease"
 	danzohttp "github.com/tanq16/danzo/downloaders/http"
 	danzos3 "github.com/tanq16/danzo/downloaders/s3"
@@ -107,9 +108,9 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						progressManager.Register(entry.OutputPath, fileSize)
 					}
 
+					// Internal goroutine to forward progress updates to the manager
 					var progressWg sync.WaitGroup
 					progressWg.Add(1)
-					// Internal goroutine to forward progress updates to the manager
 					go func(outputPath string, progCh <-chan int64) {
 						defer progressWg.Done()
 						var totalDownloaded int64
@@ -214,7 +215,11 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				case "gitrelease":
 					logger.Debug().Str("url", entry.URL).Msg("GitHub Release URL detected")
 					simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false)
-					downloadURL, filename, size, err := danzogitr.ProcessRelease(entry.URL, simpleClient)
+					userSelectOverride := false
+					if len(entries) > 1 {
+						userSelectOverride = true
+					}
+					downloadURL, filename, size, err := danzogitr.ProcessRelease(entry.URL, userSelectOverride, simpleClient)
 					if err != nil {
 						logger.Debug().Err(err).Msg("Failed to process GitHub release")
 						errorCh <- fmt.Errorf("error processing GitHub release URL %s: %v", entry.URL, err)
@@ -226,11 +231,11 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						entry.OutputPath = filename
 					}
 					logger.Debug().Str("output", config.OutputPath).Msg("Output path determined")
-
 					progressManager.Register(entry.OutputPath, size)
+
+					// Internal goroutine to forward progress updates to the manager
 					var progressWg sync.WaitGroup
 					progressWg.Add(1)
-					// Internal goroutine to forward progress updates to the manager
 					go func(outputPath string, progCh <-chan int64) {
 						defer progressWg.Done()
 						var totalDownloaded int64
@@ -252,6 +257,73 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					}
 					close(progressCh)
 					progressWg.Wait()
+
+				// Git clone download
+				// =================================================================================================================
+				case "gitclone":
+					logger.Debug().Str("url", entry.URL).Msg("Git clone URL detected")
+					if config.OutputPath == "" {
+						urlParts := strings.Split(entry.URL, "/")
+						if len(urlParts) >= 2 {
+							tempName := strings.Split(urlParts[len(urlParts)-1], "||")
+							config.OutputPath = tempName[0]
+							entry.OutputPath = config.OutputPath
+						} else {
+							config.OutputPath = "git-repo"
+							entry.OutputPath = "git-repo"
+						}
+					}
+					existingFile, _ := os.Stat(config.OutputPath)
+					if existingFile != nil {
+						config.OutputPath = utils.RenewOutputPath(config.OutputPath)
+						entry.OutputPath = config.OutputPath
+					}
+					parsedURL, depth, err := danzogitc.InitGitClone(entry.URL, config.OutputPath)
+					if err != nil {
+						logger.Debug().Err(err).Msg("Git clone check failed")
+						errorCh <- fmt.Errorf("error checking Git clone %s: %v", entry.URL, err)
+						continue
+					}
+
+					progressManager.Register(entry.OutputPath, -1)
+					streamCh := make(chan []string, 5)
+
+					// Internal goroutine to forward progress updates to the manager
+					var progressWg sync.WaitGroup
+					progressWg.Add(1)
+					go func(outputPath string, progCh <-chan int64) {
+						defer progressWg.Done()
+						var totalSize int64
+						for size := range progCh {
+							totalSize += size
+						}
+						progressManager.Complete(outputPath, totalSize)
+					}(entry.OutputPath, progressCh)
+
+					// Goroutine to forward streaming output to the manager
+					var streamWg sync.WaitGroup
+					streamWg.Add(1)
+					go func(outputPath string, streamCh <-chan []string) {
+						defer streamWg.Done()
+						for streamOutput := range streamCh {
+							progressManager.UpdateStreamOutput(outputPath, streamOutput)
+						}
+					}(entry.OutputPath, streamCh)
+
+					err = danzogitc.CloneRepository(parsedURL, config.OutputPath, progressCh, streamCh, depth)
+					if err != nil {
+						logger.Debug().Err(err).Msg("Git clone failed")
+						reportError := fmt.Errorf("error cloning %s: %v", entry.URL, err)
+						errorCh <- reportError
+						progressManager.ReportError(entry.OutputPath, reportError)
+					} else {
+						logger.Debug().Str("output", entry.OutputPath).Msg("Git clone completed successfully")
+					}
+
+					close(progressCh)
+					close(streamCh)
+					progressWg.Wait()
+					streamWg.Wait()
 
 				// AWS S3 download
 				// =================================================================================================================

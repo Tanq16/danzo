@@ -205,15 +205,11 @@ func (pm *ProgressManager) updateDisplay() {
 	// Completed downloads
 	for _, outputPath := range completedKeys {
 		info := pm.progressMap[outputPath]
-		fileName := outputPath
-		if len(fileName) > 25 {
-			fileName = "..." + fileName[len(fileName)-22:]
-		}
-		colorToUse := fmt.Sprintf("%s%s", utils.Color["b"], utils.Color["pass"])
+		colorToUse := fmt.Sprintf("%s [%s]", utils.Color["b"], utils.Color["pass"])
 		if info.Failure != "" {
-			colorToUse = fmt.Sprintf("%s%s", utils.Color["r"], utils.Color["fail"])
+			colorToUse = fmt.Sprintf("%s [%s]", utils.Color["r"], utils.Color["fail"])
 		}
-		fmt.Printf("%s\tSize: %s\t\tFile: %s%s\n", colorToUse, utils.FormatBytes(uint64(info.CompletedSize)), fileName, utils.Color["R"])
+		fmt.Printf("%s\tSize: %s\tFile: %s%s\n", colorToUse, utils.FormatBytes(uint64(info.CompletedSize)), outputPath, utils.Color["R"])
 	}
 
 	// Inactive downloads
