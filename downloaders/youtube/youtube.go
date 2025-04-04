@@ -61,7 +61,7 @@ func ProcessURL(urlRaw string) (string, string, string, string, error) {
 			musicIds := strings.Split(urldata[1], ":")
 			if len(musicIds) < 3 {
 				return "", "", "", "", fmt.Errorf("invalid music ID format")
-			} else if musicIds[1] != "spotify" && musicIds[1] != "apple" {
+			} else if musicIds[1] != "spotify" && musicIds[1] != "apple" && musicIds[1] != "deezer" {
 				return "", "", "", "", fmt.Errorf("invalid music ID format")
 			}
 			return urldata[0], "m4a", urldata[1], "danzo-yt-dlp-music.m4a", nil
@@ -179,7 +179,17 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 		musicClient = musicIds[1]
 		musicId = musicIds[2]
 
-		// TODO
+		cmd = exec.Command(ytdlpPath,
+			"-q",
+			"--progress",
+			"--newline",
+			"--progress-delta", "1",
+			"-x",
+			"--audio-format", format,
+			"--audio-quality", "0",
+			"-o", fmt.Sprintf("%s.%%(ext)s", outputPath),
+			url,
+		)
 	} else {
 		cmd = exec.Command(ytdlpPath,
 			"-q",
@@ -222,7 +232,7 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 
 	// Get file size after download is complete
 	var totalSizeBytes int64
-	fileInfo, err := os.Stat(outputPath)
+	fileInfo, err := os.Stat(outputPathPre) // won't always be the same because video can default to webm
 	if err == nil {
 		totalSizeBytes = fileInfo.Size()
 	} else {
@@ -232,7 +242,7 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 	progressCh <- totalSizeBytes
 
 	if musicId != "" {
-		err := addMusicMetadata(outputPath, musicClient, musicId)
+		err := addMusicMetadata(outputPathPre, musicClient, musicId) // outputPathPre works here because audio is always m4a
 		if err != nil {
 			log.Debug().Err(err).Msg("Failed to add music metadata")
 		}
