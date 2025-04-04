@@ -57,6 +57,14 @@ func ProcessURL(urlRaw string) (string, string, string, string, error) {
 	if len(urldata) > 1 {
 		if urldata[1] == "audio" {
 			return urldata[0], "m4a", "audio", "danzo-yt-dlp-audio.m4a", nil
+		} else if strings.HasPrefix(urldata[1], "music") {
+			musicIds := strings.Split(urldata[1], ":")
+			if len(musicIds) < 3 {
+				return "", "", "", "", fmt.Errorf("invalid music ID format")
+			} else if musicIds[1] != "spotify" && musicIds[1] != "apple" {
+				return "", "", "", "", fmt.Errorf("invalid music ID format")
+			}
+			return urldata[0], "m4a", urldata[1], "danzo-yt-dlp-music.m4a", nil
 		} else {
 			return urldata[0], ytdlpFormats[urldata[1]], "video", "danzo-yt-dlp-video.mp4", nil
 		}
@@ -152,6 +160,8 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 	}
 
 	var cmd *exec.Cmd
+	var musicClient string
+	var musicId string
 	if dType == "audio" {
 		cmd = exec.Command(ytdlpPath,
 			"-q",
@@ -164,6 +174,12 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 			"-o", fmt.Sprintf("%s.%%(ext)s", outputPath),
 			url,
 		)
+	} else if strings.HasPrefix(dType, "music") {
+		musicIds := strings.Split(dType, ":")
+		musicClient = musicIds[1]
+		musicId = musicIds[2]
+
+		// TODO
 	} else {
 		cmd = exec.Command(ytdlpPath,
 			"-q",
@@ -214,6 +230,14 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 		totalSizeBytes = 1
 	}
 	progressCh <- totalSizeBytes
+
+	if musicId != "" {
+		err := addMusicMetadata(outputPath, musicClient, musicId)
+		if err != nil {
+			log.Debug().Err(err).Msg("Failed to add music metadata")
+		}
+	}
+
 	log.Debug().Str("url", url).Str("output", outputPath).Int64("size", totalSizeBytes).Msg("YouTube download completed successfully")
 	return nil
 }
