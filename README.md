@@ -3,14 +3,71 @@
 
   <a href="https://github.com/tanq16/danzo/actions/workflows/binary.yml"><img alt="Build" src="https://github.com/tanq16/danzo/actions/workflows/binary.yml/badge.svg"></a> <a href="https://github.com/Tanq16/danzo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/danzo"></a><br><br>
   <p>Danzo is a cross-platform and cross-architecture all-in-one CLI file download utility designed for multi-threaded downloads, progress tracking, and an intuitive command structure.</p><br>
-  <a href="#features">Features</a> &bull; <a href="#quickstart">Quickstart</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a><br>
+  <a href="#quickstart">Quickstart</a> &bull; <a href="#features">Features</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a><br>
 </div>
 
 ---
 
 *Just like its namesake from the Naruto series who collected powers through multiple "sources", Danzo harnesses the strength of parallel connections to supercharge your downloads.*
 
-Jump to [Quickstart](#quickstart) to look at the extremely simple command structure. For detailed descriptions, see [Usage](#usage). It may help to use GitHub's table of contents (hamburger menu, top right of readme) to navigate to a section of interest.
+## Quickstart
+
+This section gives a quick peek at the capabilities and the extremely simple command structure. For detailed descriptions, see [Usage](#usage).
+
+- General purpose download (use instead of `wget`)
+  ```bash
+  danzo https://example.com/internet-file.zip -o local.zip
+  ```
+- Multi-threaded, multi-chunked downloads (for high speeds and large files)
+  ```bash
+  danzo https://example.com/largefile.zip -c 40
+  ```
+- Batch download with yaml config (multiple workers)
+  ```bash
+  danzo -l downloads.yaml -w 4 -c 16
+  # connections defined per worker
+  ```
+- Quick-download YouTube video with sensible defaults (uses `yt-dlp`)
+  ```bash
+  danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  # default is best quality, but can be customized by appending:
+  # `||best60`, `||decent`, `||1080p60`, `||1080p`, and few more (see usage)
+  ```
+- Quick-download `.m4a` audio from YouTube (uses `yt-dlp`)
+  ```bash
+  danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||audio"
+  # note the `||audio` tag at the end
+  ```
+- Download a file from Google drive
+  ```bash
+  GDRIVE_API_KEY="your_key" danzo "https://drive.google.com/file/d/abc123/view"
+  # download for publicly shared files using a static API Key
+  GDRIVE_CREDENTIALS=service-acc-key.json danzo "https://drive.google.com/file/d/abc123/view"
+  # download for private files using OAuth device code flow
+  ```
+- Download an S3 object or folder
+  ```bash
+  AWS_PROFILE=myprofile danzo "s3://mybucket/path/to/file.zip"
+  ```
+- Download appropriate GitHub release assets for a project
+  ```bash
+  danzo "github://username/repo"
+  # auto selects release according to OS and arch
+  # or append `||version` to choose interactively
+  ```
+- Clone a git repository
+  ```bash
+  danzo "gitlab.com/volian/nala"
+  # also supports `github.com/`, `bitbucket.org/`, and `git.com/` (generic)
+  # append `||1` to clone with --depth=1
+  ```
+- Clone a git repository with authentication
+  ```bash
+  GIT_TOKEN=$(cat /secrets/ghtoken) danzo "github.com/tanq16/private"
+  # use a personal access token; auto-manages for different providers
+  GIT_SSH="/secrets/gh-ssh.key" danzo github.com/tanq16/private
+  # use an SSH key to authenticate
+  ```
 
 ## Features
 
@@ -37,6 +94,7 @@ Jump to [Quickstart](#quickstart) to look at the extremely simple command struct
 - YouTube videos and audio download with simple quality selection (needs [yt-dlp](https://github.com/yt-dlp/yt-dlp) and optionally `ffmpeg` and `ffprobe`)
 - AWS S3 objects and folder downloads using AWS profile
 - GitHub release asset downloads with automatic OS/architecture detection
+- Clone git repositories from various sources with or without authentication
 
 ***Customization***
 
@@ -52,34 +110,6 @@ Jump to [Quickstart](#quickstart) to look at the extremely simple command struct
 - **Alternative to wget**: Simple, faster alternative for straightforward downloads
 - **One stop shop**: An entryway into downloading files or various kinds
 - **Cross-platform compatibility**: Works on Linux, macOS, and Windows as self-contained binaries
-
-## Quickstart
-
-```bash
-danzo https://example.com/internet-file.zip -o local.zip
-
-# Multiple connections w/ large files for faster downloads
-danzo https://example.com/largefile.zip -c 40
-
-# Batch download with multiple workers and connections per worker
-danzo -l downloads.yaml -w 4 -c 16
-
-# Download YouTube video (best quality) using yt-dlp
-danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-
-# Download YouTube audio only using yt-dlp
-danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||audio"
-
-# Download from Google Drive (direct for public or OAuth for private)
-GDRIVE_API_KEY="your_key" danzo "https://drive.google.com/file/d/abc123/view"
-GDRIVE_CREDENTIALS=service-acc-key.json danzo "https://drive.google.com/file/d/abc123/view"
-
-# Download from AWS S3 (file or folder)
-AWS_PROFILE=myprofile danzo "s3://mybucket/path/to/file.zip"
-
-# Download a GitHub release (can auto-select based on OS/arch)
-danzo "github://username/repo"
-```
 
 ## Installation
 
@@ -136,6 +166,16 @@ Flags:
 > The help section will aid in building a command, but not explain the nuances. It's highly recommended to read through this document to understand edge cases and nuanced details to bring the most out of downloads with Danzo.
 
 ## Usage
+
+Links to quickly jump to the relevant sections:
+
+- [Basic Usage](#basic-usage)
+- [HTTP(S) Downloads](#https-downloads)
+- [Google Drive Downloads](#google-drive-downloads)
+- [Youtube Downloads](#youtube-downloads)
+- [AWS S3 Downloads](#aws-s3-downloads)
+- [GitHub Release Downloads](#github-release-downloads)
+- [Git Repository Cloning](#git-repository-cloning)
 
 ### Basic Usage
 
@@ -352,6 +392,47 @@ danzo "github://owner/repo||version"
 
 > [!WARNING]
 > If you provide a `||version` subcommand or if the automatic download triggers a selection process when using a YAML config for batch downloads, the continuous progress display may interfere with the selection display. This may become especially harder if multiple `github://` URLs are used. Therefore, it is recommended to use the GitHub release download feature only for one-off downloads.
+
+### Git Repository Cloning
+
+Danzo can clone repositores sourced by various providers. While this is not particularly an expensive operation to run using just `git clone`, it serves to provide ease of setup when setting up a remote server with a large number of files as downloads and clones.
+
+As such, given a situation where a server needs to be prepared for operation by cloning a set of 8 repositories, 5 different tool assets, and an S3 folder; it would be slow to write a script incorporating several tools to get the environment ready. Danzo would be the perfect fir for such a scenario due to its batch-download capability via a YAML configuration. It is primarily for this purpose that an operation as simple and atomic as `git clone` was replicated in Danzo.
+
+> [!WARNING]
+> While Danzo as a tool is focused on conducting very fast downloads, it is important to note that in some cases where a git repository may be more than 1.5-2 GB in size, Danzo may experience easily noticeable slowdowns compared to plain old `git clone`. This is expected and usually, it's recommended to enforce depth (continue reading) when cloning repositories that large.
+
+Danzo supports the use of Personal Access Tokens as well as SSH keys when cloning repositories. The syntax has been simplified to refer to repositories with one of the following:
+
+- `github.com/owner/repo`
+- `gitlab.com/owner/repo`
+- `bitbucket.org/owner/repo`
+- `git.com/provider/owner/repo`: This is a special case where you can point to non-standard version control providers like Gitea, etc. The `git.com` prefix is effectively replaced with `https://`
+
+To clone a publicly available git repository, use a command like so:
+
+```bash
+danzo "gitlab.com/volian/nala"
+```
+
+If there is a need to enforce clone depth (`git clone REPO --depth=1`), use a suffix like so:
+
+```bash
+danzo "gitlab.com/volian/nala||1"
+```
+
+To clone a git repository with authentication (PAT or SSH Key), use one of the following:
+
+```bash
+# use a personal access token; Danzo will handle username per provider
+GIT_TOKEN=$(cat /secrets/ghtoken) danzo "github.com/tanq16/private"
+
+# use an SSH key to authenticate
+GIT_SSH="/secrets/gh-ssh.key" danzo github.com/tanq16/private
+```
+
+> [!NOTE]
+> Repository cloning is another download provider that does not use `-c` or number of connections. Number of workers, `-w`, is still applicable as usual in batch (YAML config) mode.
 
 ## Tips and Notes
 

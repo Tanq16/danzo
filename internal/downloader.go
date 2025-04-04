@@ -263,10 +263,10 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				case "gitclone":
 					logger.Debug().Str("url", entry.URL).Msg("Git clone URL detected")
 					if config.OutputPath == "" {
-						// Extract repository name from URL for default output path
 						urlParts := strings.Split(entry.URL, "/")
 						if len(urlParts) >= 2 {
-							config.OutputPath = urlParts[len(urlParts)-1]
+							tempName := strings.Split(urlParts[len(urlParts)-1], "||")
+							config.OutputPath = tempName[0]
 							entry.OutputPath = config.OutputPath
 						} else {
 							config.OutputPath = "git-repo"
@@ -278,7 +278,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						config.OutputPath = utils.RenewOutputPath(config.OutputPath)
 						entry.OutputPath = config.OutputPath
 					}
-					_, err := danzogitc.InitGitClone(entry.URL, config.OutputPath)
+					parsedURL, depth, err := danzogitc.InitGitClone(entry.URL, config.OutputPath)
 					if err != nil {
 						logger.Debug().Err(err).Msg("Git clone check failed")
 						errorCh <- fmt.Errorf("error checking Git clone %s: %v", entry.URL, err)
@@ -310,7 +310,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						}
 					}(entry.OutputPath, streamCh)
 
-					err = danzogitc.CloneRepository(entry.URL, config.OutputPath, progressCh)
+					err = danzogitc.CloneRepository(parsedURL, config.OutputPath, progressCh, streamCh, depth)
 					if err != nil {
 						logger.Debug().Err(err).Msg("Git clone failed")
 						reportError := fmt.Errorf("error cloning %s: %v", entry.URL, err)
