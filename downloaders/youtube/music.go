@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -41,13 +42,30 @@ func addMusicMetadata(outputPath, musicClient, musicId string) error {
 	switch musicClient {
 	case "deezer":
 		return addDeezerMetadata(outputPath, musicId)
-	case "spotify":
-		return addSpotifyMetadata(outputPath, musicId)
-	case "apple":
-		return addAppleMetadata(outputPath, musicId)
+	// case "spotify":
+	// 	return addSpotifyMetadata(outputPath, musicId)
+	// case "apple":
+	// 	return addAppleMetadata(outputPath, musicId)
+	case "musicbrainz":
+		return addMBZMetadata(outputPath, musicId)
 	default:
 		return fmt.Errorf("unsupported music client: %s", musicClient)
 	}
+}
+
+// func addSpotifyMetadata(outputPath, musicId string) error {
+// 	// TODO
+// 	return fmt.Errorf("Spotify metadata not implemented yet")
+// }
+
+// func addAppleMetadata(outputPath, musicId string) error {
+// 	// TODO
+// 	return fmt.Errorf("Apple Music metadata not implemented yet")
+// }
+
+func addMBZMetadata(outputPath, musicId string) error {
+	// TODO
+	return fmt.Errorf("MusicBrainz metadata not implemented yet")
 }
 
 func addDeezerMetadata(outputPath, musicId string) error {
@@ -98,17 +116,21 @@ func addDeezerMetadata(outputPath, musicId string) error {
 	if len(deezerResp.Genre) > 0 {
 		genre = deezerResp.Genre[0].Name
 	}
+	escapeRegex := regexp.MustCompile(`[^a-zA-Z0-9\s\-_]`)
+	var escapeRE = func(s string) string {
+		return escapeRegex.ReplaceAllString(s, "")
+	}
 	metadataPath := filepath.Join(tempDir, fileMarker+".txt")
-	metadataContent := fmt.Sprintf(";FFMETADATA1\ntitle=%s\nartist=%s\nalbum=%s\n", escapeMetadataValue(deezerResp.Title), escapeMetadataValue(deezerResp.Artist.Name), escapeMetadataValue(deezerResp.Album.Title))
+	metadataContent := fmt.Sprintf(";FFMETADATA1\ntitle=%s\nartist=%s\nalbum=%s\n", escapeRE(deezerResp.Title), escapeRE(deezerResp.Artist.Name), escapeRE(deezerResp.Album.Title))
 
 	if len(deezerResp.ReleaseDate) > 4 {
-		metadataContent += fmt.Sprintf("date=%s\n", escapeMetadataValue(deezerResp.ReleaseDate[:4]))
+		metadataContent += fmt.Sprintf("date=%s\n", escapeRE(deezerResp.ReleaseDate))
 	}
 	if composer != "" {
-		metadataContent += fmt.Sprintf("composer=%s\n", escapeMetadataValue(composer))
+		metadataContent += fmt.Sprintf("composer=%s\n", escapeRE(composer))
 	}
 	if genre != "" {
-		metadataContent += fmt.Sprintf("genre=%s\n", escapeMetadataValue(genre))
+		metadataContent += fmt.Sprintf("genre=%s\n", escapeRE(genre))
 	}
 	if deezerResp.TrackNumber > 0 {
 		metadataContent += fmt.Sprintf("track=%d\n", deezerResp.TrackNumber)
@@ -171,24 +193,4 @@ func downloadFile(url, filepath string, client *http.Client) error {
 	defer out.Close()
 	_, err = io.Copy(out, resp.Body)
 	return err
-}
-
-func escapeMetadataValue(value string) string {
-	// Escape special characters for FFmpeg metadata
-	value = strings.ReplaceAll(value, "=", "-")
-	value = strings.ReplaceAll(value, ";", "-")
-	value = strings.ReplaceAll(value, "#", "-")
-	value = strings.ReplaceAll(value, "\n", "")
-	value = strings.ReplaceAll(value, "\r", "")
-	return value
-}
-
-func addSpotifyMetadata(outputPath, musicId string) error {
-	// TODO
-	return fmt.Errorf("Spotify metadata not implemented yet")
-}
-
-func addAppleMetadata(outputPath, musicId string) error {
-	// TODO
-	return fmt.Errorf("Apple Music metadata not implemented yet")
 }
