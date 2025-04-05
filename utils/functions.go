@@ -80,7 +80,7 @@ func RenewOutputPath(outputPath string) string {
 }
 
 // includes logger
-func CreateHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL string, highThreadMode bool) *http.Client {
+func CreateHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL string, highThreadMode bool, headers []string) *http.Client {
 	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100, // for connection reuse
@@ -113,9 +113,17 @@ func CreateHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL
 			log.Debug().Str("proxy", proxyURL).Msg("Using proxy for connections")
 		}
 	}
+	var finalTransport http.RoundTripper = transport
+	if headers != nil && len(headers) > 0 {
+		finalTransport = &headerTransport{
+			base:    transport,
+			headers: parseHeadersSlice(headers),
+		}
+	}
+
 	return &http.Client{
 		Timeout:   timeout,
-		Transport: transport,
+		Transport: finalTransport,
 	}
 }
 
@@ -180,4 +188,34 @@ func Clean(outputPath string) error {
 		return err
 	}
 	return nil
+}
+
+type headerTransport struct {
+	base    http.RoundTripper
+	headers map[string]string
+}
+
+func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone the request to avoid modifying the original
+	req = req.Clone(req.Context())
+	for key, value := range t.headers {
+		req.Header.Set(key, value)
+	}
+	return t.base.RoundTrip(req)
+}
+
+// convert a slice of "Key: Value" strings to a map
+func parseHeadersSlice(headers []string) map[string]string {
+	result := make(map[string]string)
+
+	for _, header := range headers {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			result[key] = value
+		}
+	}
+
+	return result
 }
