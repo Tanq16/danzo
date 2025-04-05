@@ -167,6 +167,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 							}
 							config.OutputPath = utils.RenewOutputPath(config.OutputPath)
 							entry.OutputPath = config.OutputPath
+						} else {
+							entry.OutputPath = config.OutputPath
 						}
 					}
 					entry.URL = processedURL
