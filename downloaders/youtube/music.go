@@ -38,41 +38,140 @@ type DeezerResponse struct {
 	} `json:"contributors"`
 }
 
+type ITunesResponse struct {
+	ResultCount int `json:"resultCount"`
+	Results     []struct {
+		TrackName        string `json:"trackName"`
+		ArtistName       string `json:"artistName"`
+		CollectionName   string `json:"collectionName"`
+		ReleaseDate      string `json:"releaseDate"`
+		PrimaryGenreName string `json:"primaryGenreName"`
+		TrackNumber      int    `json:"trackNumber"`
+		DiscNumber       int    `json:"discNumber"`
+		TrackCount       int    `json:"trackCount"`
+		DiscCount        int    `json:"discCount"`
+		ArtworkUrl100    string `json:"artworkUrl100"`
+	} `json:"results"`
+}
+
 func addMusicMetadata(outputPath, musicClient, musicId string) error {
 	switch musicClient {
 	case "deezer":
 		return addDeezerMetadata(outputPath, musicId)
 	// case "spotify":
 	// 	return addSpotifyMetadata(outputPath, musicId)
-	// case "apple":
-	// 	return addAppleMetadata(outputPath, musicId)
-	case "musicbrainz":
-		return addMBZMetadata(outputPath, musicId)
+	case "apple":
+		return addAppleMetadata(outputPath, musicId)
 	default:
 		return fmt.Errorf("unsupported music client: %s", musicClient)
 	}
 }
 
-// func addSpotifyMetadata(outputPath, musicId string) error {
-// 	// TODO
-// 	return fmt.Errorf("Spotify metadata not implemented yet")
-// }
+func addAppleMetadata(outputPath, musicId string) error {
+	log := utils.GetLogger("itunes")
+	log.Debug().Str("musicId", musicId).Msg("Fetching iTunes metadata")
+	client := utils.CreateHTTPClient(30*time.Second, 30*time.Second, "", false)
+	apiURL := fmt.Sprintf("https://itunes.apple.com/lookup?id=%s&entity=song", musicId)
+	resp, err := client.Get(apiURL)
+	if err != nil {
+		return fmt.Errorf("error fetching metadata: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API request failed with status code %d", resp.StatusCode)
+	}
+	var itunesResp ITunesResponse
+	if err := json.NewDecoder(resp.Body).Decode(&itunesResp); err != nil {
+		return fmt.Errorf("error parsing response: %v", err)
+	}
+	if itunesResp.ResultCount == 0 || len(itunesResp.Results) == 0 {
+		return fmt.Errorf("no results found for iTunes ID: %s", musicId)
+	}
 
-// func addAppleMetadata(outputPath, musicId string) error {
-// 	// TODO
-// 	return fmt.Errorf("Apple Music metadata not implemented yet")
-// }
+	trackInfo := itunesResp.Results[0]
+	tempDir := filepath.Join(filepath.Dir(outputPath), ".danzo-temp")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return fmt.Errorf("error creating temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
 
-func addMBZMetadata(outputPath, musicId string) error {
-	// TODO
-	return fmt.Errorf("MusicBrainz metadata not implemented yet")
+	fileMarker := uuid.New().String()
+	var artworkPath string
+
+	// iTunes seems to have 100x100 by default, so brute-force higher quality once just in case
+	if trackInfo.ArtworkUrl100 != "" {
+		highResArtwork := strings.Replace(trackInfo.ArtworkUrl100, "100x100", "1000x1000", 1)
+		midResArtwork := strings.Replace(trackInfo.ArtworkUrl100, "100x100", "600x600", 1)
+		artworkPath = filepath.Join(tempDir, fileMarker+".jpg")
+		err := downloadFile(highResArtwork, artworkPath, client)
+		if err != nil {
+			log.Debug().Err(err).Msg("Error downloading high-res, trying mid-res")
+			err = downloadFile(midResArtwork, artworkPath, client)
+			if err != nil {
+				log.Debug().Err(err).Msg("Error downloading mid-res, trying generic")
+				err = downloadFile(trackInfo.ArtworkUrl100, artworkPath, client)
+				if err != nil {
+					log.Debug().Err(err).Msg("Error downloading generic artwork")
+					artworkPath = ""
+				}
+			}
+		}
+		if artworkPath != "" {
+			log.Debug().Str("path", artworkPath).Msg("Downloaded artwork")
+		}
+	}
+
+	escapeRegex := regexp.MustCompile(`[^a-zA-Z0-9\s\-_]`)
+	var escapeRE = func(s string) string {
+		return escapeRegex.ReplaceAllString(s, "")
+	}
+	metadataPath := filepath.Join(tempDir, fileMarker+".txt")
+	metadataContent := fmt.Sprintf(";FFMETADATA1\ntitle=%s\nartist=%s\nalbum=%s\n", escapeRE(trackInfo.TrackName), escapeRE(trackInfo.ArtistName), escapeRE(trackInfo.CollectionName))
+	if trackInfo.ReleaseDate != "" {
+		if len(trackInfo.ReleaseDate) > 10 {
+			extractedDate, _ := time.Parse("2006-01-02T15:04:05Z", trackInfo.ReleaseDate)
+			metadataContent += fmt.Sprintf("date=%s\n", extractedDate.Format("2006-01-02"))
+		} else {
+			metadataContent += fmt.Sprintf("date=%s\n", escapeRE(trackInfo.ReleaseDate))
+		}
+	}
+	if trackInfo.PrimaryGenreName != "" {
+		metadataContent += fmt.Sprintf("genre=%s\n", escapeRE(trackInfo.PrimaryGenreName))
+	}
+	if trackInfo.TrackNumber > 0 {
+		if trackInfo.TrackCount > 0 {
+			metadataContent += fmt.Sprintf("track=%d/%d\n", trackInfo.TrackNumber, trackInfo.TrackCount)
+		} else {
+			metadataContent += fmt.Sprintf("track=%d\n", trackInfo.TrackNumber)
+		}
+	}
+	if trackInfo.DiscNumber > 0 {
+		if trackInfo.DiscCount > 0 {
+			metadataContent += fmt.Sprintf("disc=%d/%d\n", trackInfo.DiscNumber, trackInfo.DiscCount)
+		} else {
+			metadataContent += fmt.Sprintf("disc=%d\n", trackInfo.DiscNumber)
+		}
+	}
+	if err := os.WriteFile(metadataPath, []byte(metadataContent), 0644); err != nil {
+		return fmt.Errorf("error writing metadata file: %v", err)
+	}
+
+	tempOutputPath := filepath.Join(tempDir, fileMarker+".m4a")
+	err = applyMetadataWithFFmpeg(outputPath, metadataPath, artworkPath, tempOutputPath)
+	if err != nil {
+		return fmt.Errorf("error applying metadata with FFmpeg: %v", err)
+	}
+	if err := os.Rename(tempOutputPath, outputPath); err != nil {
+		return fmt.Errorf("error replacing original file: %v", err)
+	}
+	log.Debug().Str("title", trackInfo.TrackName).Str("artist", trackInfo.ArtistName).Msg("Successfully added iTunes metadata")
+	return nil
 }
 
 func addDeezerMetadata(outputPath, musicId string) error {
 	log := utils.GetLogger("deezer")
 	log.Debug().Str("musicId", musicId).Msg("Fetching Deezer metadata")
 	client := utils.CreateHTTPClient(30*time.Second, 30*time.Second, "", false)
-
 	apiURL := fmt.Sprintf("https://api.deezer.com/track/%s", musicId)
 	resp, err := client.Get(apiURL)
 	if err != nil {

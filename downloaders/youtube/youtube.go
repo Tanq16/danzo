@@ -178,7 +178,6 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 		musicIds := strings.Split(dType, ":")
 		musicClient = musicIds[1]
 		musicId = musicIds[2]
-
 		cmd = exec.Command(ytdlpPath,
 			"-q",
 			"--progress",
@@ -242,7 +241,7 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 	progressCh <- totalSizeBytes
 
 	if musicId != "" {
-		err := addMusicMetadata(outputPathPre, musicClient, musicId) // outputPathPre works here because audio is always m4a
+		err := addMusicMetadata(outputPathPre, musicClient, musicId) // outputPathPre works here because audio is always m4a, but user can mess it up
 		if err != nil {
 			log.Debug().Err(err).Msg("Failed to add music metadata")
 		}
@@ -252,11 +251,9 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 	return nil
 }
 
-// processOutput reads from a pipe and sends lines to the output channel
 func processOutput(pipe io.ReadCloser, outputCh chan<- []string, maxLines int) {
 	scanner := bufio.NewScanner(pipe)
 	buffer := []string{}
-
 	for scanner.Scan() {
 		line := scanner.Text()
 		buffer = append(buffer, line)
