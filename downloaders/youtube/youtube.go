@@ -21,6 +21,7 @@ import (
 
 var ytdlpFormats = map[string]string{
 	"best":     "bestvideo+bestaudio/best",
+	"best60":   "bestvideo[fps<=60]+bestaudio/best",
 	"bestmp4":  "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]",
 	"decent":   "bestvideo[height<=1080]+bestaudio/best",
 	"decent60": "bestvideo[height<=1080][fps<=60]+bestaudio/best",
