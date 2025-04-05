@@ -34,6 +34,7 @@ type DownloadConfig struct {
 	KATimeout   time.Duration
 	ProxyURL    string
 	UserAgent   string
+	Headers     []string
 }
 
 type DownloadChunk struct {
