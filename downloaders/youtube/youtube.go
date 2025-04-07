@@ -101,7 +101,7 @@ func downloadYtdlp() (string, error) {
 	baseURL := "https://github.com/yt-dlp/yt-dlp/releases/latest/download/"
 	downloadURL := baseURL + filename
 	filePath := filepath.Join(tempDir, filename)
-	client := utils.CreateHTTPClient(30*time.Second, 30*time.Second, "", false)
+	client := utils.CreateHTTPClient(30*time.Second, 30*time.Second, "", false,nil)
 	req, err := http.NewRequest("GET", downloadURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("error creating request: %v", err)
