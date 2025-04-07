@@ -59,7 +59,7 @@ func addMusicMetadata(outputPath, musicClient, musicId string) error {
 	case "deezer":
 		return addDeezerMetadata(outputPath, musicId)
 	// case "spotify":
-	// 	return addSpotifyMetadata(outputPath, musicId)
+	// 	return addSpotifyMetadata(outputPath, musicId) // Dropped for now because of API Token requirements
 	case "apple":
 		return addAppleMetadata(outputPath, musicId)
 	default:

@@ -65,6 +65,8 @@ func ProcessURL(urlRaw string) (string, string, string, string, error) {
 				return "", "", "", "", fmt.Errorf("invalid music ID format")
 			}
 			return urldata[0], "m4a", urldata[1], "danzo-yt-dlp-music.m4a", nil
+		} else if urldata[1] == "manual" {
+			return urldata[0], "m4a", "musicmanual", "danzo-yt-dlp-audio.m4a", nil
 		} else {
 			return urldata[0], ytdlpFormats[urldata[1]], "video", "danzo-yt-dlp-video.mp4", nil
 		}
