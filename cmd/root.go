@@ -54,6 +54,16 @@ var rootCmd = &cobra.Command{
 			log.Fatal().Msg("Cannot specify url argument and --urllist together, choose one")
 		}
 		url := ""
+		if userAgent == "randomize" {
+			userAgent = utils.GetRandomUserAgent()
+		}
+		httpClientConfig := utils.HTTPClientConfig{
+			Timeout:   timeout,
+			KATimeout: kaTimeout,
+			ProxyURL:  proxyURL,
+			UserAgent: userAgent,
+			Headers:   utils.ParseHeaderArgs(headers),
+		}
 		if len(args) > 0 {
 			// Handle single URL download
 			url = args[0]
@@ -64,7 +74,7 @@ var rootCmd = &cobra.Command{
 			if _, err := os.Stat(output); err == nil {
 				entries[0].OutputPath = utils.RenewOutputPath(output)
 			}
-			err := internal.BatchDownload(entries, 1, connections, timeout, kaTimeout, userAgent, proxyURL, headers)
+			err := internal.BatchDownload(entries, 1, connections, httpClientConfig)
 			if err != nil {
 				fmt.Println()
 				log.Fatal().Err(err).Msg("Encountered failed operation(s)")
@@ -82,7 +92,7 @@ var rootCmd = &cobra.Command{
 				connectionsPerLink = max(maxConnections/numLinks, 1)
 				log.Debug().Int("connections", connectionsPerLink).Int("numLinks", numLinks).Msg("adjusted connections to below max limit")
 			}
-			err = internal.BatchDownload(entries, numLinks, connectionsPerLink, timeout, kaTimeout, userAgent, proxyURL, headers)
+			err = internal.BatchDownload(entries, numLinks, connectionsPerLink, httpClientConfig)
 			if err != nil {
 				fmt.Println()
 				log.Fatal().Err(err).Msg("Encountered failed operation(s)")

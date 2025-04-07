@@ -82,11 +82,11 @@ func RenewOutputPath(outputPath string) string {
 }
 
 // includes logger
-func CreateHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL string, highThreadMode bool, headers []string) *http.Client {
+func CreateHTTPClient(config HTTPClientConfig, highThreadMode bool) *http.Client {
 	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100, // for connection reuse
-		IdleConnTimeout:     keepAliveTO,
+		IdleConnTimeout:     config.KATimeout,
 		DisableCompression:  true,
 		MaxConnsPerHost:     0,
 		// These two seem to reduce performance drastically with custom dial context
@@ -106,35 +106,62 @@ func CreateHTTPClient(timeout time.Duration, keepAliveTO time.Duration, proxyURL
 			},
 		}).DialContext
 	}
-	if proxyURL != "" {
-		proxyURLParsed, err := u.Parse(proxyURL)
+	if config.ProxyURL != "" {
+		proxyURLParsed, err := u.Parse(config.ProxyURL)
 		if err != nil {
-			log.Error().Err(err).Str("proxy", proxyURL).Msg("Invalid proxy URL, proceeding without proxy")
+			log.Error().Err(err).Str("proxy", config.ProxyURL).Msg("Invalid proxy URL, proceeding without proxy")
 		} else {
 			transport.Proxy = http.ProxyURL(proxyURLParsed)
-			log.Debug().Str("proxy", proxyURL).Msg("Using proxy for connections")
+			log.Debug().Str("proxy", config.ProxyURL).Msg("Using proxy for connections")
 		}
 	}
 	var finalTransport http.RoundTripper = transport
-	if headers != nil && len(headers) > 0 {
+	if config.Headers != nil || config.UserAgent != "" {
 		finalTransport = &headerTransport{
-			base:    transport,
-			headers: parseHeadersSlice(headers),
+			base:      transport,
+			headers:   config.Headers,
+			userAgent: config.UserAgent,
 		}
 	}
-
 	return &http.Client{
-		Timeout:   timeout,
+		Timeout:   config.Timeout,
 		Transport: finalTransport,
 	}
 }
 
-func GetFileInfo(url string, userAgent string, client *http.Client) (int64, string, error) {
+type headerTransport struct {
+	base      http.RoundTripper
+	headers   map[string]string
+	userAgent string
+}
+
+func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	for key, value := range t.headers {
+		req.Header.Set(key, value)
+	}
+	req.Header.Set("User-Agent", t.userAgent)
+	return t.base.RoundTrip(req)
+}
+
+func ParseHeaderArgs(headers []string) map[string]string {
+	result := make(map[string]string)
+	for _, header := range headers {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			result[key] = value
+		}
+	}
+	return result
+}
+
+func GetFileInfo(url string, client *http.Client) (int64, string, error) {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		return 0, "", err
 	}
-	req.Header.Set("User-Agent", userAgent)
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, "", err
@@ -190,34 +217,4 @@ func Clean(outputPath string) error {
 		return err
 	}
 	return nil
-}
-
-type headerTransport struct {
-	base    http.RoundTripper
-	headers map[string]string
-}
-
-func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Clone the request to avoid modifying the original
-	req = req.Clone(req.Context())
-	for key, value := range t.headers {
-		req.Header.Set(key, value)
-	}
-	return t.base.RoundTrip(req)
-}
-
-// convert a slice of "Key: Value" strings to a map
-func parseHeadersSlice(headers []string) map[string]string {
-	result := make(map[string]string)
-
-	for _, header := range headers {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			result[key] = value
-		}
-	}
-
-	return result
 }

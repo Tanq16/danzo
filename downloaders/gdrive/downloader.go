@@ -93,7 +93,7 @@ func PerformGDriveDownload(config utils.DownloadConfig, token string, fileID str
 		downloadURL = fmt.Sprintf("%s/%s?alt=media&key=%s", driveAPIURL, fileID, token)
 	}
 	log.Debug().Str("fileID", fileID).Str("outputPath", config.OutputPath).Bool("isOAuth", isOAuth).Msg("Starting Google Drive download")
-	err := danzohttp.PerformSimpleDownload(downloadURL, config.OutputPath, client, config.UserAgent, progressCh)
+	err := danzohttp.PerformSimpleDownload(downloadURL, config.OutputPath, client, progressCh)
 	if err != nil {
 		return fmt.Errorf("error downloading Google Drive file: %v", err)
 	}

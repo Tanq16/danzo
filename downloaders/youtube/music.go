@@ -54,6 +54,14 @@ type ITunesResponse struct {
 	} `json:"results"`
 }
 
+var ytHTTPConfig = utils.HTTPClientConfig{
+	Timeout:   30 * time.Second,
+	KATimeout: 30 * time.Second,
+	ProxyURL:  "",
+	UserAgent: utils.ToolUserAgent,
+	Headers:   nil,
+}
+
 func addMusicMetadata(outputPath, musicClient, musicId string) error {
 	switch musicClient {
 	case "deezer":
@@ -70,7 +78,7 @@ func addMusicMetadata(outputPath, musicClient, musicId string) error {
 func addAppleMetadata(outputPath, musicId string) error {
 	log := utils.GetLogger("itunes")
 	log.Debug().Str("musicId", musicId).Msg("Fetching iTunes metadata")
-	client := utils.CreateHTTPClient(30*time.Second, 30*time.Second, "", false)
+	client := utils.CreateHTTPClient(ytHTTPConfig, false)
 	apiURL := fmt.Sprintf("https://itunes.apple.com/lookup?id=%s&entity=song", musicId)
 	resp, err := client.Get(apiURL)
 	if err != nil {
@@ -171,7 +179,7 @@ func addAppleMetadata(outputPath, musicId string) error {
 func addDeezerMetadata(outputPath, musicId string) error {
 	log := utils.GetLogger("deezer")
 	log.Debug().Str("musicId", musicId).Msg("Fetching Deezer metadata")
-	client := utils.CreateHTTPClient(30*time.Second, 30*time.Second, "", false)
+	client := utils.CreateHTTPClient(ytHTTPConfig, false)
 	apiURL := fmt.Sprintf("https://api.deezer.com/track/%s", musicId)
 	resp, err := client.Get(apiURL)
 	if err != nil {
