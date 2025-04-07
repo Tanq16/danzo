@@ -57,6 +57,16 @@ func ProcessURL(urlRaw string) (string, string, string, string, error) {
 	if len(urldata) > 1 {
 		if urldata[1] == "audio" {
 			return urldata[0], "m4a", "audio", "danzo-yt-dlp-audio.m4a", nil
+		} else if strings.HasPrefix(urldata[1], "music") {
+			musicIds := strings.Split(urldata[1], ":")
+			if len(musicIds) < 3 {
+				return "", "", "", "", fmt.Errorf("invalid music ID format")
+			} else if musicIds[1] != "spotify" && musicIds[1] != "apple" && musicIds[1] != "deezer" {
+				return "", "", "", "", fmt.Errorf("invalid music ID format")
+			}
+			return urldata[0], "m4a", urldata[1], "danzo-yt-dlp-music.m4a", nil
+		} else if urldata[1] == "manual" {
+			return urldata[0], "m4a", "musicmanual", "danzo-yt-dlp-audio.m4a", nil
 		} else {
 			return urldata[0], ytdlpFormats[urldata[1]], "video", "danzo-yt-dlp-video.mp4", nil
 		}
@@ -152,7 +162,24 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 	}
 
 	var cmd *exec.Cmd
+	var musicClient string
+	var musicId string
 	if dType == "audio" {
+		cmd = exec.Command(ytdlpPath,
+			"-q",
+			"--progress",
+			"--newline",
+			"--progress-delta", "1",
+			"-x",
+			"--audio-format", format,
+			"--audio-quality", "0",
+			"-o", fmt.Sprintf("%s.%%(ext)s", outputPath),
+			url,
+		)
+	} else if strings.HasPrefix(dType, "music") {
+		musicIds := strings.Split(dType, ":")
+		musicClient = musicIds[1]
+		musicId = musicIds[2]
 		cmd = exec.Command(ytdlpPath,
 			"-q",
 			"--progress",
@@ -206,7 +233,7 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 
 	// Get file size after download is complete
 	var totalSizeBytes int64
-	fileInfo, err := os.Stat(outputPath)
+	fileInfo, err := os.Stat(outputPathPre) // won't always be the same because video can default to webm
 	if err == nil {
 		totalSizeBytes = fileInfo.Size()
 	} else {
@@ -214,15 +241,21 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 		totalSizeBytes = 1
 	}
 	progressCh <- totalSizeBytes
+
+	if musicId != "" {
+		err := addMusicMetadata(outputPathPre, musicClient, musicId) // outputPathPre works here because audio is always m4a, but user can mess it up
+		if err != nil {
+			log.Debug().Err(err).Msg("Failed to add music metadata")
+		}
+	}
+
 	log.Debug().Str("url", url).Str("output", outputPath).Int64("size", totalSizeBytes).Msg("YouTube download completed successfully")
 	return nil
 }
 
-// processOutput reads from a pipe and sends lines to the output channel
 func processOutput(pipe io.ReadCloser, outputCh chan<- []string, maxLines int) {
 	scanner := bufio.NewScanner(pipe)
 	buffer := []string{}
-
 	for scanner.Scan() {
 		line := scanner.Text()
 		buffer = append(buffer, line)
