@@ -90,7 +90,6 @@ func downloadSingleChunk(job *utils.DownloadJob, chunk *utils.DownloadChunk, cli
 		return err
 	}
 	req.Header.Set("Range", rangeHeader)
-	req.Header.Set("User-Agent", job.Config.UserAgent)
 	req.Header.Set("Connection", "keep-alive")
 	log.Debug().Str("range", rangeHeader).Msg("Sending range request")
 	resp, err := client.Do(req)

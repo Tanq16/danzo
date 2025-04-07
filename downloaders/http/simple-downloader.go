@@ -11,7 +11,7 @@ import (
 	"github.com/tanq16/danzo/utils"
 )
 
-func PerformSimpleDownload(url string, outputPath string, client *http.Client, userAgent string, progressCh chan<- int64) error {
+func PerformSimpleDownload(url string, outputPath string, client *http.Client, progressCh chan<- int64) error {
 	log := utils.GetLogger("simple-download")
 	outputDir := filepath.Dir(outputPath)
 	tempOutputPath := fmt.Sprintf("%s.part", outputPath)
@@ -53,7 +53,6 @@ func PerformSimpleDownload(url string, outputPath string, client *http.Client, u
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", resumeOffset))
 		log.Debug().Int64("resumeOffset", resumeOffset).Msg("Setting Range header for resume")
 	}
-	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Connection", "keep-alive")
 	log.Debug().Str("url", url).Msg("Starting simple download")
 	resp, err := client.Do(req)

@@ -2,114 +2,56 @@
   <img src=".github/assets/logo.png" alt="Danzo Logo" width="300">
 
   <a href="https://github.com/tanq16/danzo/actions/workflows/binary.yml"><img alt="Build" src="https://github.com/tanq16/danzo/actions/workflows/binary.yml/badge.svg"></a> <a href="https://github.com/Tanq16/danzo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/danzo"></a><br><br>
-  <p>Danzo is a cross-platform and cross-architecture all-in-one CLI file download utility designed for multi-threaded downloads, progress tracking, and an intuitive command structure.</p><br>
-  <a href="#quickstart">Quickstart</a> &bull; <a href="#features">Features</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a><br>
+  <p>A cross-platform and cross-architecture all-in-one CLI download utility designed for multi-threaded downloads, progress tracking, and an intuitive command structure.</p><p>Just like Danzo collected powers through multiple "sources" ;) in Naruto, this tool uses multiple connections to supercharge downloads.</p><br>
+  <a href="#quickstart">Quickstart</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#contributing">Contributing</a> &bull; <a href="#acknowledgements">Acknowledgements</a><br>
 </div>
 
 ---
-
-*Just like its namesake from the Naruto series who collected powers through multiple "sources", Danzo harnesses the strength of parallel connections to supercharge your downloads.*
 
 ## Quickstart
 
 This section gives a quick peek at the capabilities and the extremely simple command structure. For detailed descriptions, see [Usage](#usage).
 
-- General purpose download (use instead of `wget`)
+- HTTP(S) downloads
   ```bash
-  danzo https://example.com/internet-file.zip -o local.zip
+  danzo https://example.com/internet-file.zip -o local.zip # (in lieu of `wget`)
+  danzo https://example.com/file.zip -H "Authorization: Basic dW46cHc=" # (custom headers like in curl)
+  danzo https://example.com/largefile.zip -c 40 # (fast, multi-threaded, multi-chunked with 40 threads)
   ```
-- Multi-threaded, multi-chunked downloads (for high speeds and large files)
+- Batch download from config (multiple workers)
   ```bash
-  danzo https://example.com/largefile.zip -c 40
+  danzo -l downloads.yaml -w 4 -c 16 # (4 workers with 16 threads each)
   ```
-- Batch download with yaml config (multiple workers)
+- YouTube video download (uses `yt-dlp`, `ffmpeg`, `ffprobe`)
   ```bash
-  danzo -l downloads.yaml -w 4 -c 16
-  # connections defined per worker
+  danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # (default is best quality)
+  danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||1080p" # (download in 1080p)
+  # allows customization with `||best60`, `||decent`, `||1080p60`, and more (see usage)
+  danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||audio" # (download `.m4a` audio)
+  danzo "https://youtu.be/JJpFTUP6fIo||music:apple:1800533191" # (add music metadata from itunes)
+  danzo "https://youtu.be/JJpFTUP6fIo||music:deezer:3271607031" # (add music metadata from deezer)
   ```
-- Quick-download YouTube video with sensible defaults (uses `yt-dlp`)
+- Download file from Google Drive
   ```bash
-  danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-  # default is best quality, but can be customized by appending:
-  # `||best60`, `||decent`, `||1080p60`, `||1080p`, and few more (see usage)
-  ```
-- Quick-download `.m4a` audio from YouTube (uses `yt-dlp`)
-  ```bash
-  danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||audio"
-  # note the `||audio` tag at the end
-  ```
-- Download a file from Google drive
-  ```bash
-  GDRIVE_API_KEY="your_key" danzo "https://drive.google.com/file/d/abc123/view"
-  # download for publicly shared files using a static API Key
-  GDRIVE_CREDENTIALS=service-acc-key.json danzo "https://drive.google.com/file/d/abc123/view"
-  # download for private files using OAuth device code flow
+  GDRIVE_API_KEY="your_key" danzo "https://drive.google.com/file/d/abc123/view" # (static Key only for publicly shared files)
+  GDRIVE_CREDENTIALS=service-acc-key.json danzo "https://drive.google.com/file/d/abc123/view" # (OAuth device code flow for private files)
   ```
 - Download an S3 object or folder
   ```bash
   AWS_PROFILE=myprofile danzo "s3://mybucket/path/to/file.zip"
   ```
-- Download appropriate GitHub release assets for a project
+- Download GitHub release asset
   ```bash
-  danzo "github://username/repo"
-  # auto selects release according to OS and arch
-  # or append `||version` to choose interactively
+  danzo "github://username/repo" # (auto-selects release according to OS and arch)
+  danzo "github://username/repo||version" # (choose interactively)
   ```
 - Clone a git repository
   ```bash
-  danzo "gitlab.com/volian/nala"
-  # also supports `github.com/`, `bitbucket.org/`, and `git.com/` (generic)
-  # append `||1` to clone with --depth=1
+  danzo "gitlab.com/username/repo" # (also supports `github.com/`, `bitbucket.org/`, and `git.com/`)
+  danzo "gitlab.com/username/repo||1" # (clone with --depth=1)
+  GIT_TOKEN=$(cat /secrets/ghtoken) danzo "github.com/tanq16/private" # (use a PAT; auto-manages for different providers)
+  GIT_SSH="/secrets/gh-ssh.key" danzo "github.com/tanq16/private" # (use an SSH key to authenticate)
   ```
-- Clone a git repository with authentication
-  ```bash
-  GIT_TOKEN=$(cat /secrets/ghtoken) danzo "github.com/tanq16/private"
-  # use a personal access token; auto-manages for different providers
-  GIT_SSH="/secrets/gh-ssh.key" danzo github.com/tanq16/private
-  # use an SSH key to authenticate
-  ```
-
-## Features
-
-***High-Performance Downloads***
-
-- **Multi-threaded**: Split files into chunks for parallel downloads
-- **Optimization**: Auto-adjust client for ranged or full downloads based on server support
-- **Adaptation**: Use single-threaded downloads for small files or servers without range support
-- **High-thread mode**: TCP socket optimizations when using multiple threads
-- **Resumable downloads**: Continue interrupted HTTP downloads from where they left off
-- **Live progress tracking**: Monitor speed, completion percentage, and ETA in real-time
-- **Comprehensive summary**: Download report with total size and average speed on completion
-
-***Batch Processing***
-
-- **YAML configuration**: Download multiple files simultaneously with a simple config
-- **Parallel processing**: Set concurrent downloads and connections per download
-- **Resource management**: Auto-caps at 64 total connections to prevent overload
-
-***Service & Protocol Support***
-
-- HTTP(S) downloads with range request (for chunking) support
-- Google Drive file downloads with API key or OAuth2.0 authentication
-- YouTube videos and audio download with simple quality selection (needs [yt-dlp](https://github.com/yt-dlp/yt-dlp) and optionally `ffmpeg` and `ffprobe`)
-- AWS S3 objects and folder downloads using AWS profile
-- GitHub release asset downloads with automatic OS/architecture detection
-- Clone git repositories from various sources with or without authentication
-
-***Customization***
-
-- **Output handling**: 
-  - Auto-detect filenames from URLs and headers
-  - Numbered versioning for duplicate manually specified filenames
-- **Connection tuning**: Configure timeouts, HTTP(S) proxy, and user agents
-- **Tempfile management**: Auto and on-demand cleanup of temporary files
-
-***Usability***
-
-- **Simplicity**: Extremely simple command structure for ease of use
-- **Alternative to wget**: Simple, faster alternative for straightforward downloads
-- **One stop shop**: An entryway into downloading files or various kinds
-- **Cross-platform compatibility**: Works on Linux, macOS, and Windows as self-contained binaries
 
 ## Installation
 
@@ -149,8 +91,9 @@ Usage:
 
 Flags:
       --clean                         Clean up temporary files for provided output path
-  -c, --connections int               Number of connections per download (default 8, i.e., high thread mode) (default 8)
+  -c, --connections int               Number of connections per download (above 8 enables high-thread-mode) (default 8)
       --debug                         Enable debug logging
+  -H, --header stringArray            Custom headers (like 'Authorization: Basic dXNlcjpwYXNz'); can be specified multiple times
   -h, --help                          help for danzo
   -k, --keep-alive-timeout duration   Keep-alive timeout for client (eg. 10s, 1m, 80s) (default 1m30s)
   -o, --output string                 Output file path (Danzo infers file name if not provided)
@@ -167,16 +110,6 @@ Flags:
 
 ## Usage
 
-Links to quickly jump to the relevant sections:
-
-- [Basic Usage](#basic-usage)
-- [HTTP(S) Downloads](#https-downloads)
-- [Google Drive Downloads](#google-drive-downloads)
-- [Youtube Downloads](#youtube-downloads)
-- [AWS S3 Downloads](#aws-s3-downloads)
-- [GitHub Release Downloads](#github-release-downloads)
-- [Git Repository Cloning](#git-repository-cloning)
-
 ### Basic Usage
 
 The simplest way to download a file is to provide a URL directly and let Danzo do its thing:
@@ -185,7 +118,23 @@ The simplest way to download a file is to provide a URL directly and let Danzo d
 danzo https://example.com/largefile.zip
 ```
 
-Of course, this will not always yield the best result, so to optimize according to file types, read through the specific sections below.
+Of course, this will not always yield the best result, so to optimize according to file types, use multiple thread (read through the next couple sections to learn more).
+
+Some quick tips:
+
+- For troubleshooting, use `--debug` to see detailed operation logs
+- Use `-a randomize` to assign a random user agent for the HTTP client (only for HTTP(S) downloads)
+- When using a proxy, you only need to provide the hostname and port with `-p` the scheme is matched to the download URL
+- Custom headers can be passed with `-H` just like in `curl`
+
+Follow these links to quickly jump to the relevant provider:
+
+- [HTTP(S) Downloads](#https-downloads)
+- [Google Drive Downloads](#google-drive-downloads)
+- [Youtube Downloads](#youtube-downloads)
+- [AWS S3 Downloads](#aws-s3-downloads)
+- [GitHub Release Downloads](#github-release-downloads)
+- [Git Repository Cloning](#git-repository-cloning)
 
 ### HTTP(S) Downloads
 
@@ -212,6 +161,9 @@ danzo "https://example.com/largefile.zip" -c 16
 > Therefore, you need to find a balance where the number of connections maximize your network throughput without putting extra strain on disk IO. This effect is especially observable in HDDs.
 
 Lastly, if a URL does not use byte-range requests (i.e., server doesn't support partial content downloads), Danzo automatically switches to a simple, single-threaded, direct download.
+
+> [!TIP]
+> If a download is interrupted, Danzo will automatically resume from temporary files when you run the same command (requires matching connections count). Failed chunk downloads are automatically retried up to 5 times before failing.
 
 #### Batch Download Capability
 
@@ -341,6 +293,13 @@ All available types are listed in the [youtube.go](./downloaders/youtube/youtube
 > [!NOTE]
 > YouTube downloads require `yt-dlp` to be installed on your system. If it's not found, Danzo will automatically download and use a compatible version. Additionally, since the STDOUT and STDERR are directly streamed from `yt-dlp` to `danzo`, YouTube videos are not tracked for progress the way HTTP downloads are. When downloading a single YouTube URL, the output from `yt-dlp` will be streamed to the user's STDOUT. But if the URL is part of a batch file, then the output is hidden and the progress appears stalled until finished.
 
+Danzo also supports downloading music from YouTube and automatically add metadata from the Deezer or the iTunes API, when the appropriate ID is provided. This can be done via the `||music...` tag, which customizes the behavior of the `||audio` tag and uses `ffmpeg` to add custom metadata for the file. Example:
+
+```bash
+danzo "https://youtu.be/JJpFTUP6fIo||music:apple:1800533191"
+danzo "https://youtu.be/JJpFTUP6fIo||music:deezer:3271607031"
+```
+
 ### AWS S3 Downloads
 
 There are 2 ways of downloading objects from S3:
@@ -434,23 +393,28 @@ GIT_SSH="/secrets/gh-ssh.key" danzo github.com/tanq16/private
 > [!NOTE]
 > Repository cloning is another download provider that does not use `-c` or number of connections. Number of workers, `-w`, is still applicable as usual in batch (YAML config) mode.
 
-## Tips and Notes
+## Contributing
 
-- For troubleshooting, use `--debug` to see detailed operation logs
-- Use `-a randomize` to assign a random user agent for each HTTP client
-- When using a proxy, you only need to provide the hostname and port with `-p` - the scheme is matched to the download URL
-- Failed chunk downloads are automatically retried up to 5 times before failing
-- Reduce connection count for servers with rate limiting to avoid being blocked
-- Balance connections and file size for optimal performance - more connections aren't always better due to disk I/O overhead
-- Throughput optimization tips:
-  - For small files (<20MB), single-threaded downloads are often faster
-  - For large files on high-bandwidth connections, try 12-16 connections
-  - For very large files (>1GB), find your optimal connection count (usually 16-32)
-  - Example: A 1GB file took 54 seconds with 50 connections vs 62 seconds with 64 connections due to assembly overhead
-- YouTube downloads require `yt-dlp`, which Danzo will automatically download if not found in your PATH
-- AWS S3 downloads uses configured AWS CLI profiles - if a specific profile is not set with `AWS_PROFILE=name`, the `default` profile is used
-- For Google Drive downloads, rate limits and throttling will be enforced by Google; Danzo only uses a simple client
-- If a download is interrupted, Danzo will automatically resume from temporary files when you run the same command (requires matching connections count)
-- To change Google Drive auth methods, use environment variables:
-  - API Key: `GDRIVE_API_KEY=your_key` (can only download shared URLs)
-  - OAuth: `GDRIVE_CREDENTIALS=path/to/credentials.json` (can download private URLs also)
+Danzo uses issues for everything. Open an issue and I will add an appropriate tag automatically for any of these situations:
+
+- If you spot a bug or bad code
+- If you have a contribution to make, also open an issue (so it doesn't overlap with current roadmap)
+- If you have questions or about doubts about usage
+
+## Acknowledgements
+
+Danzo uses the following third-party tools as partial dependencies:
+
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+- [ffmpeg](https://github.com/FFmpeg/FFmpeg) (and `ffprobe`)
+
+Danzo draws inspiration from the following projects:
+
+- [ytmdl](https://github.com/deepjyoti30/ytmdl)
+- [aria2](https://github.com/aria2/aria2)
+
+The following contributors helped improve Danzo:
+
+- [Whispard](https://github.com/Whispard) - [PR #8](https://github.com/Tanq16/danzo/pull/8) (support for custom HTTP headers)
+
+Lastly, Danzo uses several Go packages referenced within `go.mod` that allow Danzo to be amazing.

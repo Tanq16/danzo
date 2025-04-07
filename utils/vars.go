@@ -27,14 +27,18 @@ var Color = map[string]string{
 }
 
 type DownloadConfig struct {
-	URL         string
-	OutputPath  string
-	Connections int
-	Timeout     time.Duration
-	KATimeout   time.Duration
-	ProxyURL    string
-	UserAgent   string
-	Headers     []string
+	URL              string
+	OutputPath       string
+	Connections      int
+	HTTPClientConfig HTTPClientConfig
+}
+
+type HTTPClientConfig struct {
+	Timeout   time.Duration
+	KATimeout time.Duration
+	ProxyURL  string
+	UserAgent string
+	Headers   map[string]string
 }
 
 type DownloadChunk struct {

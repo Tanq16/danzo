@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	danzogdrive "github.com/tanq16/danzo/downloaders/gdrive"
 	danzogitc "github.com/tanq16/danzo/downloaders/gitclone"
@@ -18,7 +17,7 @@ import (
 	"github.com/tanq16/danzo/utils"
 )
 
-func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink int, timeout, kaTimeout time.Duration, userAgent, proxyURL string, headers []string) error {
+func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink int, httpClientConfig utils.HTTPClientConfig) error {
 	log := utils.GetLogger("downloader")
 	log.Debug().Int("totalFiles", len(entries)).Int("workers", numLinks).Int("connections", connectionsPerLink).Msg("Initiating download")
 
@@ -48,23 +47,21 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 			logger := log.With().Int("workerID", workerID).Logger()
 			for entry := range entriesCh {
 				logger.Debug().Str("tempName", entry.OutputPath).Msg("Worker starting download")
-				if userAgent == "randomize" {
-					userAgent = utils.GetRandomUserAgent()
-				}
 				config := utils.DownloadConfig{
-					URL:         entry.URL,
-					OutputPath:  entry.OutputPath,
-					Connections: connectionsPerLink,
-					Timeout:     timeout,
-					KATimeout:   kaTimeout,
-					UserAgent:   userAgent,
-					ProxyURL:    proxyURL,
-					Headers:     headers,
+					URL:              entry.URL,
+					OutputPath:       entry.OutputPath,
+					Connections:      connectionsPerLink,
+					HTTPClientConfig: httpClientConfig,
 				}
 				progressCh := make(chan int64)
 				useHighThreadMode := config.Connections > 5
 
 				urlType := utils.DetermineDownloadType(config.URL)
+				// Set custom headers and user agent only for HTTP/HTTPS downloads
+				if urlType != "http" {
+					httpClientConfig.Headers = nil
+					httpClientConfig.UserAgent = utils.ToolUserAgent
+				}
 				switch urlType {
 
 				// =================================================================================================================
@@ -76,8 +73,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				// HTTP download
 				// =================================================================================================================
 				case "http":
-					client := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, useHighThreadMode, config.Headers)
-					fileSize, fileName, err := utils.GetFileInfo(config.URL, config.UserAgent, client)
+					client := utils.CreateHTTPClient(httpClientConfig, useHighThreadMode)
+					fileSize, fileName, err := utils.GetFileInfo(config.URL, client)
 					if config.OutputPath == "" && fileName != "" {
 						config.OutputPath = fileName
 						entry.OutputPath = fileName
@@ -124,13 +121,13 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 
 					if err == utils.ErrRangeRequestsNotSupported || config.Connections == 1 {
 						logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD with 1 connection")
-						simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false, config.Headers)
-						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
+						simpleClient := utils.CreateHTTPClient(httpClientConfig, false)
+						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, progressCh)
 						close(progressCh)
 					} else if fileSize/int64(config.Connections) < 2*utils.DefaultBufferSize {
 						logger.Debug().Str("output", entry.OutputPath).Msg("SIMPLE DOWNLOAD bcz low file size")
-						simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false, config.Headers)
-						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
+						simpleClient := utils.CreateHTTPClient(httpClientConfig, false)
+						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, progressCh)
 						close(progressCh)
 					} else {
 						err = danzohttp.PerformMultiDownload(config, client, fileSize, progressCh)
@@ -217,7 +214,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				// =================================================================================================================
 				case "gitrelease":
 					logger.Debug().Str("url", entry.URL).Msg("GitHub Release URL detected")
-					simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false, nil)
+					simpleClient := utils.CreateHTTPClient(httpClientConfig, false)
 					userSelectOverride := false
 					if len(entries) > 1 {
 						userSelectOverride = true
@@ -249,7 +246,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						progressManager.Complete(outputPath, totalDownloaded)
 					}(entry.OutputPath, progressCh)
 
-					err = danzohttp.PerformSimpleDownload(downloadURL, entry.OutputPath, simpleClient, config.UserAgent, progressCh)
+					err = danzohttp.PerformSimpleDownload(downloadURL, entry.OutputPath, simpleClient, progressCh)
 					if err != nil {
 						logger.Debug().Err(err).Msg("GitHub release download failed")
 						reportError := fmt.Errorf("error downloading %s: %v", entry.URL, err)
@@ -438,7 +435,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				// =================================================================================================================
 				case "gdrive":
 					logger.Debug().Str("url", entry.URL).Msg("Google Drive URL detected")
-					simpleClient := utils.CreateHTTPClient(config.Timeout, config.KATimeout, config.ProxyURL, false, nil)
+					simpleClient := utils.CreateHTTPClient(httpClientConfig, false)
 					apiKey, err := danzogdrive.GetAuthToken()
 					if err != nil {
 						logger.Debug().Err(err).Msg("Failed to get API key")
