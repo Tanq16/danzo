@@ -112,12 +112,12 @@ func init() {
 	rootCmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (Danzo infers file name if not provided)")
 	rootCmd.Flags().StringVarP(&urlListFile, "urllist", "l", "", "Path to YAML file containing URLs and output paths")
 	rootCmd.Flags().IntVarP(&numLinks, "workers", "w", 1, "Number of links to download in parallel")
-	rootCmd.Flags().IntVarP(&connections, "connections", "c", 8, "Number of connections per download (default 8, i.e., high thread mode)")
+	rootCmd.Flags().IntVarP(&connections, "connections", "c", 8, "Number of connections per download (above 8 enables high-thread-mode)")
 	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout (eg. 5s, 10m)")
 	rootCmd.Flags().DurationVarP(&kaTimeout, "keep-alive-timeout", "k", 90*time.Second, "Keep-alive timeout for client (eg. 10s, 1m, 80s)")
 	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", utils.ToolUserAgent, "User agent")
 	rootCmd.Flags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)")
-	rootCmd.Flags().StringArrayVarP(&headers, "header", "H", []string{}, "Custom headers")
+	rootCmd.Flags().StringArrayVarP(&headers, "header", "H", []string{}, "Custom headers (like 'Authorization: Basic dXNlcjpwYXNz'); can be specified multiple times")
 	// rootCmd.Flags().StringVarP(&customization, "customization", "z", "", "Additional options for customizing behavior") // for future use
 
 	// flags without shorthand
