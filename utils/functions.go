@@ -81,7 +81,6 @@ func RenewOutputPath(outputPath string) string {
 	}
 }
 
-// includes logger
 func CreateHTTPClient(config HTTPClientConfig, highThreadMode bool) *http.Client {
 	transport := &http.Transport{
 		MaxIdleConns:        100,
@@ -111,8 +110,21 @@ func CreateHTTPClient(config HTTPClientConfig, highThreadMode bool) *http.Client
 		if err != nil {
 			log.Error().Err(err).Str("proxy", config.ProxyURL).Msg("Invalid proxy URL, proceeding without proxy")
 		} else {
+			// Add authentication to proxy URL if credentials provided
+			if config.ProxyUsername != "" && proxyURLParsed.User == nil {
+				if config.ProxyPassword != "" {
+					proxyURLParsed.User = u.UserPassword(config.ProxyUsername, config.ProxyPassword)
+				} else {
+					proxyURLParsed.User = u.User(config.ProxyUsername)
+				}
+			}
+			if proxyURLParsed.Scheme == "" {
+				// Default to http if no scheme provided
+				proxyURLParsed.Scheme = "http"
+				log.Debug().Str("proxy", proxyURLParsed.String()).Msg("No scheme provided, using http")
+			}
 			transport.Proxy = http.ProxyURL(proxyURLParsed)
-			log.Debug().Str("proxy", config.ProxyURL).Msg("Using proxy for connections")
+			log.Debug().Str("proxy", proxyURLParsed.Redacted()).Msg("Using proxy for connections")
 		}
 	}
 	var finalTransport http.RoundTripper = transport

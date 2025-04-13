@@ -34,11 +34,13 @@ type DownloadConfig struct {
 }
 
 type HTTPClientConfig struct {
-	Timeout   time.Duration
-	KATimeout time.Duration
-	ProxyURL  string
-	UserAgent string
-	Headers   map[string]string
+	Timeout       time.Duration
+	KATimeout     time.Duration
+	ProxyURL      string
+	ProxyUsername string
+	ProxyPassword string
+	UserAgent     string
+	Headers       map[string]string
 }
 
 type DownloadChunk struct {

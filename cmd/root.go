@@ -13,17 +13,19 @@ import (
 )
 
 var (
-	output      string
-	connections int
-	timeout     time.Duration
-	kaTimeout   time.Duration
-	userAgent   string
-	proxyURL    string
-	debug       bool
-	urlListFile string
-	numLinks    int
-	cleanOutput bool
-	headers     []string
+	output        string
+	connections   int
+	timeout       time.Duration
+	kaTimeout     time.Duration
+	userAgent     string
+	proxyURL      string
+	proxyUsername string
+	proxyPassword string
+	debug         bool
+	urlListFile   string
+	numLinks      int
+	cleanOutput   bool
+	headers       []string
 	// customization string
 )
 
@@ -57,12 +59,25 @@ var rootCmd = &cobra.Command{
 		if userAgent == "randomize" {
 			userAgent = utils.GetRandomUserAgent()
 		}
+		// Check if proxy URL contains auth
+		parsedProxy, err := u.Parse(proxyURL)
+		if err == nil && parsedProxy.User != nil && proxyUsername == "" {
+			proxyUsername = parsedProxy.User.Username()
+			if password, set := parsedProxy.User.Password(); set {
+				proxyPassword = password
+			}
+			// Remove auth from URL to send in clientConfig
+			parsedProxy.User = nil
+			proxyURL = parsedProxy.String()
+		}
 		httpClientConfig := utils.HTTPClientConfig{
-			Timeout:   timeout,
-			KATimeout: kaTimeout,
-			ProxyURL:  proxyURL,
-			UserAgent: userAgent,
-			Headers:   utils.ParseHeaderArgs(headers),
+			Timeout:       timeout,
+			KATimeout:     kaTimeout,
+			ProxyURL:      proxyURL,
+			ProxyUsername: proxyUsername,
+			ProxyPassword: proxyPassword,
+			UserAgent:     userAgent,
+			Headers:       utils.ParseHeaderArgs(headers),
 		}
 		if len(args) > 0 {
 			// Handle single URL download
@@ -117,6 +132,8 @@ func init() {
 	rootCmd.Flags().DurationVarP(&kaTimeout, "keep-alive-timeout", "k", 90*time.Second, "Keep-alive timeout for client (eg. 10s, 1m, 80s)")
 	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", utils.ToolUserAgent, "User agent")
 	rootCmd.Flags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)")
+	rootCmd.Flags().StringVar(&proxyUsername, "proxy-username", "", "Proxy username (if not provided in proxy URL)")
+	rootCmd.Flags().StringVar(&proxyPassword, "proxy-password", "", "Proxy password (if not provided in proxy URL)")
 	rootCmd.Flags().StringArrayVarP(&headers, "header", "H", []string{}, "Custom headers (like 'Authorization: Basic dXNlcjpwYXNz'); can be specified multiple times")
 	// rootCmd.Flags().StringVarP(&customization, "customization", "z", "", "Additional options for customizing behavior") // for future use
 

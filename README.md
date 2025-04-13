@@ -98,6 +98,8 @@ Flags:
   -k, --keep-alive-timeout duration   Keep-alive timeout for client (eg. 10s, 1m, 80s) (default 1m30s)
   -o, --output string                 Output file path (Danzo infers file name if not provided)
   -p, --proxy string                  HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)
+      --proxy-password string         Proxy password (if not provided in proxy URL)
+      --proxy-username string         Proxy username (if not provided in proxy URL)
   -t, --timeout duration              Connection timeout (eg. 5s, 10m) (default 3m0s)
   -l, --urllist string                Path to YAML file containing URLs and output paths
   -a, --user-agent string             User agent (default "danzo/1337")
@@ -124,7 +126,8 @@ Some quick tips:
 
 - For troubleshooting, use `--debug` to see detailed operation logs
 - Use `-a randomize` to assign a random user agent for the HTTP client (only for HTTP(S) downloads)
-- When using a proxy, you only need to provide the hostname and port with `-p` the scheme is matched to the download URL
+- Danzo supports a proxy using `-p` flag primarily for HTTP(S) downloads and defaults to HTTP scheme, otherwise uses what's provided
+- Proxy authentication can be provided with `--proxy-username` and `--proxy-password`
 - Custom headers can be passed with `-H` just like in `curl`
 
 Follow these links to quickly jump to the relevant provider:
