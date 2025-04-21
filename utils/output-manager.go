@@ -443,7 +443,7 @@ func (m *Manager) updateDisplay() {
 	for _, f := range activeFuncs {
 		info := f
 		statusDisplay := m.GetStatusIndicator(info.Status)
-		elapsed := time.Since(info.StartTime).Round(time.Millisecond)
+		elapsed := time.Since(info.StartTime).Round(time.Second)
 		elapsedStr := fmt.Sprintf("[%s]", elapsed)
 
 		// Style the message based on status
@@ -458,7 +458,7 @@ func (m *Manager) updateDisplay() {
 		default: // pending or other
 			styledMessage = pendingStyle.Render(info.Message)
 		}
-		fmt.Printf("%s%s %s\t%s\n", strings.Repeat(" ", basePadding), statusDisplay, debugStyle.Render(elapsedStr), styledMessage)
+		fmt.Printf("%s%s %s %s\n", strings.Repeat(" ", basePadding), statusDisplay, debugStyle.Render(elapsedStr), styledMessage)
 		lineCount++
 
 		// Print stream lines with indentation
@@ -490,7 +490,7 @@ func (m *Manager) updateDisplay() {
 	for _, f := range completedFuncs {
 		info := f
 		statusDisplay := m.GetStatusIndicator(info.Status)
-		totalTime := info.LastUpdated.Sub(info.StartTime).Round(time.Millisecond)
+		totalTime := info.LastUpdated.Sub(info.StartTime).Round(time.Second)
 		timeStr := fmt.Sprintf("[%s]", totalTime)
 
 		// Style message based on status
@@ -504,7 +504,7 @@ func (m *Manager) updateDisplay() {
 		} else { // pending or other
 			styledMessage = pendingStyle.Render(info.Message)
 		}
-		fmt.Printf("%s%s %s\t%s\n", strings.Repeat(" ", basePadding), statusDisplay, debugStyle.Render(timeStr), styledMessage)
+		fmt.Printf("%s%s %s %s\n", strings.Repeat(" ", basePadding), statusDisplay, debugStyle.Render(timeStr), styledMessage)
 		lineCount++
 
 		// Print stream lines with indentation if unlimited mode is enabled

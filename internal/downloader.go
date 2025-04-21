@@ -34,6 +34,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 		go func(workerID int) {
 			defer wg.Done()
 			for entry := range entriesCh {
+				utils.PrintDebug(fmt.Sprintf("\nWorker %d processing entry: %s\n", workerID, entry.URL))
 				entryFunctionId := outputMgr.Register(entry.OutputPath)
 				config := utils.DownloadConfig{
 					URL:              entry.URL,
@@ -50,7 +51,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					httpClientConfig.Headers = nil
 					httpClientConfig.UserAgent = utils.ToolUserAgent
 				}
-				outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Starting %s download for %s", urlType, entry.URL))
+				outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Starting %s download for %s", urlType, entry.OutputPath))
 				switch urlType {
 
 				// =================================================================================================================
