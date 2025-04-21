@@ -14,15 +14,16 @@ import (
 
 var (
 	// Core styles
-	successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))             // green
-	errorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))             // red
-	warningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))            // yellow
-	pendingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))            // blue
-	infoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("14"))            // cyan
-	debugStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))           // light grey
-	detailStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("13"))            // purple
-	streamStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))           // grey
-	headerStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69")) // purple
+	successStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("37"))            // dark green
+	success2Style = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))             // green
+	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))             // red
+	warningStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))            // yellow
+	pendingStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))            // blue
+	infoStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("14"))            // cyan
+	debugStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("250"))           // light grey
+	detailStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("13"))            // purple
+	streamStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))           // grey
+	headerStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69")) // purple
 
 	// Additional config
 	basePadding = 2
@@ -41,6 +42,9 @@ var StyleSymbols = map[string]string{
 
 func PrintSuccess(text string) {
 	fmt.Println(successStyle.Render(text))
+}
+func PrintSuccess2(text string) {
+	fmt.Println(success2Style.Render(text))
 }
 func PrintError(text string) {
 	fmt.Println(errorStyle.Render(text))
