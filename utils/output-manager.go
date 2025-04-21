@@ -194,11 +194,11 @@ func (m *Manager) Resume() {
 	}
 }
 
-func (m *Manager) Register(name string) {
+func (m *Manager) Register(name string) string {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	m.functionCount++
-	m.outputs[name] = &FunctionOutput{
+	m.outputs[fmt.Sprint(m.functionCount)] = &FunctionOutput{
 		Name:        name,
 		Status:      "pending",
 		StreamLines: []string{},
@@ -207,6 +207,7 @@ func (m *Manager) Register(name string) {
 		Tables:      make(map[string]*Table),
 		Index:       m.functionCount,
 	}
+	return fmt.Sprint(m.functionCount)
 }
 
 func (m *Manager) SetMessage(name, message string) {
