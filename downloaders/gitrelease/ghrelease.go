@@ -9,8 +9,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-
-	"github.com/tanq16/danzo/utils"
 )
 
 var assetSelectMap = map[string][]string{
@@ -36,7 +34,6 @@ func parseGitHubURL(url string) (string, string, bool, error) {
 }
 
 func getGitHubReleaseAssets(owner, repo string, client *http.Client) ([]map[string]any, string, error) {
-	log := utils.GetLogger("github-release")
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -70,12 +67,10 @@ func getGitHubReleaseAssets(owner, repo string, client *http.Client) ([]map[stri
 	if len(assetList) == 0 {
 		return nil, "", fmt.Errorf("no assets found in the release")
 	}
-	log.Debug().Str("owner", owner).Str("repo", repo).Str("tag", tagName).Int("assetCount", len(assetList)).Msg("GitHub release assets fetched")
 	return assetList, tagName, nil
 }
 
 func askGitHubReleaseAssets(owner, repo string, client *http.Client) ([]map[string]any, string, error) {
-	log := utils.GetLogger("github-release")
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases", owner, repo)
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -136,7 +131,6 @@ func askGitHubReleaseAssets(owner, repo string, client *http.Client) ([]map[stri
 	if len(assetList) == 0 {
 		return nil, "", fmt.Errorf("no assets found in the release")
 	}
-	log.Debug().Str("owner", owner).Str("repo", repo).Str("tag", tagName).Int("assetCount", len(assetList)).Msg("GitHub release assets fetched")
 	return assetList, tagName, nil
 }
 

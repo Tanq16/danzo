@@ -93,8 +93,6 @@ func GetS3ObjectInfo(url string, s3Client *s3.Client) (string, string, string, i
 }
 
 func PerformS3ObjectDownload(bucket, key, outputPath string, size int64, s3Client *s3.Client, progressCh chan<- int64) error {
-	log := utils.GetLogger("s3object-download")
-	log.Debug().Str("bucket", bucket).Str("key", key).Str("output", outputPath).Msg("Starting S3 download")
 	outputDir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("error creating output directory: %v", err)
@@ -121,7 +119,6 @@ func PerformS3ObjectDownload(bucket, key, outputPath string, size int64, s3Clien
 	if err != nil {
 		return fmt.Errorf("error downloading S3 object: %v", err)
 	}
-	log.Debug().Str("bucket", bucket).Str("key", key).Str("output", outputPath).Msg("S3 download completed")
 	return nil
 }
 

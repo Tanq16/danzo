@@ -1,4 +1,4 @@
-package internal
+package utils
 
 import (
 	"fmt"
@@ -37,6 +37,31 @@ var StyleSymbols = map[string]string{
 	"arrow":   "→",
 	"bullet":  "•",
 	"dot":     "·",
+}
+
+func PrintSuccess(text string) {
+	fmt.Println(successStyle.Render(text))
+}
+func PrintError(text string) {
+	fmt.Println(errorStyle.Render(text))
+}
+func PrintWarning(text string) {
+	fmt.Println(warningStyle.Render(text))
+}
+func PrintInfo(text string) {
+	fmt.Println(infoStyle.Render(text))
+}
+func PrintDebug(text string) {
+	fmt.Println(debugStyle.Render(text))
+}
+func PrintDetail(text string) {
+	fmt.Println(detailStyle.Render(text))
+}
+func PrintStream(text string) {
+	fmt.Println(streamStyle.Render(text))
+}
+func PrintHeader(text string) {
+	fmt.Println(headerStyle.Render(text))
 }
 
 // ======================================== =================

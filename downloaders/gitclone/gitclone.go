@@ -16,7 +16,6 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
-	"github.com/tanq16/danzo/utils"
 )
 
 type gitCloneProgress struct {
@@ -38,7 +37,6 @@ func (p *gitCloneProgress) Write(data []byte) (int, error) {
 }
 
 func InitGitClone(gitURL string, outputPath string) (string, int, error) {
-	log := utils.GetLogger("gitclone-check")
 	parts := strings.Split(gitURL, "||")
 	depth := 0
 	if len(parts) > 1 {
@@ -48,14 +46,12 @@ func InitGitClone(gitURL string, outputPath string) (string, int, error) {
 	}
 	outputDir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		log.Debug().Err(err).Str("outputDir", outputDir).Msg("Failed to create output directory")
 		return "", depth, fmt.Errorf("error creating output directory: %v", err)
 	}
 	return gitURL, depth, nil
 }
 
 func CloneRepository(gitURL, outputPath string, progressCh chan<- int64, streamCh chan<- []string, depth int) error {
-	log := utils.GetLogger("gitclone")
 	if strings.HasPrefix(gitURL, "git.com") {
 		gitURL = strings.ReplaceAll(gitURL, "git.com/", "")
 	}
@@ -69,10 +65,7 @@ func CloneRepository(gitURL, outputPath string, progressCh chan<- int64, streamC
 	progress.buffer = append(progress.buffer, fmt.Sprintf("Cloning %s to %s...", actualURL, outputPath))
 	streamCh <- slices.Clone(progress.buffer)
 
-	auth, err := getAuthMethod(actualURL)
-	if err != nil {
-		log.Debug().Err(err).Msg("Failed to set up authentication, will try anonymous clone")
-	}
+	auth, _ := getAuthMethod(actualURL)
 	cloneOptions := &git.CloneOptions{
 		URL:      actualURL,
 		Progress: progress,
@@ -82,22 +75,18 @@ func CloneRepository(gitURL, outputPath string, progressCh chan<- int64, streamC
 		cloneOptions.Depth = depth
 	}
 
-	log.Debug().Str("url", actualURL).Str("output", outputPath).Msg("Starting Git clone")
-	_, err = git.PlainClone(outputPath, false, cloneOptions)
+	_, err := git.PlainClone(outputPath, false, cloneOptions)
 	if err != nil {
 		return fmt.Errorf("git clone failed: %v", err)
 	}
-	log.Debug().Str("url", actualURL).Str("output", outputPath).Msg("Git clone completed")
 
 	size, err := getDirSize(outputPath)
 	if err == nil {
 		progressCh <- size
 	} else {
-		log.Debug().Err(err).Msg("Failed to get directory size")
 		progressCh <- 0
 	}
 	streamCh <- []string{"Clone complete"}
-	log.Debug().Str("output", outputPath).Msg("Git clone completed successfully")
 	return nil
 }
 

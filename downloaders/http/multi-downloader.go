@@ -16,8 +16,6 @@ import (
 )
 
 func PerformMultiDownload(config utils.DownloadConfig, client *http.Client, fileSize int64, progressCh chan<- int64) error {
-	log := utils.GetLogger("download-worker")
-	log.Debug().Str("size", utils.FormatBytes(uint64(fileSize))).Msg("File size determined")
 	job := utils.DownloadJob{
 		Config:    config,
 		FileSize:  fileSize,
@@ -25,14 +23,12 @@ func PerformMultiDownload(config utils.DownloadConfig, client *http.Client, file
 	}
 	tempDir := filepath.Join(filepath.Dir(config.OutputPath), ".danzo-temp")
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		log.Debug().Err(err).Str("dir", tempDir).Msg("Error creating temp directory")
 		return fmt.Errorf("error creating temp directory: %v", err)
 	}
 
 	// Setup chunks
 	mutex := &sync.Mutex{}
 	chunkSize := fileSize / int64(config.Connections)
-	log.Debug().Int("connections", config.Connections).Str("chunkSize", utils.FormatBytes(uint64(chunkSize))).Msg("Download configuration")
 	var currentPosition int64 = 0
 	for i := range config.Connections {
 		startByte := currentPosition
@@ -52,7 +48,6 @@ func PerformMultiDownload(config utils.DownloadConfig, client *http.Client, file
 		}
 		currentPosition = endByte + 1
 	}
-	log.Debug().Str("output", config.OutputPath).Int("chunks", len(job.Chunks)).Msg("Download divided into chunks")
 
 	// Start connection goroutines
 	var wg sync.WaitGroup
@@ -85,11 +80,9 @@ func PerformMultiDownload(config utils.DownloadConfig, client *http.Client, file
 }
 
 func assembleFile(job utils.DownloadJob) error {
-	log := utils.GetLogger("assembler")
 	allChunksCompleted := true
-	for i, chunk := range job.Chunks {
+	for _, chunk := range job.Chunks {
 		if !chunk.Completed {
-			log.Debug().Int("chunkId", i).Msg("Chunk was not completed")
 			allChunksCompleted = false
 		}
 	}
@@ -102,16 +95,13 @@ func assembleFile(job utils.DownloadJob) error {
 		idI, errI := extractChunkID(tempFiles[i])
 		idJ, errJ := extractChunkID(tempFiles[j])
 		if errI != nil || errJ != nil {
-			log.Debug().Err(errors.Join(errI, errJ)).Str("file1", tempFiles[i]).Str("file2", tempFiles[j]).Msg("Error sorting chunk files")
 			return tempFiles[i] < tempFiles[j] // Fallback to string comparison
 		}
 		return idI < idJ
 	})
-	log.Debug().Int("count", len(tempFiles)).Msg("Assembling chunks in order")
-	for i, file := range tempFiles {
-		chunkID, _ := extractChunkID(file)
-		log.Debug().Int("index", i).Int("chunkId", chunkID).Str("file", file).Msg("Chunk order")
-	}
+	// for _, file := range tempFiles {
+	// 	chunkID, _ := extractChunkID(file)
+	// }
 	destFile, err := os.Create(job.Config.OutputPath)
 	if err != nil {
 		return err
@@ -148,7 +138,6 @@ func assembleFile(job utils.DownloadJob) error {
 	for _, tempFilePath := range tempFiles {
 		os.Remove(tempFilePath)
 	}
-	log.Debug().Int64("totalBytes", totalWritten).Str("outputFile", job.Config.OutputPath).Msg("File assembly completed")
 	return nil
 }
 

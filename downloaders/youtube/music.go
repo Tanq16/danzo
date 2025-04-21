@@ -76,8 +76,6 @@ func addMusicMetadata(outputPath, musicClient, musicId string) error {
 }
 
 func addAppleMetadata(outputPath, musicId string) error {
-	log := utils.GetLogger("itunes")
-	log.Debug().Str("musicId", musicId).Msg("Fetching iTunes metadata")
 	client := utils.CreateHTTPClient(ytHTTPConfig, false)
 	apiURL := fmt.Sprintf("https://itunes.apple.com/lookup?id=%s&entity=song", musicId)
 	resp, err := client.Get(apiURL)
@@ -113,19 +111,13 @@ func addAppleMetadata(outputPath, musicId string) error {
 		artworkPath = filepath.Join(tempDir, fileMarker+".jpg")
 		err := downloadFile(highResArtwork, artworkPath, client)
 		if err != nil {
-			log.Debug().Err(err).Msg("Error downloading high-res, trying mid-res")
 			err = downloadFile(midResArtwork, artworkPath, client)
 			if err != nil {
-				log.Debug().Err(err).Msg("Error downloading mid-res, trying generic")
 				err = downloadFile(trackInfo.ArtworkUrl100, artworkPath, client)
 				if err != nil {
-					log.Debug().Err(err).Msg("Error downloading generic artwork")
 					artworkPath = ""
 				}
 			}
-		}
-		if artworkPath != "" {
-			log.Debug().Str("path", artworkPath).Msg("Downloaded artwork")
 		}
 	}
 
@@ -172,13 +164,10 @@ func addAppleMetadata(outputPath, musicId string) error {
 	if err := os.Rename(tempOutputPath, outputPath); err != nil {
 		return fmt.Errorf("error replacing original file: %v", err)
 	}
-	log.Debug().Str("title", trackInfo.TrackName).Str("artist", trackInfo.ArtistName).Msg("Successfully added iTunes metadata")
 	return nil
 }
 
 func addDeezerMetadata(outputPath, musicId string) error {
-	log := utils.GetLogger("deezer")
-	log.Debug().Str("musicId", musicId).Msg("Fetching Deezer metadata")
 	client := utils.CreateHTTPClient(ytHTTPConfig, false)
 	apiURL := fmt.Sprintf("https://api.deezer.com/track/%s", musicId)
 	resp, err := client.Get(apiURL)
@@ -206,10 +195,7 @@ func addDeezerMetadata(outputPath, musicId string) error {
 		artworkPath = filepath.Join(tempDir, fileMarker+".jpg")
 		err := downloadFile(deezerResp.Album.Cover, artworkPath, client)
 		if err != nil {
-			log.Debug().Err(err).Msg("Error downloading artwork")
 			artworkPath = ""
-		} else {
-			log.Debug().Str("path", artworkPath).Msg("Downloaded artwork")
 		}
 	}
 	composer := ""
@@ -257,12 +243,10 @@ func addDeezerMetadata(outputPath, musicId string) error {
 	if err := os.Rename(tempOutputPath, outputPath); err != nil {
 		return fmt.Errorf("error replacing original file: %v", err)
 	}
-	log.Debug().Str("title", deezerResp.Title).Str("artist", deezerResp.Artist.Name).Msg("Successfully added metadata")
 	return nil
 }
 
 func applyMetadataWithFFmpeg(inputPath, metadataPath, artworkPath, outputPath string) error {
-	log := utils.GetLogger("ffmpeg-metadata")
 	args := []string{
 		"-i", inputPath,
 		"-i", metadataPath,
@@ -275,10 +259,8 @@ func applyMetadataWithFFmpeg(inputPath, metadataPath, artworkPath, outputPath st
 	args = append(args, "-id3v2_version", "3", outputPath)
 
 	cmd := exec.Command("ffmpeg", args...)
-	log.Debug().Str("command", cmd.String()).Msg("Running FFmpeg")
-	output, err := cmd.CombinedOutput()
+	_, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Debug().Str("output", string(output)).Msg("FFmpeg error output")
 		return fmt.Errorf("FFmpeg error: %v", err)
 	}
 	return nil
