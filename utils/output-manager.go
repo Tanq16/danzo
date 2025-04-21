@@ -237,12 +237,17 @@ func (m *Manager) GetStatus(name string) string {
 	return "unknown"
 }
 
-func (m *Manager) Complete(name string) {
+func (m *Manager) Complete(name, message string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if info, exists := m.outputs[name]; exists {
 		if !m.unlimitedOutput {
 			info.StreamLines = []string{}
+		}
+		if message == "" {
+			info.Message = fmt.Sprintf("Completed %s", info.Name)
+		} else {
+			info.Message = message
 		}
 		info.Complete = true
 		info.Status = "success"
@@ -312,19 +317,19 @@ func (m *Manager) AddStreamLine(name string, line string) {
 	}
 }
 
-func (m *Manager) AddProgressBarToStream(name string, percentage float64, text string) {
+func (m *Manager) AddProgressBarToStream(name string, outof, final int64, text string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if info, exists := m.outputs[name]; exists {
-		percentage = max(0, min(percentage, 100))
-		progressBar := PrintProgressBar(int(percentage), 100, 30)
+		// percentage = max(0, min(percentage, 100))
+		progressBar := PrintProgressBar(outof, final, 30)
 		display := progressBar + debugStyle.Render(text)
 		info.StreamLines = []string{display} // Set as only stream so nothing else is displayed
 		info.LastUpdated = time.Now()
 	}
 }
 
-func PrintProgressBar(current, total int, width int) string {
+func PrintProgressBar(current, total int64, width int) string {
 	if width <= 0 {
 		width = 30
 	}

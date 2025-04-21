@@ -99,9 +99,9 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						defer progressWg.Done()
 						var totalDownloaded int64
 						for bytesDownloaded := range progCh {
-							progressString := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(bytesDownloaded)), utils.FormatBytes(uint64(totalFileSize)))
-							outputMgr.AddProgressBarToStream(funcId, float64(bytesDownloaded/totalFileSize), progressString)
 							totalDownloaded += bytesDownloaded
+							progressString := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(totalDownloaded)), utils.FormatBytes(uint64(totalFileSize)))
+							outputMgr.AddProgressBarToStream(funcId, totalDownloaded, totalFileSize, progressString)
 						}
 					}(entryFunctionId, fileSize, progressCh)
 
@@ -119,7 +119,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading %s: %v", entry.URL, err))
 					} else {
-						outputMgr.Complete(entryFunctionId)
+						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Download completed for %s", entry.OutputPath))
 					}
 					// close(progressCh) // Closing the progress channel here would cause a panic (Multi-Download already closes it)
 					progressWg.Wait()
