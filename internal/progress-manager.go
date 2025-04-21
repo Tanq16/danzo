@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/utils"
 )
 
@@ -71,7 +70,6 @@ func (pm *ProgressManager) Complete(outputPath string, totalDownloaded int64) {
 		info.Completed = true
 		info.CompletedSize = totalDownloaded
 	}
-	log.Debug().Str("file", outputPath).Int64("totalDownloaded", totalDownloaded).Msg("COMPLETE CALLED")
 }
 
 func (pm *ProgressManager) ReportError(outputPath string, err error) {
@@ -81,7 +79,6 @@ func (pm *ProgressManager) ReportError(outputPath string, err error) {
 		info.Completed = true
 		info.Failure = fmt.Sprintf("Error: %v", err)
 	}
-	log.Debug().Str("file", outputPath).Err(err).Msg("ERROR CALLED")
 }
 
 func (pm *ProgressManager) UpdateStreamOutput(outputPath string, output []string) {
@@ -249,7 +246,6 @@ func (pm *ProgressManager) ShowSummary() {
 		totalSize += info.CompletedSize
 	}
 	overallSpeed := float64(totalSize) / earliestTime / 1024 / 1024
-	log.Debug().Str("Total Data", utils.FormatBytes(uint64(totalSize))).Str("Overall Speed", fmt.Sprintf("%.2f MB/s", overallSpeed)).Str("Time Elapsed", fmt.Sprintf("%.2fs", earliestTime)).Msg("Summary")
 	fmt.Printf("Total Data: %s, Overall Speed: %.2f MB/s, Time Elapsed: %.2fs\n", utils.FormatBytes(uint64(totalSize)), overallSpeed, earliestTime)
 }
 
