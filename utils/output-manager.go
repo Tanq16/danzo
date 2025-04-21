@@ -408,44 +408,23 @@ func (m *Manager) RegisterFunctionTable(funcName string, name string, headers []
 	return nil
 }
 
-func (m *Manager) sortFunctions() (active, pending, completed []struct {
-	name string
-	info *FunctionOutput
-}) {
-	var allFuncs []struct {
-		name  string
-		info  *FunctionOutput
-		index int
-	}
-	// Collect all functions
-	for name, info := range m.outputs {
-		allFuncs = append(allFuncs, struct {
-			name  string
-			info  *FunctionOutput
-			index int
-		}{name, info, info.Index})
-	}
+func (m *Manager) sortFunctions() (active, pending, completed []*FunctionOutput) {
+	var allFuncs []*FunctionOutput
 	// Sort by index (registration order)
+	for _, info := range m.outputs {
+		allFuncs = append(allFuncs, info)
+	}
 	sort.Slice(allFuncs, func(i, j int) bool {
-		return allFuncs[i].index < allFuncs[j].index
+		return allFuncs[i].Index < allFuncs[j].Index
 	})
 	// Group functions by status
 	for _, f := range allFuncs {
-		if f.info.Complete {
-			completed = append(completed, struct {
-				name string
-				info *FunctionOutput
-			}{f.name, f.info})
-		} else if f.info.Status == "pending" && f.info.Message == "" {
-			pending = append(pending, struct {
-				name string
-				info *FunctionOutput
-			}{f.name, f.info})
+		if f.Complete {
+			completed = append(completed, f)
+		} else if f.Status == "pending" && f.Message == "" {
+			pending = append(pending, f)
 		} else {
-			active = append(active, struct {
-				name string
-				info *FunctionOutput
-			}{f.name, f.info})
+			active = append(active, f)
 		}
 	}
 	return active, pending, completed
@@ -461,31 +440,25 @@ func (m *Manager) updateDisplay() {
 	activeFuncs, pendingFuncs, completedFuncs := m.sortFunctions()
 
 	// Display active functions
-	for idx, f := range activeFuncs {
-		info := f.info
+	for _, f := range activeFuncs {
+		info := f
 		statusDisplay := m.GetStatusIndicator(info.Status)
 		elapsed := time.Since(info.StartTime).Round(time.Millisecond)
 		elapsedStr := fmt.Sprintf("[%s]", elapsed)
 
 		// Style the message based on status
 		var styledMessage string
-		var prefixStyle lipgloss.Style
 		switch info.Status {
 		case "success":
 			styledMessage = successStyle.Render(info.Message)
-			prefixStyle = successStyle
 		case "error":
 			styledMessage = errorStyle.Render(info.Message)
-			prefixStyle = errorStyle
 		case "warning":
 			styledMessage = warningStyle.Render(info.Message)
-			prefixStyle = warningStyle
 		default: // pending or other
 			styledMessage = pendingStyle.Render(info.Message)
-			prefixStyle = pendingStyle
 		}
-		functionPrefix := strings.Repeat(" ", basePadding) + prefixStyle.Render(fmt.Sprintf("%d. ", idx+1))
-		fmt.Printf("%s%s %s %s\n", functionPrefix, statusDisplay, debugStyle.Render(elapsedStr), styledMessage)
+		fmt.Printf("%s%s %s\t%s\n", strings.Repeat(" ", basePadding), statusDisplay, debugStyle.Render(elapsedStr), styledMessage)
 		lineCount++
 
 		// Print stream lines with indentation
@@ -499,11 +472,10 @@ func (m *Manager) updateDisplay() {
 	}
 
 	// Display pending functions
-	for idx, f := range pendingFuncs {
-		info := f.info
+	for _, f := range pendingFuncs {
+		info := f
 		statusDisplay := m.GetStatusIndicator(info.Status)
-		functionPrefix := strings.Repeat(" ", basePadding) + pendingStyle.Render(fmt.Sprintf("%d. ", len(activeFuncs)+idx+1))
-		fmt.Printf("%s%s %s\n", functionPrefix, statusDisplay, pendingStyle.Render("Waiting..."))
+		fmt.Printf("%s%s %s\n", strings.Repeat(" ", basePadding), statusDisplay, pendingStyle.Render("Waiting..."))
 		lineCount++
 		if len(info.StreamLines) > 0 {
 			indent := strings.Repeat(" ", basePadding+4)
@@ -515,32 +487,24 @@ func (m *Manager) updateDisplay() {
 	}
 
 	// Display completed functions
-	for idx, f := range completedFuncs {
-		info := f.info
+	for _, f := range completedFuncs {
+		info := f
 		statusDisplay := m.GetStatusIndicator(info.Status)
 		totalTime := info.LastUpdated.Sub(info.StartTime).Round(time.Millisecond)
 		timeStr := fmt.Sprintf("[%s]", totalTime)
-		prefixStyle := successStyle
-		if info.Status == "error" {
-			prefixStyle = errorStyle
-		}
 
 		// Style message based on status
 		var styledMessage string
 		if info.Status == "success" {
 			styledMessage = successStyle.Render(info.Message)
 		} else if info.Status == "error" {
-			prefixStyle = errorStyle
 			styledMessage = errorStyle.Render(info.Message)
 		} else if info.Status == "warning" {
-			prefixStyle = warningStyle
 			styledMessage = warningStyle.Render(info.Message)
 		} else { // pending or other
-			prefixStyle = pendingStyle
 			styledMessage = pendingStyle.Render(info.Message)
 		}
-		functionPrefix := strings.Repeat(" ", basePadding) + prefixStyle.Render(fmt.Sprintf("%d. ", len(activeFuncs)+len(pendingFuncs)+idx+1))
-		fmt.Printf("%s%s %s %s\n", functionPrefix, statusDisplay, debugStyle.Render(timeStr), styledMessage)
+		fmt.Printf("%s%s %s\t%s\n", strings.Repeat(" ", basePadding), statusDisplay, debugStyle.Render(timeStr), styledMessage)
 		lineCount++
 
 		// Print stream lines with indentation if unlimited mode is enabled
@@ -647,10 +611,11 @@ func (m *Manager) ShowSummary() {
 			failures++
 		}
 	}
-	totalOps := fmt.Sprintf("Total Operations: %d", len(m.outputs))
-	succeeded := fmt.Sprintf("Succeeded: %s", successStyle.Render(fmt.Sprintf("%d", success)))
-	failed := fmt.Sprintf("Failed: %s", errorStyle.Render(fmt.Sprintf("%d", failures)))
-	fmt.Println(infoStyle.Padding(0, basePadding).Render(fmt.Sprintf("%s, %s, %s", totalOps, succeeded, failed)))
+	totalOps := fmt.Sprintf("Total Operations: %d,", len(m.outputs))
+	succeeded := fmt.Sprintf("Succeeded: %d,", success)
+	failed := fmt.Sprintf("Failed: %d", failures)
+	printString := fmt.Sprintf("%s %s %s", infoStyle.Render(totalOps), successStyle.Render(succeeded), errorStyle.Render(failed))
+	fmt.Println(strings.Repeat(" ", basePadding) + printString)
 	if m.unlimitedOutput {
 		m.displayErrors()
 	}
