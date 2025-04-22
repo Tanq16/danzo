@@ -15,7 +15,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,9 +41,7 @@ func DetermineDownloadType(url string) string {
 	return "http"
 }
 
-// includes logger
 func ReadDownloadList(filePath string) ([]DownloadEntry, error) {
-	log := GetLogger("config")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading YAML file: %v", err)
@@ -62,7 +59,6 @@ func ReadDownloadList(filePath string) ([]DownloadEntry, error) {
 			return nil, fmt.Errorf("missing output path for entry %d", i+1)
 		}
 	}
-	log.Debug().Int("count", len(entries)).Msg("Entries loaded from YAML")
 	return entries, nil
 }
 
@@ -107,9 +103,7 @@ func CreateHTTPClient(config HTTPClientConfig, highThreadMode bool) *http.Client
 	}
 	if config.ProxyURL != "" {
 		proxyURLParsed, err := u.Parse(config.ProxyURL)
-		if err != nil {
-			log.Error().Err(err).Str("proxy", config.ProxyURL).Msg("Invalid proxy URL, proceeding without proxy")
-		} else {
+		if err == nil {
 			// Add authentication to proxy URL if credentials provided
 			if config.ProxyUsername != "" && proxyURLParsed.User == nil {
 				if config.ProxyPassword != "" {
@@ -121,10 +115,8 @@ func CreateHTTPClient(config HTTPClientConfig, highThreadMode bool) *http.Client
 			if proxyURLParsed.Scheme == "" {
 				// Default to http if no scheme provided
 				proxyURLParsed.Scheme = "http"
-				log.Debug().Str("proxy", proxyURLParsed.String()).Msg("No scheme provided, using http")
 			}
 			transport.Proxy = http.ProxyURL(proxyURLParsed)
-			log.Debug().Str("proxy", proxyURLParsed.Redacted()).Msg("Using proxy for connections")
 		}
 	}
 	var finalTransport http.RoundTripper = transport

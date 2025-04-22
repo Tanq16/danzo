@@ -75,8 +75,6 @@ func ProcessURL(urlRaw string) (string, string, string, string, error) {
 }
 
 func downloadYtdlp() (string, error) {
-	log := utils.GetLogger("ytdlp-installer")
-	log.Debug().Msg("yt-dlp not found, attempting to download automatically")
 	goos := runtime.GOOS
 	goarch := runtime.GOARCH
 	var filename string
@@ -131,7 +129,6 @@ func downloadYtdlp() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error writing to file: %v", err)
 	}
-	log.Debug().Str("path", filePath).Msg("yt-dlp not found, downloaded automatically")
 	return filePath, nil
 }
 
@@ -144,7 +141,6 @@ func removeExtension(filePath string) string {
 }
 
 func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh chan<- int64, outputCh chan<- []string) error {
-	log := utils.GetLogger("youtube-downloader")
 	outputPath := removeExtension(outputPathPre)
 	ytdlpPath := isYtDlpAvailable()
 	if ytdlpPath == "" {
@@ -154,7 +150,6 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 			return fmt.Errorf("yt-dlp not found and failed to download: %v", err)
 		}
 	}
-	log.Debug().Str("url", url).Str("output", outputPath).Msg("Starting YouTube download with yt-dlp")
 	outputDir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("error creating output directory: %v", err)
@@ -236,19 +231,14 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 	if err == nil {
 		totalSizeBytes = fileInfo.Size()
 	} else {
-		log.Debug().Err(err).Msg("Unable to get file size, using estimate instead")
 		totalSizeBytes = 1
 	}
 	progressCh <- totalSizeBytes
 
 	if musicId != "" {
-		err := addMusicMetadata(outputPathPre, musicClient, musicId) // outputPathPre works here because audio is always m4a, but user can mess it up
-		if err != nil {
-			log.Debug().Err(err).Msg("Failed to add music metadata")
-		}
+		// outputPathPre works here because audio is always m4a, but user can mess it up
+		_ = addMusicMetadata(outputPathPre, musicClient, musicId)
 	}
-
-	log.Debug().Str("url", url).Str("output", outputPath).Int64("size", totalSizeBytes).Msg("YouTube download completed successfully")
 	return nil
 }
 

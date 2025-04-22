@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal"
 	"github.com/tanq16/danzo/utils"
@@ -35,25 +34,24 @@ var rootCmd = &cobra.Command{
 	Use:     "danzo",
 	Short:   "Danzo is a fast CLI download manager",
 	Version: DanzoVersion,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		utils.InitLogger(debug)
-		log.Debug().Msg("Debug logging enabled")
-	},
-	Args: cobra.ArbitraryArgs,
+	Args:    cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		if cleanOutput {
 			err := utils.Clean(output)
 			if err != nil {
-				log.Fatal().Err(err).Msg("Error cleaning up temporary files")
+				utils.PrintError("Error cleaning up temporary files")
+				os.Exit(1)
 			}
-			log.Info().Msg("Temporary files cleaned up")
+			utils.PrintSuccess("Temporary files cleaned up")
 			return
 		}
 		if len(args) == 0 && urlListFile == "" {
-			log.Fatal().Msg("No URL or URL list provided")
+			utils.PrintError("No URL or URL list provided")
+			os.Exit(1)
 		}
 		if urlListFile != "" && len(args) > 0 {
-			log.Fatal().Msg("Cannot specify url argument and --urllist together, choose one")
+			utils.PrintError("Cannot specify url argument and --urllist together, choose one")
+			os.Exit(1)
 		}
 		url := ""
 		if userAgent == "randomize" {
@@ -83,34 +81,37 @@ var rootCmd = &cobra.Command{
 			// Handle single URL download
 			url = args[0]
 			if _, err := u.Parse(url); err != nil {
-				log.Fatal().Err(err).Msg("Invalid URL format")
+				utils.PrintError("Invalid URL format")
+				os.Exit(1)
 			}
 			entries := []utils.DownloadEntry{{URL: url, OutputPath: output, Type: utils.DetermineDownloadType(url)}}
 			if _, err := os.Stat(output); err == nil {
 				entries[0].OutputPath = utils.RenewOutputPath(output)
 			}
-			err := internal.BatchDownload(entries, 1, connections, httpClientConfig)
+			err := internal.BatchDownload(entries, 1, connections, httpClientConfig, debug)
 			if err != nil {
 				fmt.Println()
-				log.Fatal().Err(err).Msg("Encountered failed operation(s)")
+				utils.PrintError("Encountered failed operation(s)")
+				os.Exit(1)
 			}
 			return
 		} else {
 			// Handle batch download from URL list file
 			entries, err := utils.ReadDownloadList(urlListFile)
 			if err != nil {
-				log.Fatal().Err(err).Msg("Failed to read URL list file")
+				utils.PrintError("Failed to read URL list file")
+				os.Exit(1)
 			}
 			connectionsPerLink := connections
 			maxConnections := 64
 			if numLinks*connectionsPerLink > maxConnections {
 				connectionsPerLink = max(maxConnections/numLinks, 1)
-				log.Debug().Int("connections", connectionsPerLink).Int("numLinks", numLinks).Msg("adjusted connections to below max limit")
 			}
-			err = internal.BatchDownload(entries, numLinks, connectionsPerLink, httpClientConfig)
+			err = internal.BatchDownload(entries, numLinks, connectionsPerLink, httpClientConfig, debug)
 			if err != nil {
 				fmt.Println()
-				log.Fatal().Err(err).Msg("Encountered failed operation(s)")
+				utils.PrintError("Encountered failed operation(s)")
+				os.Exit(1)
 			}
 		}
 	},

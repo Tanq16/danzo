@@ -41,7 +41,6 @@ func extractFileID(rawURL string) (string, error) {
 }
 
 func GetFileMetadata(rawURL string, client *http.Client, token string) (map[string]any, string, error) {
-	log := utils.GetLogger("gdrive-metadata")
 	fileID, err := extractFileID(rawURL)
 	if err != nil {
 		return nil, "", fmt.Errorf("error extracting file ID: %v", err)
@@ -75,12 +74,10 @@ func GetFileMetadata(rawURL string, client *http.Client, token string) (map[stri
 	if err != nil {
 		return nil, "", fmt.Errorf("error parsing metadata response: %v", err)
 	}
-	log.Debug().Str("fileID", fileID).Str("name", metadata["name"].(string)).Msg("Retrieved file metadata")
 	return metadata, fileID, nil
 }
 
 func PerformGDriveDownload(config utils.DownloadConfig, token string, fileID string, client *http.Client, progressCh chan<- int64) error {
-	log := utils.GetLogger("gdrive-download")
 	outputDir := filepath.Dir(config.OutputPath)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("error creating output directory: %v", err)
@@ -92,11 +89,9 @@ func PerformGDriveDownload(config utils.DownloadConfig, token string, fileID str
 	} else {
 		downloadURL = fmt.Sprintf("%s/%s?alt=media&key=%s", driveAPIURL, fileID, token)
 	}
-	log.Debug().Str("fileID", fileID).Str("outputPath", config.OutputPath).Bool("isOAuth", isOAuth).Msg("Starting Google Drive download")
 	err := danzohttp.PerformSimpleDownload(downloadURL, config.OutputPath, client, progressCh)
 	if err != nil {
 		return fmt.Errorf("error downloading Google Drive file: %v", err)
 	}
-	log.Debug().Str("fileID", fileID).Str("outputPath", config.OutputPath).Msg("Google Drive download completed")
 	return nil
 }

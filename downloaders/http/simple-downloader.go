@@ -12,7 +12,6 @@ import (
 )
 
 func PerformSimpleDownload(url string, outputPath string, client *http.Client, progressCh chan<- int64) error {
-	log := utils.GetLogger("simple-download")
 	outputDir := filepath.Dir(outputPath)
 	tempOutputPath := fmt.Sprintf("%s.part", outputPath)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
@@ -24,7 +23,6 @@ func PerformSimpleDownload(url string, outputPath string, client *http.Client, p
 	if fileInfo, err := os.Stat(tempOutputPath); err == nil {
 		resumeOffset = fileInfo.Size()
 		fileMode |= os.O_APPEND
-		log.Debug().Str("file", filepath.Base(tempOutputPath)).Int64("size", resumeOffset).Msg("Resuming incomplete download")
 	} else {
 		fileMode |= os.O_TRUNC
 	}
@@ -51,10 +49,8 @@ func PerformSimpleDownload(url string, outputPath string, client *http.Client, p
 
 	if resumeOffset > 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", resumeOffset))
-		log.Debug().Int64("resumeOffset", resumeOffset).Msg("Setting Range header for resume")
 	}
 	req.Header.Set("Connection", "keep-alive")
-	log.Debug().Str("url", url).Msg("Starting simple download")
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("error executing GET request: %v", err)
@@ -63,7 +59,6 @@ func PerformSimpleDownload(url string, outputPath string, client *http.Client, p
 
 	if resumeOffset > 0 {
 		if resp.StatusCode != http.StatusPartialContent {
-			log.Debug().Int("statusCode", resp.StatusCode).Msg("Server doesn't support resume, starting from beginning")
 			outFile.Close()
 			outFile, err = os.OpenFile(tempOutputPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 			if err != nil {
@@ -98,7 +93,6 @@ func PerformSimpleDownload(url string, outputPath string, client *http.Client, p
 			return fmt.Errorf("error reading response body: %v", err)
 		}
 	}
-	log.Debug().Int64("resumeOffset", resumeOffset).Int64("downloadedThisSession", newBytes).Int64("totalDownloaded", totalDownloaded).Msg("Simple download completed")
 	if err := os.Rename(tempOutputPath, outputPath); err != nil {
 		return fmt.Errorf("error renaming (finalizing) output file: %v", err)
 	}
