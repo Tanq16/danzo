@@ -335,13 +335,13 @@ func PrintProgressBar(current, total int64, width int) string {
 	}
 	percent := float64(current) / float64(total)
 	filled := min(int(percent*float64(width)), width)
-	bar := "("
+	bar := StyleSymbols["bullet"]
 	bar += strings.Repeat(StyleSymbols["hline"], filled)
 	if filled < width {
 		bar += strings.Repeat(" ", width-filled)
 	}
-	bar += ")"
-	return debugStyle.Render(fmt.Sprintf("%s %.1f%% %s ", bar, percent*100, StyleSymbols["dot"]))
+	bar += StyleSymbols["bullet"]
+	return debugStyle.Render(fmt.Sprintf("%s %.1f%% %s ", bar, percent*100, StyleSymbols["bullet"]))
 }
 
 func (m *Manager) ClearLines(n int) {
@@ -444,7 +444,7 @@ func (m *Manager) updateDisplay() {
 		if info.Complete {
 			elapsed = info.LastUpdated.Sub(info.StartTime).Round(time.Second)
 		}
-		elapsedStr := fmt.Sprintf("[%s]", elapsed)
+		elapsedStr := elapsed.String()
 
 		// Style the message based on status
 		var styledMessage string
@@ -491,7 +491,7 @@ func (m *Manager) updateDisplay() {
 		info := f
 		statusDisplay := m.GetStatusIndicator(info.Status)
 		totalTime := info.LastUpdated.Sub(info.StartTime).Round(time.Second)
-		timeStr := fmt.Sprintf("[%s]", totalTime)
+		timeStr := totalTime.String()
 
 		// Style message based on status
 		var styledMessage string
