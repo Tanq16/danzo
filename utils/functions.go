@@ -55,9 +55,9 @@ func ReadDownloadList(filePath string) ([]DownloadEntry, error) {
 		if entry.URL == "" {
 			return nil, fmt.Errorf("missing URL for entry %d", i+1)
 		}
-		if entry.OutputPath == "" {
-			return nil, fmt.Errorf("missing output path for entry %d", i+1)
-		}
+		// if entry.OutputPath == "" {
+		// 	return nil, fmt.Errorf("missing output path for entry %d", i+1)
+		// }
 	}
 	return entries, nil
 }
