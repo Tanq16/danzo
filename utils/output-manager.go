@@ -33,11 +33,12 @@ var StyleSymbols = map[string]string{
 	"pass":    "✓",
 	"fail":    "✗",
 	"warning": "!",
-	"pending": "○",
+	"pending": "◉",
 	"info":    "ℹ",
 	"arrow":   "→",
 	"bullet":  "•",
 	"dot":     "·",
+	"hline":   "━",
 }
 
 func PrintSuccess(text string) {
@@ -335,10 +336,9 @@ func PrintProgressBar(current, total int64, width int) string {
 	percent := float64(current) / float64(total)
 	filled := min(int(percent*float64(width)), width)
 	bar := "("
-	bar += strings.Repeat(StyleSymbols["bullet"], filled)
+	bar += strings.Repeat(StyleSymbols["hline"], filled)
 	if filled < width {
-		bar += ">"
-		bar += strings.Repeat(" ", width-filled-1)
+		bar += strings.Repeat(" ", width-filled)
 	}
 	bar += ")"
 	return debugStyle.Render(fmt.Sprintf("%s %.1f%% %s ", bar, percent*100, StyleSymbols["dot"]))
@@ -611,11 +611,13 @@ func (m *Manager) ShowSummary() {
 			failures++
 		}
 	}
-	totalOps := fmt.Sprintf("Total Operations: %d,", len(m.outputs))
-	succeeded := fmt.Sprintf("Succeeded: %d,", success)
-	failed := fmt.Sprintf("Failed: %d", failures)
-	printString := fmt.Sprintf("%s %s %s", detailStyle.Render(totalOps), success2Style.Render(succeeded), errorStyle.Render(failed))
-	fmt.Println(strings.Repeat(" ", basePadding) + printString)
+	// totalOps := fmt.Sprintf("Total Operations: %d,", len(m.outputs))
+	succeeded := fmt.Sprintf("Completed %d of %d", success, len(m.outputs))
+	failed := fmt.Sprintf("Failed %d of %d", failures, len(m.outputs))
+	fmt.Println(strings.Repeat(" ", basePadding) + success2Style.Render(succeeded))
+	if failures > 0 {
+		fmt.Println(strings.Repeat(" ", basePadding) + errorStyle.Render(failed))
+	}
 	m.displayErrors()
 	fmt.Println()
 }
