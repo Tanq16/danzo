@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	danzogdrive "github.com/tanq16/danzo/downloaders/gdrive"
 	danzogitc "github.com/tanq16/danzo/downloaders/gitclone"
@@ -17,8 +18,12 @@ import (
 	"github.com/tanq16/danzo/utils"
 )
 
-func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink int, httpClientConfig utils.HTTPClientConfig) error {
+func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink int, httpClientConfig utils.HTTPClientConfig, unlimitOut bool) error {
 	outputMgr := utils.NewManager(10)
+	if unlimitOut {
+		outputMgr.SetUnlimitedOutput(unlimitOut)
+		outputMgr.SetUpdateInterval(5 * time.Second)
+	}
 	fmt.Println()
 	outputMgr.StartDisplay()
 	defer func() {

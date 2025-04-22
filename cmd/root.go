@@ -88,7 +88,7 @@ var rootCmd = &cobra.Command{
 			if _, err := os.Stat(output); err == nil {
 				entries[0].OutputPath = utils.RenewOutputPath(output)
 			}
-			err := internal.BatchDownload(entries, 1, connections, httpClientConfig)
+			err := internal.BatchDownload(entries, 1, connections, httpClientConfig, debug)
 			if err != nil {
 				fmt.Println()
 				utils.PrintError("Encountered failed operation(s)")
@@ -107,7 +107,7 @@ var rootCmd = &cobra.Command{
 			if numLinks*connectionsPerLink > maxConnections {
 				connectionsPerLink = max(maxConnections/numLinks, 1)
 			}
-			err = internal.BatchDownload(entries, numLinks, connectionsPerLink, httpClientConfig)
+			err = internal.BatchDownload(entries, numLinks, connectionsPerLink, httpClientConfig, debug)
 			if err != nil {
 				fmt.Println()
 				utils.PrintError("Encountered failed operation(s)")
