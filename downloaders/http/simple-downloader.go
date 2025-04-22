@@ -93,6 +93,11 @@ func PerformSimpleDownload(url string, outputPath string, client *http.Client, p
 			return fmt.Errorf("error reading response body: %v", err)
 		}
 	}
+	// Ensure file is synced and closed (while auto-handled in Unix, Windows needs this)
+	outFile.Sync()
+	if err := outFile.Close(); err != nil {
+		return fmt.Errorf("error closing output file: %v", err)
+	}
 	if err := os.Rename(tempOutputPath, outputPath); err != nil {
 		return fmt.Errorf("error renaming (finalizing) output file: %v", err)
 	}
