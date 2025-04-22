@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"slices"
-
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
@@ -20,18 +18,14 @@ import (
 
 type gitCloneProgress struct {
 	outputPath string
-	streamCh   chan<- []string
+	streamCh   chan<- string
 	buffer     []string
 }
 
 func (p *gitCloneProgress) Write(data []byte) (int, error) {
 	message := strings.TrimSpace(string(data))
 	if message != "" {
-		p.buffer = append(p.buffer, message)
-		if len(p.buffer) > 5 {
-			p.buffer = p.buffer[len(p.buffer)-5:]
-		}
-		p.streamCh <- slices.Clone(p.buffer)
+		p.streamCh <- message
 	}
 	return len(data), nil
 }
@@ -51,7 +45,7 @@ func InitGitClone(gitURL string, outputPath string) (string, int, error) {
 	return gitURL, depth, nil
 }
 
-func CloneRepository(gitURL, outputPath string, progressCh chan<- int64, streamCh chan<- []string, depth int) error {
+func CloneRepository(gitURL, outputPath string, progressCh chan<- int64, streamCh chan<- string, depth int) error {
 	if strings.HasPrefix(gitURL, "git.com") {
 		gitURL = strings.ReplaceAll(gitURL, "git.com/", "")
 	}
@@ -61,9 +55,6 @@ func CloneRepository(gitURL, outputPath string, progressCh chan<- int64, streamC
 		streamCh:   streamCh,
 		buffer:     []string{},
 	}
-
-	progress.buffer = append(progress.buffer, fmt.Sprintf("Cloning %s to %s...", actualURL, outputPath))
-	streamCh <- slices.Clone(progress.buffer)
 
 	auth, _ := getAuthMethod(actualURL)
 	cloneOptions := &git.CloneOptions{
@@ -86,7 +77,7 @@ func CloneRepository(gitURL, outputPath string, progressCh chan<- int64, streamC
 	} else {
 		progressCh <- 0
 	}
-	streamCh <- []string{"Clone complete"}
+	streamCh <- "Clone complete"
 	return nil
 }
 

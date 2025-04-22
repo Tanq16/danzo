@@ -261,7 +261,6 @@ func (m *Manager) ReportError(name string, err error) {
 	if info, exists := m.outputs[name]; exists {
 		info.Complete = true
 		info.Status = "error"
-		info.Message = fmt.Sprintf("Error: %v", err)
 		info.Error = err
 		info.LastUpdated = time.Now()
 		// Add to global error list
@@ -359,7 +358,6 @@ func (m *Manager) ClearFunction(name string) {
 	if info, exists := m.outputs[name]; exists {
 		info.StreamLines = []string{}
 		info.Message = ""
-		info.LastUpdated = time.Now()
 	}
 }
 
@@ -368,7 +366,6 @@ func (m *Manager) ClearAll() {
 	defer m.mutex.Unlock()
 	for name := range m.outputs {
 		m.outputs[name].StreamLines = []string{}
-		m.outputs[name].LastUpdated = time.Now()
 	}
 }
 
@@ -444,6 +441,9 @@ func (m *Manager) updateDisplay() {
 		info := f
 		statusDisplay := m.GetStatusIndicator(info.Status)
 		elapsed := time.Since(info.StartTime).Round(time.Second)
+		if info.Complete {
+			elapsed = info.LastUpdated.Sub(info.StartTime).Round(time.Second)
+		}
 		elapsedStr := fmt.Sprintf("[%s]", elapsed)
 
 		// Style the message based on status
@@ -614,10 +614,8 @@ func (m *Manager) ShowSummary() {
 	totalOps := fmt.Sprintf("Total Operations: %d,", len(m.outputs))
 	succeeded := fmt.Sprintf("Succeeded: %d,", success)
 	failed := fmt.Sprintf("Failed: %d", failures)
-	printString := fmt.Sprintf("%s %s %s", infoStyle.Render(totalOps), successStyle.Render(succeeded), errorStyle.Render(failed))
+	printString := fmt.Sprintf("%s %s %s", detailStyle.Render(totalOps), success2Style.Render(succeeded), errorStyle.Render(failed))
 	fmt.Println(strings.Repeat(" ", basePadding) + printString)
-	if m.unlimitedOutput {
-		m.displayErrors()
-	}
+	m.displayErrors()
 	fmt.Println()
 }
