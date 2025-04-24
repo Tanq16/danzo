@@ -37,6 +37,8 @@ func DetermineDownloadType(url string) string {
 		return "gitrelease"
 	} else if strings.HasPrefix(url, "github.com") || strings.HasPrefix(url, "gitlab.com") || strings.HasPrefix(url, "bitbucket.org") || strings.HasPrefix(url, "git.com") {
 		return "gitclone"
+	} else if strings.HasPrefix(url, "m3u8://") {
+		return "m3u8"
 	}
 	return "http"
 }
