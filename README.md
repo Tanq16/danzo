@@ -36,6 +36,10 @@ This section gives a quick peek at the capabilities and the extremely simple com
   GDRIVE_API_KEY="your_key" danzo "https://drive.google.com/file/d/abc123/view" # (static Key only for publicly shared files)
   GDRIVE_CREDENTIALS=service-acc-key.json danzo "https://drive.google.com/file/d/abc123/view" # (OAuth device code flow for private files)
   ```
+- Download streamed output from an m3u8-manifest
+  ```bash
+  danzo "m3u8://https://example.com/manifest.m3u8" -o video.mp4
+  ```
 - Download an S3 object or folder
   ```bash
   AWS_PROFILE=myprofile danzo "s3://mybucket/path/to/file.zip"
@@ -135,6 +139,7 @@ Follow these links to quickly jump to the relevant provider:
 - [HTTP(S) Downloads](#https-downloads)
 - [Google Drive Downloads](#google-drive-downloads)
 - [Youtube Downloads](#youtube-downloads)
+- [M3U8 Stream Downloads](#m3u8-stream-downloads)
 - [AWS S3 Downloads](#aws-s3-downloads)
 - [GitHub Release Downloads](#github-release-downloads)
 - [Git Repository Cloning](#git-repository-cloning)
@@ -301,6 +306,22 @@ Danzo also supports downloading music from YouTube and automatically add metadat
 ```bash
 danzo "https://youtu.be/JJpFTUP6fIo||music:apple:1800533191"
 danzo "https://youtu.be/JJpFTUP6fIo||music:deezer:3271607031"
+```
+
+### M3U8 Stream Downloads
+
+Danzo supports downloading streamed content from M3U8 manifests. This is commonly used for video streaming services, live broadcasts, and VOD content.
+
+Danzo downloads the M3U8 manifest, parses the playlist (supports both master and media playlists), downloads all segments, and merges them into a single file.
+
+> [!NOTE]
+> Danzo requires `ffmpeg` to be installed for merging the segments.
+
+```bash
+danzo "m3u8://https://example.com/path/to/playlist.m3u8" -o video.mp4
+
+# With default output name (stream_[timestamp].mp4)
+danzo "m3u8://https://example.com/video/master.m3u8"
 ```
 
 ### AWS S3 Downloads
