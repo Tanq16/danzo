@@ -222,3 +222,29 @@ func Clean(outputPath string) error {
 	}
 	return nil
 }
+
+func CleanFunction(outputPath string) error {
+	tempDir := filepath.Join(filepath.Dir(outputPath), ".danzo-temp")
+	files, err := os.ReadDir(tempDir)
+	if err != nil {
+		return err
+	}
+	partPrefix := filepath.Base(outputPath) + ".part"
+	for _, file := range files {
+		if strings.HasPrefix(file.Name(), partPrefix) {
+			if err := os.Remove(filepath.Join(tempDir, file.Name())); err != nil {
+				return err
+			}
+		}
+	}
+	remainingFiles, err := os.ReadDir(tempDir)
+	if err != nil {
+		return err
+	}
+	if len(remainingFiles) == 0 {
+		if err := os.Remove(tempDir); err != nil {
+			return err
+		}
+	}
+	return nil
+}

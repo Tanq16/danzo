@@ -26,10 +26,17 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 	}
 	fmt.Println()
 	outputMgr.StartDisplay()
+	var funcTrackerMutex sync.Mutex
+	outputMgrFuncTracker := map[string]string{} // Only for http downloads
 	defer func() {
 		outputMgr.StopDisplay()
 		for _, entry := range entries {
-			utils.Clean(entry.OutputPath)
+			if _, ok := outputMgrFuncTracker[entry.OutputPath]; ok {
+				if outputMgr.GetStatus(outputMgrFuncTracker[entry.OutputPath]) == "error" {
+					continue // Skip cleaning if there was an error
+				}
+			}
+			utils.CleanFunction(entry.OutputPath)
 		}
 	}()
 
@@ -48,6 +55,9 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 			defer wg.Done()
 			for entry := range entriesCh {
 				entryFunctionId := outputMgr.Register(entry.OutputPath)
+				funcTrackerMutex.Lock()
+				outputMgrFuncTracker[entry.OutputPath] = entryFunctionId
+				funcTrackerMutex.Unlock()
 				config := utils.DownloadConfig{
 					URL:              entry.URL,
 					OutputPath:       entry.OutputPath,
@@ -66,8 +76,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				initialMessage := fmt.Sprintf("Starting %s download for %s", urlType, entry.OutputPath)
 				if entry.OutputPath == "" {
 					shortenedURL := config.URL
-					if len(shortenedURL) > 50 {
-						shortenedURL = "..." + entry.URL[len(entry.URL)-50:]
+					if len(shortenedURL) > 40 {
+						shortenedURL = "..." + entry.URL[len(entry.URL)-40:]
 					}
 					initialMessage = fmt.Sprintf("Starting %s download for %s", urlType, shortenedURL)
 				}
@@ -102,12 +112,16 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 							entry.OutputPath = config.OutputPath
 						}
 					}
+					funcTrackerMutex.Lock()
+					outputMgrFuncTracker[entry.OutputPath] = entryFunctionId
+					funcTrackerMutex.Unlock()
 
 					if err == utils.ErrRangeRequestsNotSupported {
 						outputMgr.SetStatus(entryFunctionId, "warning")
-						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading %s with single connection (range requests not supported)", entry.URL))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading %s with single connection (range requests not supported)", entry.OutputPath))
 					} else if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting file size for %s: %v", entry.URL, err))
+						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting file size for %s: %v", entry.OutputPath, err))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error getting file size for %s", entry.OutputPath))
 						continue
 					} else {
 						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading %s (%s)", entry.OutputPath, utils.FormatBytes(uint64(fileSize))))
@@ -138,7 +152,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						err = danzohttp.PerformMultiDownload(config, client, fileSize, progressCh)
 					}
 					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading %s: %v", entry.URL, err))
+						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading %s: %v", entry.OutputPath, err))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading %s", entry.OutputPath))
 					} else {
 						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Download completed for %s", entry.OutputPath))
 					}
@@ -151,7 +166,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					close(progressCh) // Not needed for YouTube downloads
 					processedURL, format, dType, output, err := danzoyoutube.ProcessURL(entry.URL)
 					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error processing YouTube URL %s: %v", entry.URL, err))
+						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error processing YouTube URL %s: %v", entry.OutputPath, err))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error processing YouTube URL %s", entry.OutputPath))
 						continue
 					}
 					if config.OutputPath == "" {
@@ -186,7 +202,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					err = danzoyoutube.DownloadYouTubeVideo(entry.URL, entry.OutputPath, format, dType, progressCh, streamCh)
 					close(streamCh)
 					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading %s: %v", entry.URL, err))
+						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading %s: %v", entry.OutputPath, err))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading %s", entry.OutputPath))
 					} else {
 						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Download completed for %s", entry.OutputPath))
 					}
@@ -202,7 +219,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					}
 					downloadURL, filename, size, err := danzogitr.ProcessRelease(entry.URL, userSelectOverride, simpleClient)
 					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error processing GitHub release URL %s: %v", entry.URL, err))
+						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error processing GitHub release URL %s: %v", entry.OutputPath, err))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error processing GitHub release URL %s", entry.OutputPath))
 						continue
 					}
 					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading %s (%s)", filename, utils.FormatBytes(uint64(size))))
@@ -228,7 +246,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					err = danzohttp.PerformSimpleDownload(downloadURL, entry.OutputPath, simpleClient, progressCh)
 					close(progressCh)
 					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading %s: %v", entry.URL, err))
+						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading %s: %v", entry.OutputPath, err))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading %s", entry.OutputPath))
 					} else {
 						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Download completed for %s", entry.OutputPath))
 					}
@@ -255,7 +274,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					}
 					parsedURL, depth, err := danzogitc.InitGitClone(entry.URL, config.OutputPath)
 					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error checking Git clone %s: %v", entry.URL, err))
+						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error checking Git clone %s: %v", entry.OutputPath, err))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error checking Git clone %s", entry.OutputPath))
 						continue
 					}
 					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Cloning %s to %s", parsedURL, entry.OutputPath))
@@ -286,7 +306,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					close(progressCh)
 					close(streamCh)
 					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error cloning %s: %v", entry.URL, err))
+						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error cloning %s: %v", entry.OutputPath, err))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error cloning %s", entry.OutputPath))
 					} else {
 						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Cloned repository - %s", entry.OutputPath))
 					}
@@ -301,11 +322,13 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					s3client, err := danzos3.GetS3Client()
 					if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting S3 client: %v", err))
+						outputMgr.SetMessage(entryFunctionId, "Error getting S3 client")
 						continue
 					}
 					bucket, key, fileType, size, err := danzos3.GetS3ObjectInfo(entry.URL, s3client)
 					if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting S3 object info: %v", err))
+						outputMgr.SetMessage(entryFunctionId, "Error getting S3 object info")
 						continue
 					}
 
@@ -321,6 +344,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						S3Jobs, err = danzos3.GetAllObjectsFromFolder(bucket, key, s3client)
 						if err != nil {
 							outputMgr.ReportError(entryFunctionId, fmt.Errorf("error listing S3 objects in folder: %v", err))
+							outputMgr.SetMessage(entryFunctionId, "Error listing S3 objects in folder")
 							continue
 						}
 					}
@@ -392,6 +416,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					}
 					if s3ErrorJoined != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading S3 object %s: %v", entry.URL, s3ErrorJoined))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading S3 object %s", entry.URL))
 					} else {
 						outputMgr.Complete(entryFunctionId, fmt.Sprintf("S3 download completed for %s", entry.URL))
 					}
@@ -415,11 +440,13 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					apiKey, err := danzogdrive.GetAuthToken()
 					if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting API key: %v", err))
+						outputMgr.SetMessage(entryFunctionId, "Error getting API key")
 						continue
 					}
 					metadata, fileID, err := danzogdrive.GetFileMetadata(entry.URL, simpleClient, apiKey)
 					if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting file metadata: %v", err))
+						outputMgr.SetMessage(entryFunctionId, "Error getting file metadata")
 						continue
 					}
 					if config.OutputPath == "" {
@@ -448,7 +475,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 
 					err = danzogdrive.PerformGDriveDownload(config, apiKey, fileID, simpleClient, progressCh)
 					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading Google Drive file %s: %v", entry.URL, err))
+						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading Google Drive file %s: %v", entry.OutputPath, err))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading Google Drive file %s", entry.OutputPath))
 					} else {
 						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Completed Google Drive download - %s", entry.OutputPath))
 					}
