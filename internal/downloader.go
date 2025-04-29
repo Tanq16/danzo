@@ -457,7 +457,6 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						if existingFile, _ := os.Stat(config.OutputPath); existingFile != nil {
 							config.OutputPath = utils.RenewOutputPath(config.OutputPath)
 						}
-						config.OutputPath = config.OutputPath
 						entry.OutputPath = config.OutputPath
 					}
 					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading Google Drive file %s", entry.OutputPath))
