@@ -438,7 +438,9 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				// =================================================================================================================
 				case "gdrive":
 					simpleClient := utils.CreateHTTPClient(httpClientConfig, false)
+					outputMgr.Pause()
 					apiKey, err := danzogdrive.GetAuthToken()
+					outputMgr.Resume()
 					if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting API key: %v", err))
 						outputMgr.SetMessage(entryFunctionId, "Error getting API key")
@@ -457,10 +459,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					}
 					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading Google Drive file %s", entry.OutputPath))
 					fileSize := metadata["size"].(string)
-					fileSizeInt, err := strconv.ParseInt(fileSize, 10, 64)
-					if err != nil {
-					} else {
-					}
+					fileSizeInt, _ := strconv.ParseInt(fileSize, 10, 64)
 
 					var progressWg sync.WaitGroup
 					progressWg.Add(1)
