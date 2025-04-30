@@ -119,7 +119,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 
 					if err == utils.ErrRangeRequestsNotSupported {
 						outputMgr.SetStatus(entryFunctionId, "warning")
-						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading %s with single connection (range requests not supported)", entry.OutputPath))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading %s with 1 connection (range requests unsupported)", entry.OutputPath))
 					} else if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting file size for %s: %v", entry.OutputPath, err))
 						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error getting file size for %s", entry.OutputPath))
@@ -459,7 +459,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						}
 						entry.OutputPath = config.OutputPath
 					}
-					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading Google Drive file %s", entry.OutputPath))
+					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading GDrive file %s", entry.OutputPath))
 					fileSize := metadata["size"].(string)
 					fileSizeInt, _ := strconv.ParseInt(fileSize, 10, 64)
 
@@ -477,10 +477,10 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 
 					err = danzogdrive.PerformGDriveDownload(config, apiKey, fileID, simpleClient, progressCh)
 					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading Google Drive file %s: %v", entry.OutputPath, err))
-						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading Google Drive file %s", entry.OutputPath))
+						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading GDrive file %s: %v", entry.OutputPath, err))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading GDrive file %s", entry.OutputPath))
 					} else {
-						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Completed Google Drive download - %s", entry.OutputPath))
+						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Completed GDrive download - %s", entry.OutputPath))
 					}
 					close(progressCh)
 					progressWg.Wait()

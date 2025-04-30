@@ -370,7 +370,7 @@ func (m *Manager) AddStreamLine(name string, line string) {
 	}
 }
 
-func getTerminalWidth() int {
+func GetTerminalWidth() int {
 	width, _, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil || width <= 0 {
 		return 80 // Default fallback width if terminal width can't be determined
@@ -379,7 +379,7 @@ func getTerminalWidth() int {
 }
 
 func wrapText(text string, indent int) []string {
-	termWidth := getTerminalWidth()
+	termWidth := GetTerminalWidth()
 	maxWidth := termWidth - indent - 2 // Account for indentation
 	if maxWidth <= 10 {
 		maxWidth = 80

@@ -77,7 +77,9 @@ func getOAuthToken(config *oauth2.Config, tokenFile string) (*oauth2.Token, erro
 	}
 	if err := saveToken(tokenFile, token); err != nil {
 	}
-	fmt.Printf("\033[%dA\033[J", 8)
+	clearLength := 6
+	clearLength += len(authURL)/utils.GetTerminalWidth() + 1
+	fmt.Printf("\033[%dA\033[J", clearLength)
 	return token, nil
 }
 
