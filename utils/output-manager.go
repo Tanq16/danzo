@@ -7,9 +7,11 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
+	"golang.org/x/term"
 )
 
 var (
@@ -68,6 +70,33 @@ func PrintStream(text string) {
 func PrintHeader(text string) {
 	fmt.Println(headerStyle.Render(text))
 }
+func FSuccess(text string) string {
+	return successStyle.Render(text)
+}
+func FSuccess2(text string) string {
+	return success2Style.Render(text)
+}
+func FError(text string) string {
+	return errorStyle.Render(text)
+}
+func FWarning(text string) string {
+	return warningStyle.Render(text)
+}
+func FInfo(text string) string {
+	return infoStyle.Render(text)
+}
+func FDebug(text string) string {
+	return debugStyle.Render(text)
+}
+func FDetail(text string) string {
+	return detailStyle.Render(text)
+}
+func FStream(text string) string {
+	return streamStyle.Render(text)
+}
+func FHeader(text string) string {
+	return headerStyle.Render(text)
+}
 
 // ======================================== =================
 // ======================================== Table Definitions
@@ -85,6 +114,12 @@ func NewTable(headers []string) *Table {
 		Rows:    [][]string{},
 	}
 	t.table = table.New().Headers(headers...)
+	t.table = t.table.StyleFunc(func(row, col int) lipgloss.Style {
+		if row == table.HeaderRow {
+			return lipgloss.NewStyle().Bold(true).Align(lipgloss.Center).Padding(0, 1)
+		}
+		return lipgloss.NewStyle().Padding(0, 1)
+	})
 	return t
 }
 
@@ -106,7 +141,7 @@ func (t *Table) FormatTable(useMarkdown bool) string {
 }
 
 func (t *Table) PrintTable(useMarkdown bool) {
-	os.Stdout.WriteString(t.FormatTable(useMarkdown))
+	fmt.Println(t.FormatTable(useMarkdown))
 }
 
 func (t *Table) WriteMarkdownTableToFile(outputPath string) error {
@@ -303,26 +338,81 @@ func (m *Manager) AddStreamLine(name string, line string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if info, exists := m.outputs[name]; exists {
-		if m.unlimitedOutput { // just append
-			info.StreamLines = append(info.StreamLines, line)
+		// Wrap the line with indentation
+		wrappedLines := wrapText(line, basePadding+4)
+		if m.unlimitedOutput { // just append all wrapped lines
+			info.StreamLines = append(info.StreamLines, wrappedLines...)
 		} else { // enforce size limit
 			currentLen := len(info.StreamLines)
-			if currentLen+1 > m.maxStreams {
-				info.StreamLines = append(info.StreamLines[1:], line)
+			totalNewLines := len(wrappedLines)
+			if currentLen+totalNewLines > m.maxStreams {
+				startIndex := currentLen + totalNewLines - m.maxStreams
+				if startIndex > currentLen {
+					startIndex = 0
+					existingToKeep := m.maxStreams - totalNewLines
+					if existingToKeep > 0 {
+						info.StreamLines = info.StreamLines[currentLen-existingToKeep:]
+					} else {
+						info.StreamLines = []string{} // All existing lines will be dropped
+					}
+				} else {
+					info.StreamLines = info.StreamLines[startIndex:]
+				}
+				info.StreamLines = append(info.StreamLines, wrappedLines...)
 			} else {
-				info.StreamLines = append(info.StreamLines, line)
+				info.StreamLines = append(info.StreamLines, wrappedLines...)
+			}
+			if len(info.StreamLines) > m.maxStreams {
+				info.StreamLines = info.StreamLines[len(info.StreamLines)-m.maxStreams:]
 			}
 		}
 		info.LastUpdated = time.Now()
 	}
 }
 
+func GetTerminalWidth() int {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || width <= 0 {
+		return 80 // Default fallback width if terminal width can't be determined
+	}
+	return width
+}
+
+func wrapText(text string, indent int) []string {
+	termWidth := GetTerminalWidth()
+	maxWidth := termWidth - indent - 2 // Account for indentation
+	if maxWidth <= 10 {
+		maxWidth = 80
+	}
+	if utf8.RuneCountInString(text) <= maxWidth {
+		return []string{text}
+	}
+	var lines []string
+	currentLine := ""
+	currentWidth := 0
+	for _, r := range text {
+		runeWidth := 1
+		// If adding this rune would exceed max width, flush the line
+		if currentWidth+runeWidth > maxWidth {
+			lines = append(lines, currentLine)
+			currentLine = string(r)
+			currentWidth = runeWidth
+		} else {
+			currentLine += string(r)
+			currentWidth += runeWidth
+		}
+	}
+	if currentLine != "" {
+		lines = append(lines, currentLine)
+	}
+	return lines
+}
+
 func (m *Manager) AddProgressBarToStream(name string, outof, final int64, text string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if info, exists := m.outputs[name]; exists {
-		// percentage = max(0, min(percentage, 100))
-		progressBar := PrintProgressBar(outof, final, 30)
+		progressBar := PrintProgressBar(max(0, outof), final, 30)
 		display := progressBar + debugStyle.Render(text)
 		info.StreamLines = []string{display} // Set as only stream so nothing else is displayed
 		info.LastUpdated = time.Now()
@@ -348,7 +438,7 @@ func (m *Manager) ClearLines(n int) {
 	if n <= 0 {
 		return
 	}
-	fmt.Printf("\033[%dA\033[J", n)
+	fmt.Printf("\033[%dA\033[J", min(m.numLines, n))
 	m.numLines = max(m.numLines-n, 0)
 }
 

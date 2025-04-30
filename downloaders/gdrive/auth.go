@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/tanq16/danzo/utils"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -63,7 +64,9 @@ func getOAuthToken(config *oauth2.Config, tokenFile string) (*oauth2.Token, erro
 		return token, nil
 	}
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	fmt.Printf("\nVisit the URL to authenticate:\n%s\n\nEnter the authorization code here and press return\n", authURL)
+	utils.PrintDetail("\nVisit this URL to get the authorization code:\n")
+	fmt.Printf("%s\n", authURL)
+	utils.PrintDetail("\nAfter authorizing, enter the authorization code:")
 	var authCode string
 	if _, err := fmt.Scan(&authCode); err != nil {
 		return nil, fmt.Errorf("unable to read authorization code: %v", err)
@@ -74,7 +77,9 @@ func getOAuthToken(config *oauth2.Config, tokenFile string) (*oauth2.Token, erro
 	}
 	if err := saveToken(tokenFile, token); err != nil {
 	}
-	fmt.Printf("\033[%dA\033[J", 6)
+	clearLength := 6
+	clearLength += len(authURL)/utils.GetTerminalWidth() + 1
+	fmt.Printf("\033[%dA\033[J", clearLength)
 	return token, nil
 }
 

@@ -119,7 +119,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 
 					if err == utils.ErrRangeRequestsNotSupported {
 						outputMgr.SetStatus(entryFunctionId, "warning")
-						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading %s with single connection (range requests not supported)", entry.OutputPath))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading %s with 1 connection (range requests unsupported)", entry.OutputPath))
 					} else if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting file size for %s: %v", entry.OutputPath, err))
 						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error getting file size for %s", entry.OutputPath))
@@ -438,7 +438,9 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				// =================================================================================================================
 				case "gdrive":
 					simpleClient := utils.CreateHTTPClient(httpClientConfig, false)
+					outputMgr.Pause()
 					apiKey, err := danzogdrive.GetAuthToken()
+					outputMgr.Resume()
 					if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting API key: %v", err))
 						outputMgr.SetMessage(entryFunctionId, "Error getting API key")
@@ -451,16 +453,15 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						continue
 					}
 					if config.OutputPath == "" {
-						inferredFileName := utils.RenewOutputPath(metadata["name"].(string))
-						config.OutputPath = inferredFileName
-						entry.OutputPath = inferredFileName
+						config.OutputPath = metadata["name"].(string)
+						if existingFile, _ := os.Stat(config.OutputPath); existingFile != nil {
+							config.OutputPath = utils.RenewOutputPath(config.OutputPath)
+						}
+						entry.OutputPath = config.OutputPath
 					}
-					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading Google Drive file %s", entry.OutputPath))
+					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading GDrive file %s", entry.OutputPath))
 					fileSize := metadata["size"].(string)
-					fileSizeInt, err := strconv.ParseInt(fileSize, 10, 64)
-					if err != nil {
-					} else {
-					}
+					fileSizeInt, _ := strconv.ParseInt(fileSize, 10, 64)
 
 					var progressWg sync.WaitGroup
 					progressWg.Add(1)
@@ -476,10 +477,10 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 
 					err = danzogdrive.PerformGDriveDownload(config, apiKey, fileID, simpleClient, progressCh)
 					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading Google Drive file %s: %v", entry.OutputPath, err))
-						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading Google Drive file %s", entry.OutputPath))
+						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading GDrive file %s: %v", entry.OutputPath, err))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading GDrive file %s", entry.OutputPath))
 					} else {
-						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Completed Google Drive download - %s", entry.OutputPath))
+						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Completed GDrive download - %s", entry.OutputPath))
 					}
 					close(progressCh)
 					progressWg.Wait()
