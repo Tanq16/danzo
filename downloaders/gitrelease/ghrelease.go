@@ -92,7 +92,7 @@ func askGitHubReleaseAssets(owner, repo string, client *http.Client) ([]map[stri
 	if len(releases) == 0 {
 		return nil, "", fmt.Errorf("no releases found for the repository")
 	}
-	fmt.Printf("\nAvailable releases for %s/%s:\n", owner, repo)
+	fmt.Printf("Available releases for %s/%s:\n", owner, repo)
 	for i, release := range releases {
 		tagName, _ := release["tag_name"].(string)
 		fmt.Printf("%d. %s\n", i+1, tagName)
@@ -135,7 +135,7 @@ func askGitHubReleaseAssets(owner, repo string, client *http.Client) ([]map[stri
 }
 
 func promptGitHubAssetSelection(assets []map[string]any, tagName string) (string, int64, error) {
-	fmt.Printf("\nRelease: %s\nAvailable assets:\n", tagName)
+	fmt.Printf("Release: %s\nAvailable assets:\n", tagName)
 	for i, asset := range assets {
 		name, _ := asset["name"].(string)
 		size, _ := asset["size"].(float64)
@@ -156,7 +156,7 @@ func promptGitHubAssetSelection(assets []map[string]any, tagName string) (string
 	if selection < 1 || selection > len(assets) {
 		return "", 0, fmt.Errorf("selection out of range")
 	}
-	linesUsed := len(assets) + 3 // Assets list + Release line + Prompt line + Input line
+	linesUsed := len(assets) + 4 // Assets list + Release line + Prompt line + Input line + newline
 	fmt.Printf("\033[%dA\033[J", linesUsed)
 
 	selectedAsset := assets[selection-1]
@@ -230,10 +230,54 @@ func processGitHubRelease(owner, repo string, userSelect bool, client *http.Clie
 	return downloadURL, filename, size, nil
 }
 
-func ProcessRelease(url string, userSelectOverride bool, client *http.Client) (string, string, int64, error) {
+// func ProcessRelease(url string, userSelectOverride bool, client *http.Client) (string, string, int64, error) {
+// 	owner, repo, userSelect, err := parseGitHubURL(url)
+// 	if err != nil {
+// 		return "", "", 0, err
+// 	}
+// 	return processGitHubRelease(owner, repo, userSelect, client)
+// }
+
+func ProcessRelease(url string, userSelectOverride bool, client *http.Client, needInputCh, inputDoneCh chan<- bool) (string, string, int64, error) {
 	owner, repo, userSelect, err := parseGitHubURL(url)
 	if err != nil {
 		return "", "", 0, err
 	}
-	return processGitHubRelease(owner, repo, userSelect, client)
+	var assets []map[string]any
+	var tagName string
+	if userSelect {
+		needInputCh <- true
+		assets, tagName, err = askGitHubReleaseAssets(owner, repo, client)
+		if err != nil {
+			return "", "", 0, err
+		}
+		downloadURL, size, err := promptGitHubAssetSelection(assets, tagName)
+		if err != nil {
+			return "", "", 0, err
+		}
+		inputDoneCh <- true
+		urlParts := strings.Split(downloadURL, "/")
+		filename := urlParts[len(urlParts)-1]
+		return downloadURL, filename, size, nil
+	} else {
+		assets, tagName, err = getGitHubReleaseAssets(owner, repo, client)
+		if err != nil {
+			return "", "", 0, err
+		}
+		downloadURL, size, err := selectGitHubLatestAsset(assets)
+		if err != nil {
+			return "", "", 0, err
+		}
+		if downloadURL == "" {
+			needInputCh <- true
+			downloadURL, size, err = promptGitHubAssetSelection(assets, tagName)
+			if err != nil {
+				return "", "", 0, err
+			}
+			inputDoneCh <- true
+		}
+		urlParts := strings.Split(downloadURL, "/")
+		filename := urlParts[len(urlParts)-1]
+		return downloadURL, filename, size, nil
+	}
 }

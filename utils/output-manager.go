@@ -576,6 +576,12 @@ func (m *Manager) updateDisplay() {
 		}
 	}
 
+	if len(completedFuncs) > 10 {
+		PrintInfo(fmt.Sprintf("%s%d links completed with varying hidden status ...", strings.Repeat(" ", basePadding), len(completedFuncs)-8))
+		completedFuncs = completedFuncs[len(completedFuncs)-8:]
+		lineCount++
+	}
+
 	// Display completed functions
 	for _, f := range completedFuncs {
 		info := f

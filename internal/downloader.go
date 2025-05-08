@@ -218,7 +218,36 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					if len(entries) > 1 {
 						userSelectOverride = true
 					}
-					downloadURL, filename, size, err := danzogitr.ProcessRelease(entry.URL, userSelectOverride, simpleClient)
+
+					// input control (to pause manager)
+					needInputCh := make(chan bool)
+					inputDoneCh := make(chan bool)
+					var inputWg sync.WaitGroup
+					inputWg.Add(1)
+					go func() {
+						defer inputWg.Done()
+						for {
+							select {
+							case _, ok := <-needInputCh:
+								if !ok {
+									return
+								}
+								outputMgr.Pause()
+							case _, ok := <-inputDoneCh:
+								if !ok {
+									return
+								}
+								outputMgr.Resume()
+							}
+						}
+					}()
+
+					downloadURL, filename, size, err := danzogitr.ProcessRelease(entry.URL, userSelectOverride, simpleClient, needInputCh, inputDoneCh)
+					close(needInputCh)
+					close(inputDoneCh)
+					inputWg.Wait()
+					outputMgr.Resume()
+
 					if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error processing GitHub release URL %s: %v", entry.OutputPath, err))
 						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error processing GitHub release URL %s", entry.OutputPath))
