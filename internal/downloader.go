@@ -164,6 +164,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				// YouTube download (with yt-dlp as dependency)
 				// =================================================================================================================
 				case "youtube":
+					close(progressCh) // Note needed for youtube downloads
 					processedURL, format, dType, output, err := danzoyoutube.ProcessURL(entry.URL)
 					if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error processing YouTube URL %s: %v", entry.OutputPath, err))
@@ -199,9 +200,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						}
 					}(entry.OutputPath, streamCh)
 
-					err = danzoyoutube.DownloadYouTubeVideo(entry.URL, entry.OutputPath, format, dType, progressCh, streamCh)
+					err = danzoyoutube.DownloadYouTubeVideo(entry.URL, entry.OutputPath, format, dType, streamCh)
 					close(streamCh)
-					close(progressCh) // temporary; TODO: remove progress for YT or print size
 					if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading %s: %v", entry.OutputPath, err))
 						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading %s", entry.OutputPath))

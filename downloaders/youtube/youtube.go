@@ -140,7 +140,7 @@ func removeExtension(filePath string) string {
 	return filePath[:len(filePath)-len(ext)]
 }
 
-func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh chan<- int64, outputCh chan<- []string) error {
+func DownloadYouTubeVideo(url, outputPathPre, format, dType string, outputCh chan<- []string) error {
 	outputPath := removeExtension(outputPathPre)
 	ytdlpPath := isYtDlpAvailable()
 	if ytdlpPath == "" {
@@ -224,16 +224,6 @@ func DownloadYouTubeVideo(url, outputPathPre, format, dType string, progressCh c
 		}
 		return fmt.Errorf("error executing yt-dlp: %v", err)
 	}
-
-	// Get file size after download is complete
-	var totalSizeBytes int64
-	fileInfo, err := os.Stat(outputPathPre) // won't always be the same because video can default to webm
-	if err == nil {
-		totalSizeBytes = fileInfo.Size()
-	} else {
-		totalSizeBytes = 1
-	}
-	progressCh <- totalSizeBytes
 
 	if musicId != "" {
 		// outputPathPre works here because audio is always m4a, but user can mess it up
