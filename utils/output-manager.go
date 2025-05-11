@@ -423,8 +423,17 @@ func PrintProgressBar(current, total int64, width int) string {
 	if width <= 0 {
 		width = 30
 	}
+	if total <= 0 {
+		total = 1
+	}
+	if current < 0 {
+		current = 0
+	}
+	if current > total {
+		current = total
+	}
 	percent := float64(current) / float64(total)
-	filled := min(int(percent*float64(width)), width)
+	filled := max(0, min(int(percent*float64(width)), width))
 	bar := StyleSymbols["bullet"]
 	bar += strings.Repeat(StyleSymbols["hline"], filled)
 	if filled < width {

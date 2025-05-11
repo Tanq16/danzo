@@ -27,7 +27,7 @@ func DetermineDownloadType(url string) string {
 		return "gdrive"
 	} else if strings.HasPrefix(url, "s3://") {
 		return "s3"
-	} else if strings.HasPrefix(url, "https://youtu.be") || strings.HasPrefix(url, "https://www.youtube.com") {
+	} else if strings.HasPrefix(url, "https://youtu.be") || strings.HasPrefix(url, "https://www.youtube.com") || strings.HasPrefix(url, "https://music.youtube.com") {
 		return "youtube"
 	} else if strings.HasPrefix(url, "ftp://") || strings.HasPrefix(url, "ftps://") {
 		return "ftp"
