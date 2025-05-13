@@ -217,6 +217,15 @@ func FormatBytes(bytes uint64) string {
 	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
+func FormatSpeed(bytes int64, elapsed float64) string {
+	if elapsed == 0 {
+		return "0 B/s"
+	}
+	bps := float64(bytes) / elapsed
+	formatted := FormatBytes(uint64(bps))
+	return formatted[:len(formatted)-1] + "B/s" // Slice off "B" and add "B/s"
+}
+
 func Clean(outputPath string) error {
 	tempDir := filepath.Join(filepath.Dir(outputPath), ".danzo-temp")
 	if err := os.RemoveAll(tempDir); err != nil {

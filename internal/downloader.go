@@ -119,7 +119,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 
 					if err == utils.ErrRangeRequestsNotSupported {
 						outputMgr.SetStatus(entryFunctionId, "warning")
-						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading %s with 1 connection (range requests unsupported)", entry.OutputPath))
+						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("[range unsupported] Downloading %s with 1-thread (%s)", entry.OutputPath, utils.FormatBytes(uint64(fileSize))))
 					} else if err != nil {
 						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting file size for %s: %v", entry.OutputPath, err))
 						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error getting file size for %s", entry.OutputPath))
@@ -136,8 +136,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						var totalDownloaded int64
 						for bytesDownloaded := range progCh {
 							totalDownloaded += bytesDownloaded
-							progressString := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(totalDownloaded)), utils.FormatBytes(uint64(totalFileSize)))
-							outputMgr.AddProgressBarToStream(funcId, totalDownloaded, totalFileSize, progressString)
+							// progressString := , utils.FormatBytes(uint64(totalFileSize)))
+							outputMgr.AddProgressBarToStream(funcId, totalDownloaded, totalFileSize, utils.FormatBytes(uint64(totalDownloaded)))
 						}
 					}(entryFunctionId, fileSize, progressCh)
 
@@ -268,8 +268,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						var totalDownloaded int64
 						for bytesDownloaded := range progCh {
 							totalDownloaded += bytesDownloaded
-							progressString := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(totalDownloaded)), utils.FormatBytes(uint64(totalFileSize)))
-							outputMgr.AddProgressBarToStream(entryFunctionId, totalDownloaded, totalFileSize, progressString)
+							// progressString := fmt.Sprintf("%s / %s", , utils.FormatBytes(uint64(totalFileSize)))
+							outputMgr.AddProgressBarToStream(entryFunctionId, totalDownloaded, totalFileSize, utils.FormatBytes(uint64(totalDownloaded)))
 						}
 					}(entry.OutputPath, size, progressCh)
 
@@ -393,6 +393,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						totoalJobSize += s3Job.Size
 					}
 					close(s3JobsCh)
+					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading S3 key %s (%s)", entry.URL, utils.FormatBytes(uint64(totoalJobSize))))
 
 					// Internal goroutine to forward progress updates to the manager
 					progressWg.Add(1)
@@ -401,8 +402,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						var totalDownloaded int64
 						for bytesDownloaded := range progCh {
 							totalDownloaded += bytesDownloaded
-							progressString := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(totalDownloaded)), utils.FormatBytes(uint64(totalFileSize)))
-							outputMgr.AddProgressBarToStream(entryFunctionId, totalDownloaded, totalFileSize, progressString)
+							// progressString := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(totalDownloaded)), utils.FormatBytes(uint64(totalFileSize)))
+							outputMgr.AddProgressBarToStream(entryFunctionId, totalDownloaded, totalFileSize, utils.FormatBytes(uint64(totalDownloaded)))
 						}
 					}(entry.OutputPath, totoalJobSize, progressCh)
 
@@ -488,9 +489,9 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						}
 						entry.OutputPath = config.OutputPath
 					}
-					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading GDrive file %s", entry.OutputPath))
 					fileSize := metadata["size"].(string)
 					fileSizeInt, _ := strconv.ParseInt(fileSize, 10, 64)
+					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading GDrive file %s (%s)", entry.OutputPath, utils.FormatBytes(uint64(fileSizeInt))))
 
 					var progressWg sync.WaitGroup
 					progressWg.Add(1)
@@ -499,8 +500,8 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 						var totalDownloaded int64
 						for bytesDownloaded := range progCh {
 							totalDownloaded += bytesDownloaded
-							progressString := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(totalDownloaded)), utils.FormatBytes(uint64(filesize)))
-							outputMgr.AddProgressBarToStream(entryFunctionId, totalDownloaded, filesize, progressString)
+							// progressString := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(totalDownloaded)), utils.FormatBytes(uint64(filesize)))
+							outputMgr.AddProgressBarToStream(entryFunctionId, totalDownloaded, filesize, utils.FormatBytes(uint64(totalDownloaded)))
 						}
 					}(entry.OutputPath, fileSizeInt, progressCh)
 
