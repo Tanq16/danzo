@@ -7,7 +7,7 @@ import (
 )
 
 const DefaultBufferSize = 1024 * 1024 * 8 // 8MB buffer
-const ToolUserAgent = "danzo/1337"
+// const ToolUserAgent = "danzo/1337"
 
 var ErrRangeRequestsNotSupported = errors.New("range requests are not supported")
 var ChunkIDRegex = regexp.MustCompile(`\.part(\d+)$`)
@@ -18,16 +18,6 @@ type DownloadConfig struct {
 	OutputPath       string
 	Connections      int
 	HTTPClientConfig HTTPClientConfig
-}
-
-type HTTPClientConfig struct {
-	Timeout       time.Duration
-	KATimeout     time.Duration
-	ProxyURL      string
-	ProxyUsername string
-	ProxyPassword string
-	UserAgent     string
-	Headers       map[string]string
 }
 
 type DownloadChunk struct {

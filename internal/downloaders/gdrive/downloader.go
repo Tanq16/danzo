@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	danzohttp "github.com/tanq16/danzo/downloaders/http"
+	danzohttp "github.com/tanq16/danzo/internal/downloaders/http"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -40,7 +40,7 @@ func extractFileID(rawURL string) (string, error) {
 	return "", fmt.Errorf("unable to extract file ID from URL: %s", rawURL)
 }
 
-func GetFileMetadata(rawURL string, client *http.Client, token string) (map[string]any, string, error) {
+func GetFileMetadata(rawURL string, client *utils.DanzoHTTPClient, token string) (map[string]any, string, error) {
 	fileID, err := extractFileID(rawURL)
 	if err != nil {
 		return nil, "", fmt.Errorf("error extracting file ID: %v", err)
@@ -77,7 +77,7 @@ func GetFileMetadata(rawURL string, client *http.Client, token string) (map[stri
 	return metadata, fileID, nil
 }
 
-func PerformGDriveDownload(config utils.DownloadConfig, token string, fileID string, client *http.Client, progressCh chan<- int64) error {
+func PerformGDriveDownload(config utils.DownloadConfig, token string, fileID string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
 	outputDir := filepath.Dir(config.OutputPath)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("error creating output directory: %v", err)

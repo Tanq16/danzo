@@ -13,7 +13,7 @@ import (
 	"github.com/tanq16/danzo/internal/utils"
 )
 
-func chunkedDownload(job *utils.DownloadJob, chunk *utils.DownloadChunk, client *http.Client, wg *sync.WaitGroup, progressCh chan<- int64, mutex *sync.Mutex) {
+func chunkedDownload(job *utils.DownloadJob, chunk *utils.DownloadChunk, client *utils.DanzoHTTPClient, wg *sync.WaitGroup, progressCh chan<- int64, mutex *sync.Mutex) {
 	defer wg.Done()
 	tempDir := filepath.Join(filepath.Dir(job.Config.OutputPath), ".danzo-temp")
 	tempFileName := filepath.Join(tempDir, fmt.Sprintf("%s.part%d", filepath.Base(job.Config.OutputPath), chunk.ID))
@@ -61,7 +61,7 @@ func chunkedDownload(job *utils.DownloadJob, chunk *utils.DownloadChunk, client 
 	}
 }
 
-func downloadSingleChunk(job *utils.DownloadJob, chunk *utils.DownloadChunk, client *http.Client, tempFileName string, progressCh chan<- int64, resumeOffset int64) error {
+func downloadSingleChunk(job *utils.DownloadJob, chunk *utils.DownloadChunk, client *utils.DanzoHTTPClient, tempFileName string, progressCh chan<- int64, resumeOffset int64) error {
 	flag := os.O_WRONLY | os.O_CREATE
 	if resumeOffset > 0 {
 		flag |= os.O_APPEND

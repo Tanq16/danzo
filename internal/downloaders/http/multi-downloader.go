@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -15,7 +14,7 @@ import (
 	"github.com/tanq16/danzo/internal/utils"
 )
 
-func PerformMultiDownload(config utils.DownloadConfig, client *http.Client, fileSize int64, progressCh chan<- int64) error {
+func PerformMultiDownload(config utils.DownloadConfig, client *utils.DanzoHTTPClient, fileSize int64, progressCh chan<- int64) error {
 	job := utils.DownloadJob{
 		Config:    config,
 		FileSize:  fileSize,

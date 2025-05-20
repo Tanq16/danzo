@@ -11,7 +11,7 @@ import (
 	"github.com/tanq16/danzo/internal/utils"
 )
 
-func PerformSimpleDownload(url string, outputPath string, client *http.Client, progressCh chan<- int64) error {
+func PerformSimpleDownload(url string, outputPath string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
 	outputDir := filepath.Dir(outputPath)
 	tempOutputPath := fmt.Sprintf("%s.part", outputPath)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {

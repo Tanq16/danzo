@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/tanq16/danzo/internal/utils"
 )
 
 var assetSelectMap = map[string][]string{
@@ -33,7 +35,7 @@ func parseGitHubURL(url string) (string, string, bool, error) {
 	return parts[0], parts[1], len(processParts) == 2 && processParts[1] == "version", nil
 }
 
-func getGitHubReleaseAssets(owner, repo string, client *http.Client) ([]map[string]any, string, error) {
+func getGitHubReleaseAssets(owner, repo string, client *utils.DanzoHTTPClient) ([]map[string]any, string, error) {
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -70,7 +72,7 @@ func getGitHubReleaseAssets(owner, repo string, client *http.Client) ([]map[stri
 	return assetList, tagName, nil
 }
 
-func askGitHubReleaseAssets(owner, repo string, client *http.Client) ([]map[string]any, string, error) {
+func askGitHubReleaseAssets(owner, repo string, client *utils.DanzoHTTPClient) ([]map[string]any, string, error) {
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases", owner, repo)
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -191,44 +193,44 @@ func selectGitHubLatestAsset(assets []map[string]any) (string, int64, error) {
 	return "", 0, nil
 }
 
-func processGitHubRelease(owner, repo string, userSelect bool, client *http.Client) (string, string, int64, error) {
-	var assets []map[string]any
-	var tagName string
-	var err error
-	if userSelect {
-		assets, tagName, err = askGitHubReleaseAssets(owner, repo, client)
-		if err != nil {
-			return "", "", 0, err
-		}
-	} else {
-		assets, tagName, err = getGitHubReleaseAssets(owner, repo, client)
-		if err != nil {
-			return "", "", 0, err
-		}
-	}
-	var downloadURL string
-	var size int64
-	if userSelect {
-		downloadURL, size, err = promptGitHubAssetSelection(assets, tagName)
-		if err != nil {
-			return "", "", 0, err
-		}
-	} else {
-		downloadURL, size, err = selectGitHubLatestAsset(assets)
-		if err != nil {
-			return "", "", 0, err
-		}
-		if downloadURL == "" {
-			downloadURL, size, err = promptGitHubAssetSelection(assets, tagName)
-			if err != nil {
-				return "", "", 0, err
-			}
-		}
-	}
-	urlParts := strings.Split(downloadURL, "/")
-	filename := urlParts[len(urlParts)-1]
-	return downloadURL, filename, size, nil
-}
+// func processGitHubRelease(owner, repo string, userSelect bool, client *http.Client) (string, string, int64, error) {
+// 	var assets []map[string]any
+// 	var tagName string
+// 	var err error
+// 	if userSelect {
+// 		assets, tagName, err = askGitHubReleaseAssets(owner, repo, client)
+// 		if err != nil {
+// 			return "", "", 0, err
+// 		}
+// 	} else {
+// 		assets, tagName, err = getGitHubReleaseAssets(owner, repo, client)
+// 		if err != nil {
+// 			return "", "", 0, err
+// 		}
+// 	}
+// 	var downloadURL string
+// 	var size int64
+// 	if userSelect {
+// 		downloadURL, size, err = promptGitHubAssetSelection(assets, tagName)
+// 		if err != nil {
+// 			return "", "", 0, err
+// 		}
+// 	} else {
+// 		downloadURL, size, err = selectGitHubLatestAsset(assets)
+// 		if err != nil {
+// 			return "", "", 0, err
+// 		}
+// 		if downloadURL == "" {
+// 			downloadURL, size, err = promptGitHubAssetSelection(assets, tagName)
+// 			if err != nil {
+// 				return "", "", 0, err
+// 			}
+// 		}
+// 	}
+// 	urlParts := strings.Split(downloadURL, "/")
+// 	filename := urlParts[len(urlParts)-1]
+// 	return downloadURL, filename, size, nil
+// }
 
 // func ProcessRelease(url string, userSelectOverride bool, client *http.Client) (string, string, int64, error) {
 // 	owner, repo, userSelect, err := parseGitHubURL(url)
@@ -238,7 +240,7 @@ func processGitHubRelease(owner, repo string, userSelect bool, client *http.Clie
 // 	return processGitHubRelease(owner, repo, userSelect, client)
 // }
 
-func ProcessRelease(url string, userSelectOverride bool, client *http.Client, needInputCh, inputDoneCh chan<- bool) (string, string, int64, error) {
+func ProcessRelease(url string, userSelectOverride bool, client *utils.DanzoHTTPClient, needInputCh, inputDoneCh chan<- bool) (string, string, int64, error) {
 	owner, repo, userSelect, err := parseGitHubURL(url)
 	if err != nil {
 		return "", "", 0, err

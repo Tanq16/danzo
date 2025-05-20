@@ -131,7 +131,7 @@ func init() {
 	rootCmd.Flags().IntVarP(&connections, "connections", "c", 8, "Number of connections per download (above 8 enables high-thread-mode)")
 	rootCmd.Flags().DurationVarP(&timeout, "timeout", "t", 3*time.Minute, "Connection timeout (eg. 5s, 10m)")
 	rootCmd.Flags().DurationVarP(&kaTimeout, "keep-alive-timeout", "k", 90*time.Second, "Keep-alive timeout for client (eg. 10s, 1m, 80s)")
-	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", utils.ToolUserAgent, "User agent")
+	rootCmd.Flags().StringVarP(&userAgent, "user-agent", "a", "", "User agent")
 	rootCmd.Flags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)")
 	rootCmd.Flags().StringVar(&proxyUsername, "proxy-username", "", "Proxy username (if not provided in proxy URL)")
 	rootCmd.Flags().StringVar(&proxyPassword, "proxy-password", "", "Proxy password (if not provided in proxy URL)")

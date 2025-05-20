@@ -98,13 +98,8 @@ func downloadYtdlp() (string, error) {
 	baseURL := "https://github.com/yt-dlp/yt-dlp/releases/latest/download/"
 	downloadURL := baseURL + filename
 	filePath := filepath.Join(tempDir, filename)
-	client := utils.CreateHTTPClient(ytHTTPConfig, false) // from music.go
-	req, err := http.NewRequest("GET", downloadURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("error creating request: %v", err)
-	}
-
-	req.Header.Set("User-Agent", utils.ToolUserAgent)
+	client := utils.NewDanzoHTTPClient(ytHTTPConfig) // from music.go
+	req, _ := http.NewRequest("GET", downloadURL, nil)
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("error downloading yt-dlp: %v", err)

@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	danzogdrive "github.com/tanq16/danzo/downloaders/gdrive"
-	danzogitc "github.com/tanq16/danzo/downloaders/gitclone"
-	danzogitr "github.com/tanq16/danzo/downloaders/gitrelease"
-	danzohttp "github.com/tanq16/danzo/downloaders/http"
-	danzom3u8 "github.com/tanq16/danzo/downloaders/m3u8"
-	danzos3 "github.com/tanq16/danzo/downloaders/s3"
-	danzoyoutube "github.com/tanq16/danzo/downloaders/youtube"
+	danzogdrive "github.com/tanq16/danzo/internal/downloaders/gdrive"
+	danzogitc "github.com/tanq16/danzo/internal/downloaders/gitclone"
+	danzogitr "github.com/tanq16/danzo/internal/downloaders/gitrelease"
+	danzohttp "github.com/tanq16/danzo/internal/downloaders/http"
+	danzom3u8 "github.com/tanq16/danzo/internal/downloaders/m3u8"
+	danzos3 "github.com/tanq16/danzo/internal/downloaders/s3"
+	danzoyoutube "github.com/tanq16/danzo/internal/downloaders/youtube"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -65,15 +65,15 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					Connections:      connectionsPerLink,
 					HTTPClientConfig: httpClientConfig,
 				}
+				config.HTTPClientConfig.HighThreadMode = config.Connections > 5
 				progressCh := make(chan int64)
-				useHighThreadMode := config.Connections > 5
 
 				urlType := utils.DetermineDownloadType(config.URL)
 				// Set custom headers and user agent only for HTTP/HTTPS downloads
-				if urlType != "http" {
-					httpClientConfig.Headers = nil
-					httpClientConfig.UserAgent = utils.ToolUserAgent
-				}
+				// if urlType != "http" {
+				// 	httpClientConfig.Headers = nil
+				// 	httpClientConfig.UserAgent = utils.ToolUserAgent
+				// }
 				initialMessage := fmt.Sprintf("Starting %s download for %s", urlType, entry.OutputPath)
 				if entry.OutputPath == "" {
 					shortenedURL := config.URL
@@ -94,7 +94,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				// HTTP download
 				// =================================================================================================================
 				case "http":
-					client := utils.CreateHTTPClient(httpClientConfig, useHighThreadMode)
+					client := utils.NewDanzoHTTPClient(httpClientConfig)
 					fileSize, fileName, err := utils.GetFileInfo(config.URL, client)
 					if config.OutputPath == "" && fileName != "" {
 						config.OutputPath = fileName
@@ -142,11 +142,11 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					}(entryFunctionId, fileSize, progressCh)
 
 					if err == utils.ErrRangeRequestsNotSupported || config.Connections == 1 {
-						simpleClient := utils.CreateHTTPClient(httpClientConfig, false)
+						simpleClient := utils.NewDanzoHTTPClient(httpClientConfig)
 						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, progressCh)
 						close(progressCh)
 					} else if fileSize/int64(config.Connections) < 2*utils.DefaultBufferSize {
-						simpleClient := utils.CreateHTTPClient(httpClientConfig, false)
+						simpleClient := utils.NewDanzoHTTPClient(httpClientConfig)
 						err = danzohttp.PerformSimpleDownload(entry.URL, entry.OutputPath, simpleClient, progressCh)
 						close(progressCh)
 					} else {
@@ -213,7 +213,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				// GitHub Release download
 				// =================================================================================================================
 				case "gitrelease":
-					simpleClient := utils.CreateHTTPClient(httpClientConfig, false)
+					simpleClient := utils.NewDanzoHTTPClient(httpClientConfig)
 					userSelectOverride := false
 					if len(entries) > 1 {
 						userSelectOverride = true
@@ -467,7 +467,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				// Google Drive download
 				// =================================================================================================================
 				case "gdrive":
-					simpleClient := utils.CreateHTTPClient(httpClientConfig, false)
+					simpleClient := utils.NewDanzoHTTPClient(httpClientConfig)
 					outputMgr.Pause()
 					apiKey, err := danzogdrive.GetAuthToken()
 					outputMgr.Resume()
@@ -530,7 +530,7 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 							entry.OutputPath = config.OutputPath
 						}
 					}
-					client := utils.CreateHTTPClient(httpClientConfig, false)
+					client := utils.NewDanzoHTTPClient(httpClientConfig)
 					streamCh := make(chan string)
 
 					// Goroutine to stream output to the manager

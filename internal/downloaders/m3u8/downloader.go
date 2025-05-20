@@ -23,7 +23,7 @@ func parseM3U8URL(rawURL string) (string, error) {
 	return actualURL, nil
 }
 
-func getM3U8Contents(manifestURL string, client *http.Client) (string, error) {
+func getM3U8Contents(manifestURL string, client *utils.DanzoHTTPClient) (string, error) {
 	req, err := http.NewRequest("GET", manifestURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("error creating request: %v", err)
@@ -43,7 +43,7 @@ func getM3U8Contents(manifestURL string, client *http.Client) (string, error) {
 	return string(content), nil
 }
 
-func processM3U8Content(content, manifestURL string, client *http.Client) ([]string, error) {
+func processM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient) ([]string, error) {
 	baseURL, err := url.Parse(manifestURL)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing manifest URL: %v", err)
@@ -103,7 +103,7 @@ func resolveURL(baseURL *url.URL, urlStr string) (string, error) {
 	return absURL.String(), nil
 }
 
-func downloadM3U8Segments(segmentURLs []string, outputDir string, client *http.Client, streamCh chan<- string) ([]string, error) {
+func downloadM3U8Segments(segmentURLs []string, outputDir string, client *utils.DanzoHTTPClient, streamCh chan<- string) ([]string, error) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("error creating output directory: %v", err)
 	}
@@ -173,7 +173,7 @@ func cleanupSegments(segmentFiles []string) {
 	}
 }
 
-func PerformM3U8Download(config utils.DownloadConfig, client *http.Client, streamCh chan<- string) error {
+func PerformM3U8Download(config utils.DownloadConfig, client *utils.DanzoHTTPClient, streamCh chan<- string) error {
 	manifestURL, err := parseM3U8URL(config.URL)
 	if err != nil {
 		return fmt.Errorf("error parsing m3u8 URL: %v", err)

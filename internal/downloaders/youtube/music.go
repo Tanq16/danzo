@@ -55,11 +55,9 @@ type ITunesResponse struct {
 }
 
 var ytHTTPConfig = utils.HTTPClientConfig{
-	Timeout:   30 * time.Second,
-	KATimeout: 30 * time.Second,
-	ProxyURL:  "",
-	UserAgent: utils.ToolUserAgent,
-	Headers:   nil,
+	Timeout:        30 * time.Second,
+	KATimeout:      30 * time.Second,
+	HighThreadMode: false,
 }
 
 func addMusicMetadata(outputPath, musicClient, musicId string) error {
@@ -76,9 +74,10 @@ func addMusicMetadata(outputPath, musicClient, musicId string) error {
 }
 
 func addAppleMetadata(outputPath, musicId string) error {
-	client := utils.CreateHTTPClient(ytHTTPConfig, false)
+	client := utils.NewDanzoHTTPClient(ytHTTPConfig)
 	apiURL := fmt.Sprintf("https://itunes.apple.com/lookup?id=%s&entity=song", musicId)
-	resp, err := client.Get(apiURL)
+	req, _ := http.NewRequest("GET", apiURL, nil)
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("error fetching metadata: %v", err)
 	}
@@ -168,9 +167,10 @@ func addAppleMetadata(outputPath, musicId string) error {
 }
 
 func addDeezerMetadata(outputPath, musicId string) error {
-	client := utils.CreateHTTPClient(ytHTTPConfig, false)
+	client := utils.NewDanzoHTTPClient(ytHTTPConfig)
 	apiURL := fmt.Sprintf("https://api.deezer.com/track/%s", musicId)
-	resp, err := client.Get(apiURL)
+	req, _ := http.NewRequest("GET", apiURL, nil)
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("error fetching metadata: %v", err)
 	}
@@ -266,8 +266,9 @@ func applyMetadataWithFFmpeg(inputPath, metadataPath, artworkPath, outputPath st
 	return nil
 }
 
-func downloadFile(url, filepath string, client *http.Client) error {
-	resp, err := client.Get(url)
+func downloadFile(url, filepath string, client *utils.DanzoHTTPClient) error {
+	req, _ := http.NewRequest("GET", url, nil)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

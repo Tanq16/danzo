@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"mime"
-	"net"
 	"net/http"
 	u "net/url"
 	"os"
@@ -12,7 +11,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -79,76 +77,76 @@ func RenewOutputPath(outputPath string) string {
 	}
 }
 
-func CreateHTTPClient(config HTTPClientConfig, highThreadMode bool) *http.Client {
-	transport := &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 100, // for connection reuse
-		IdleConnTimeout:     config.KATimeout,
-		DisableCompression:  true,
-		MaxConnsPerHost:     0,
-		// These two seem to reduce performance drastically with custom dial context
-		// DisableKeepAlives:   false,
-		// ForceAttemptHTTP2:   true,
-	}
-	if highThreadMode {
-		transport.DialContext = (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-			DualStack: true,
-			// Increased socket buffer size for better speed
-			Control: func(network, address string, c syscall.RawConn) error {
-				return c.Control(func(fd uintptr) {
-					setSocketOptions(fd)
-				})
-			},
-		}).DialContext
-	}
-	if config.ProxyURL != "" {
-		proxyURLParsed, err := u.Parse(config.ProxyURL)
-		if err == nil {
-			// Add authentication to proxy URL if credentials provided
-			if config.ProxyUsername != "" && proxyURLParsed.User == nil {
-				if config.ProxyPassword != "" {
-					proxyURLParsed.User = u.UserPassword(config.ProxyUsername, config.ProxyPassword)
-				} else {
-					proxyURLParsed.User = u.User(config.ProxyUsername)
-				}
-			}
-			if proxyURLParsed.Scheme == "" {
-				// Default to http if no scheme provided
-				proxyURLParsed.Scheme = "http"
-			}
-			transport.Proxy = http.ProxyURL(proxyURLParsed)
-		}
-	}
-	var finalTransport http.RoundTripper = transport
-	if config.Headers != nil || config.UserAgent != "" {
-		finalTransport = &headerTransport{
-			base:      transport,
-			headers:   config.Headers,
-			userAgent: config.UserAgent,
-		}
-	}
-	return &http.Client{
-		Timeout:   config.Timeout,
-		Transport: finalTransport,
-	}
-}
+// func CreateHTTPClient(config HTTPClientConfig, highThreadMode bool) *http.Client {
+// 	transport := &http.Transport{
+// 		MaxIdleConns:        100,
+// 		MaxIdleConnsPerHost: 100, // for connection reuse
+// 		IdleConnTimeout:     config.KATimeout,
+// 		DisableCompression:  true,
+// 		MaxConnsPerHost:     0,
+// 		// These two seem to reduce performance drastically with custom dial context
+// 		// DisableKeepAlives:   false,
+// 		// ForceAttemptHTTP2:   true,
+// 	}
+// 	if highThreadMode {
+// 		transport.DialContext = (&net.Dialer{
+// 			Timeout:   30 * time.Second,
+// 			KeepAlive: 30 * time.Second,
+// 			DualStack: true,
+// 			// Increased socket buffer size for better speed
+// 			Control: func(network, address string, c syscall.RawConn) error {
+// 				return c.Control(func(fd uintptr) {
+// 					setSocketOptions(fd)
+// 				})
+// 			},
+// 		}).DialContext
+// 	}
+// 	if config.ProxyURL != "" {
+// 		proxyURLParsed, err := u.Parse(config.ProxyURL)
+// 		if err == nil {
+// 			// Add authentication to proxy URL if credentials provided
+// 			if config.ProxyUsername != "" && proxyURLParsed.User == nil {
+// 				if config.ProxyPassword != "" {
+// 					proxyURLParsed.User = u.UserPassword(config.ProxyUsername, config.ProxyPassword)
+// 				} else {
+// 					proxyURLParsed.User = u.User(config.ProxyUsername)
+// 				}
+// 			}
+// 			if proxyURLParsed.Scheme == "" {
+// 				// Default to http if no scheme provided
+// 				proxyURLParsed.Scheme = "http"
+// 			}
+// 			transport.Proxy = http.ProxyURL(proxyURLParsed)
+// 		}
+// 	}
+// 	var finalTransport http.RoundTripper = transport
+// 	if config.Headers != nil || config.UserAgent != "" {
+// 		finalTransport = &headerTransport{
+// 			base:      transport,
+// 			headers:   config.Headers,
+// 			userAgent: config.UserAgent,
+// 		}
+// 	}
+// 	return &http.Client{
+// 		Timeout:   config.Timeout,
+// 		Transport: finalTransport,
+// 	}
+// }
 
-type headerTransport struct {
-	base      http.RoundTripper
-	headers   map[string]string
-	userAgent string
-}
+// type headerTransport struct {
+// 	base      http.RoundTripper
+// 	headers   map[string]string
+// 	userAgent string
+// }
 
-func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = req.Clone(req.Context())
-	for key, value := range t.headers {
-		req.Header.Set(key, value)
-	}
-	req.Header.Set("User-Agent", t.userAgent)
-	return t.base.RoundTrip(req)
-}
+// func (t *headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+// 	req = req.Clone(req.Context())
+// 	for key, value := range t.headers {
+// 		req.Header.Set(key, value)
+// 	}
+// 	req.Header.Set("User-Agent", t.userAgent)
+// 	return t.base.RoundTrip(req)
+// }
 
 func ParseHeaderArgs(headers []string) map[string]string {
 	result := make(map[string]string)
@@ -163,7 +161,7 @@ func ParseHeaderArgs(headers []string) map[string]string {
 	return result
 }
 
-func GetFileInfo(url string, client *http.Client) (int64, string, error) {
+func GetFileInfo(url string, client *DanzoHTTPClient) (int64, string, error) {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		return 0, "", err
