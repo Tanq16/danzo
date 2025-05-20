@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tanq16/danzo/utils"
+	"github.com/tanq16/danzo/internal/utils"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )

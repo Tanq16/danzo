@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tanq16/danzo/utils"
+	"github.com/tanq16/danzo/internal/utils"
 )
 
 type DeezerResponse struct {

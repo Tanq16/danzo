@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tanq16/danzo/utils"
+	"github.com/tanq16/danzo/internal/utils"
 )
 
 func chunkedDownload(job *utils.DownloadJob, chunk *utils.DownloadChunk, client *http.Client, wg *sync.WaitGroup, progressCh chan<- int64, mutex *sync.Mutex) {

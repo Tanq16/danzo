@@ -15,7 +15,7 @@ import (
 
 	"slices"
 
-	"github.com/tanq16/danzo/utils"
+	"github.com/tanq16/danzo/internal/utils"
 )
 
 var ytdlpFormats = map[string]string{

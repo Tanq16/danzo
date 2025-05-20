@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal"
-	"github.com/tanq16/danzo/utils"
+	"github.com/tanq16/danzo/internal/utils"
 )
 
 var (

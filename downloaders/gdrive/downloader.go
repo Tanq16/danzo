@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	danzohttp "github.com/tanq16/danzo/downloaders/http"
-	"github.com/tanq16/danzo/utils"
+	"github.com/tanq16/danzo/internal/utils"
 )
 
 var (

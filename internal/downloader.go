@@ -16,7 +16,7 @@ import (
 	danzom3u8 "github.com/tanq16/danzo/downloaders/m3u8"
 	danzos3 "github.com/tanq16/danzo/downloaders/s3"
 	danzoyoutube "github.com/tanq16/danzo/downloaders/youtube"
-	"github.com/tanq16/danzo/utils"
+	"github.com/tanq16/danzo/internal/utils"
 )
 
 func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink int, httpClientConfig utils.HTTPClientConfig, unlimitOut bool) error {

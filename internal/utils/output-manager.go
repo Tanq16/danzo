@@ -10,7 +10,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
 	"golang.org/x/term"
 )
 
@@ -98,56 +97,6 @@ func FHeader(text string) string {
 	return headerStyle.Render(text)
 }
 
-// ======================================== =================
-// ======================================== Table Definitions
-// ======================================== =================
-
-type Table struct {
-	Headers []string
-	Rows    [][]string
-	table   *table.Table
-}
-
-func NewTable(headers []string) *Table {
-	t := &Table{
-		Headers: headers,
-		Rows:    [][]string{},
-	}
-	t.table = table.New().Headers(headers...)
-	t.table = t.table.StyleFunc(func(row, col int) lipgloss.Style {
-		if row == table.HeaderRow {
-			return lipgloss.NewStyle().Bold(true).Align(lipgloss.Center).Padding(0, 1)
-		}
-		return lipgloss.NewStyle().Padding(0, 1)
-	})
-	return t
-}
-
-func (t *Table) ReconcileRows() {
-	if len(t.Rows) == 0 {
-		return
-	}
-	for _, row := range t.Rows {
-		t.table.Row(row...)
-	}
-}
-
-func (t *Table) FormatTable(useMarkdown bool) string {
-	t.ReconcileRows()
-	if useMarkdown {
-		return t.table.Border(lipgloss.MarkdownBorder()).String()
-	}
-	return t.table.String()
-}
-
-func (t *Table) PrintTable(useMarkdown bool) {
-	fmt.Println(t.FormatTable(useMarkdown))
-}
-
-func (t *Table) WriteMarkdownTableToFile(outputPath string) error {
-	return os.WriteFile(outputPath, []byte(t.FormatTable(true)), 0644)
-}
-
 // =========================================== ==============
 // =========================================== Output Manager
 // =========================================== ==============
@@ -161,7 +110,6 @@ type FunctionOutput struct {
 	StartTime   time.Time
 	LastUpdated time.Time
 	Error       error
-	Tables      map[string]*Table // Function tables
 	Index       int
 }
 
@@ -176,9 +124,8 @@ type Manager struct {
 	outputs         map[string]*FunctionOutput
 	mutex           sync.RWMutex
 	numLines        int
-	maxStreams      int               // Max output stream lines per function
-	unlimitedOutput bool              // When true, unlimited output per function
-	tables          map[string]*Table // Global tables
+	maxStreams      int  // Max output stream lines per function
+	unlimitedOutput bool // When true, unlimited output per function
 	errors          []ErrorReport
 	doneCh          chan struct{} // Channel to signal stopping the display
 	pauseCh         chan bool     // Channel to pause/resume display updates
@@ -194,7 +141,6 @@ func NewManager(maxStreams int) *Manager {
 	}
 	return &Manager{
 		outputs:         make(map[string]*FunctionOutput),
-		tables:          make(map[string]*Table),
 		errors:          []ErrorReport{},
 		maxStreams:      maxStreams,
 		unlimitedOutput: false,
@@ -240,7 +186,6 @@ func (m *Manager) Register(name string) string {
 		StreamLines: []string{},
 		StartTime:   time.Now(),
 		LastUpdated: time.Now(),
-		Tables:      make(map[string]*Table),
 		Index:       m.functionCount,
 	}
 	return fmt.Sprint(m.functionCount)
@@ -484,27 +429,6 @@ func (m *Manager) GetStatusIndicator(status string) string {
 	}
 }
 
-// Add a global table
-func (m *Manager) RegisterTable(name string, headers []string) *Table {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	table := NewTable(headers)
-	m.tables[name] = table
-	return table
-}
-
-// Adds a function-specific table
-func (m *Manager) RegisterFunctionTable(funcName string, name string, headers []string) *Table {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	if info, exists := m.outputs[funcName]; exists {
-		table := NewTable(headers)
-		info.Tables[name] = table
-		return table
-	}
-	return nil
-}
-
 func (m *Manager) sortFunctions() (active, pending, completed []*FunctionOutput) {
 	var allFuncs []*FunctionOutput
 	// Sort by index (registration order)
@@ -645,7 +569,6 @@ func (m *Manager) StartDisplay() {
 				}
 				m.updateDisplay()
 				m.ShowSummary()
-				m.displayTables()
 				return
 			}
 		}
@@ -655,38 +578,6 @@ func (m *Manager) StartDisplay() {
 func (m *Manager) StopDisplay() {
 	close(m.doneCh)
 	m.displayWg.Wait() // Wait for goroutine to finish
-}
-
-func (m *Manager) displayTables() {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-	if len(m.tables) > 0 {
-		fmt.Println(strings.Repeat(" ", basePadding) + headerStyle.Render("Global Tables:"))
-		for name, table := range m.tables {
-			fmt.Println(strings.Repeat(" ", basePadding+2) + headerStyle.Render(name))
-			fmt.Println(table.FormatTable(false))
-		}
-	}
-	// Display function tables
-	hasFunctionTables := false
-	for _, info := range m.outputs {
-		if len(info.Tables) > 0 {
-			hasFunctionTables = true
-			break
-		}
-	}
-	if hasFunctionTables {
-		fmt.Println(strings.Repeat(" ", basePadding) + headerStyle.Render("Function Tables:"))
-		for _, info := range m.outputs {
-			if len(info.Tables) > 0 {
-				fmt.Println(strings.Repeat(" ", basePadding+2) + headerStyle.Render(info.Name))
-				for tableName, table := range info.Tables {
-					fmt.Println(strings.Repeat(" ", basePadding+4) + infoStyle.Render(tableName))
-					fmt.Println(table.FormatTable(false))
-				}
-			}
-		}
-	}
 }
 
 func (m *Manager) displayErrors() {

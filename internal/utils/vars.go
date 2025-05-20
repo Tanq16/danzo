@@ -13,19 +13,6 @@ var ErrRangeRequestsNotSupported = errors.New("range requests are not supported"
 var ChunkIDRegex = regexp.MustCompile(`\.part(\d+)$`)
 var PMDebug = false
 
-var Color = map[string]string{
-	"b":    "\033[34m", // Blue
-	"r":    "\033[31m", // Red
-	"g":    "\033[32m", // Green
-	"p":    "\033[35m", // Purple
-	"c":    "\033[36m", // Cyan
-	"y":    "\033[33m", // Yellow
-	"G":    "\033[90m", // Grey
-	"R":    "\033[0m",  // Reset
-	"pass": "✓",
-	"fail": "✗",
-}
-
 type DownloadConfig struct {
 	URL              string
 	OutputPath       string

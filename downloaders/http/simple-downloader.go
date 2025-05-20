@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/tanq16/danzo/utils"
+	"github.com/tanq16/danzo/internal/utils"
 )
 
 func PerformSimpleDownload(url string, outputPath string, client *http.Client, progressCh chan<- int64) error {

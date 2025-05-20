@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tanq16/danzo/utils"
+	"github.com/tanq16/danzo/internal/utils"
 )
 
 func PerformMultiDownload(config utils.DownloadConfig, client *http.Client, fileSize int64, progressCh chan<- int64) error {
