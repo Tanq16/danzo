@@ -18,9 +18,6 @@ var (
 	detailStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("13"))            // purple
 	streamStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))           // grey
 	headerStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69")) // purple
-
-	// Additional config
-	basePadding = 2
 )
 
 var StyleSymbols = map[string]string{

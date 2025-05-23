@@ -1,22 +1,27 @@
-package types
+package utils
 
 import "time"
+
+type Downloader interface {
+	Download(job *DanzoJob) error
+	BuildJob(job *DanzoJob) error
+	ValidateJob(job *DanzoJob) error
+}
+
+type DanzoJob struct {
+	ID               string
+	JobType          string
+	OutputPath       string
+	URL              string
+	Connections      int
+	HTTPClientConfig HTTPClientConfig
+}
 
 type DownloadConfig struct {
 	URL              string
 	OutputPath       string
 	Connections      int
 	HTTPClientConfig HTTPClientConfig
-}
-
-type HTTPClientConfig struct {
-	Timeout       time.Duration
-	KATimeout     time.Duration
-	ProxyURL      string
-	ProxyUsername string
-	ProxyPassword string
-	UserAgent     string
-	Headers       map[string]string
 }
 
 type DownloadChunk struct {
