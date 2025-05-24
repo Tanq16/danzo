@@ -58,7 +58,7 @@ func PrintProgressBar(current, total int64, width int) string {
 	return debugStyle.Render(fmt.Sprintf("%s %.1f%% %s ", bar, percent*100, StyleSymbols["bullet"]))
 }
 
-func GetTerminalWidth() int {
+func getTerminalWidth() int {
 	width, _, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil || width <= 0 {
 		return 80 // Default fallback width
@@ -66,8 +66,16 @@ func GetTerminalWidth() int {
 	return width
 }
 
+func getTerminalHeight() int {
+	height, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || height <= 0 {
+		return 24 // Default fallback height
+	}
+	return height
+}
+
 func wrapText(text string, indent int) []string {
-	termWidth := GetTerminalWidth()
+	termWidth := getTerminalWidth()
 	maxWidth := termWidth - indent - 2 // Account for indentation
 	if maxWidth <= 10 {
 		maxWidth = 80

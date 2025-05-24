@@ -1,10 +1,14 @@
 package danzohttp
 
 import (
+	"errors"
 	"fmt"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,7 +57,7 @@ func (d *HTTPDownloader) BuildJob(job *utils.DanzoJob) error {
 
 	client := utils.NewDanzoHTTPClient(job.HTTPClientConfig)
 
-	fileSize, fileName, err := utils.GetFileInfo(job.URL, client)
+	fileSize, fileName, err := getFileInfo(job.URL, client)
 	if err != nil && err != utils.ErrRangeRequestsNotSupported {
 		return fmt.Errorf("error getting file info: %v", err)
 	}
@@ -166,4 +170,45 @@ func (d *HTTPDownloader) Download(job *utils.DanzoJob) error {
 	job.Metadata["totalTime"] = time.Since(startTime).Seconds()
 
 	return err
+}
+
+func getFileInfo(link string, client *utils.DanzoHTTPClient) (int64, string, error) {
+	req, err := http.NewRequest("HEAD", link, nil)
+	if err != nil {
+		return 0, "", err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+	defer resp.Body.Close()
+	filename := ""
+	filenameRegex := regexp.MustCompile(`[^a-zA-Z0-9_\-\. ]+`)
+	if contentDisposition := resp.Header.Get("Content-Disposition"); contentDisposition != "" {
+		if _, params, err := mime.ParseMediaType(contentDisposition); err == nil {
+			if fn, ok := params["filename"]; ok && fn != "" {
+				filename = filenameRegex.ReplaceAllString(fn, "_")
+			} else if fn, ok := params["filename*"]; ok && fn != "" {
+				if strings.HasPrefix(fn, "UTF-8''") {
+					unescaped, _ := url.PathUnescape(strings.TrimPrefix(fn, "UTF-8''"))
+					filename = filenameRegex.ReplaceAllString(unescaped, "_")
+				}
+			}
+		}
+	}
+	if resp.Header.Get("Accept-Ranges") != "bytes" {
+		return 0, filename, utils.ErrRangeRequestsNotSupported
+	}
+	contentLength := resp.Header.Get("Content-Length")
+	if contentLength == "" {
+		return 0, filename, errors.New("server didn't provide Content-Length header")
+	}
+	size, err := strconv.ParseInt(contentLength, 10, 64)
+	if err != nil {
+		return 0, filename, err
+	}
+	if size <= 0 {
+		return 0, filename, errors.New("invalid file size reported by server")
+	}
+	return size, filename, nil
 }

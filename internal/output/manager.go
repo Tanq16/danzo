@@ -2,13 +2,10 @@ package output
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/term"
 )
 
 type FunctionOutput struct {
@@ -169,7 +166,7 @@ func (m *Manager) AddStreamLine(id int, line string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if info, exists := m.outputs[fmt.Sprint(id)]; exists {
-		// Wrap the line with indentation
+		// Wrap the line th indentation
 		wrappedLines := wrapText(line, 2+4)
 		info.StreamLines = append(info.StreamLines, wrappedLines...)
 		if len(info.StreamLines) > m.maxStreams {
@@ -257,12 +254,8 @@ func (m *Manager) updateDisplay() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	// Get terminal height to limit output
-	_, termHeight, _ := term.GetSize(int(os.Stdout.Fd()))
-	if termHeight <= 0 {
-		termHeight = 24 // Default fallback
-	}
-	availableLines := termHeight - 3 // Leave some buffer for prompt
+	termHeight := getTerminalHeight()
+	availableLines := termHeight - 3 // Leave some buffer
 
 	if m.numLines > 0 {
 		fmt.Printf("\033[%dA\033[J", m.numLines)
