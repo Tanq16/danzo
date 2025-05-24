@@ -19,7 +19,7 @@ var downloaderRegistry = map[string]utils.Downloader{
 	// "m3u8":       &m3u8Downloader{},
 }
 
-func Run(jobs []utils.DanzoJob, numWorkers int) error {
+func Run(jobs []utils.DanzoJob, numWorkers int) {
 	outputMgr := output.NewManager()
 	outputMgr.StartDisplay()
 	defer outputMgr.StopDisplay()
@@ -40,7 +40,6 @@ func Run(jobs []utils.DanzoJob, numWorkers int) error {
 	}
 
 	wg.Wait()
-	return nil
 }
 
 func processJobs(jobCh <-chan utils.DanzoJob, outputMgr *output.Manager) {

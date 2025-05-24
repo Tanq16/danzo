@@ -162,7 +162,7 @@ func (d *HTTPDownloader) Download(job *utils.DanzoJob) error {
 	}
 
 	// Close progress channel and wait for final update
-	close(progressCh)
+	// close(progressCh)
 	<-progressDone
 
 	// Store final statistics

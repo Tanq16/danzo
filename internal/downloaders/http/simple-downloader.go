@@ -6,17 +6,16 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/tanq16/danzo/internal/utils"
 )
 
 func PerformSimpleDownload(url, outputPath string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
-	outputDir := filepath.Dir(outputPath)
-	tempOutputPath := fmt.Sprintf("%s.part", outputPath)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("error creating output directory: %v", err)
+	tempDir := filepath.Join(filepath.Dir(outputPath), ".danzo-temp")
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return fmt.Errorf("error creating temp directory: %v", err)
 	}
+	tempOutputPath := fmt.Sprintf("%s.part", filepath.Join(tempDir, filepath.Base(outputPath)))
 
 	var resumeOffset int64 = 0
 	var fileMode int = os.O_CREATE | os.O_WRONLY
@@ -33,16 +32,16 @@ func PerformSimpleDownload(url, outputPath string, client *utils.DanzoHTTPClient
 	defer outFile.Close()
 
 	// Extract OAuth token for Google Drive download ONLY
-	urlToken := []string{}
-	if strings.HasPrefix(url, "https://www.googleapis.com/drive/v3/files") {
-		urlToken = append(urlToken, strings.Split(url, "|")...)
-		url = urlToken[0]
-	}
+	// urlToken := []string{}
+	// if strings.HasPrefix(url, "https://www.googleapis.com/drive/v3/files") {
+	// 	urlToken = append(urlToken, strings.Split(url, "|")...)
+	// 	url = urlToken[0]
+	// }
 	req, err := http.NewRequest("GET", url, nil)
 	// Set OAuth bearer token for Google Drive download ONLY
-	if len(urlToken) > 1 {
-		req.Header.Set("Authorization", "Bearer "+urlToken[1])
-	}
+	// if len(urlToken) > 1 {
+	// 	req.Header.Set("Authorization", "Bearer "+urlToken[1])
+	// }
 	if err != nil {
 		return fmt.Errorf("error creating GET request: %v", err)
 	}
@@ -56,6 +55,7 @@ func PerformSimpleDownload(url, outputPath string, client *utils.DanzoHTTPClient
 		return fmt.Errorf("error executing GET request: %v", err)
 	}
 	defer resp.Body.Close()
+	defer close(progressCh)
 
 	if resumeOffset > 0 {
 		if resp.StatusCode != http.StatusPartialContent {
