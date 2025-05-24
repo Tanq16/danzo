@@ -12,8 +12,12 @@ type DanzoJob struct {
 	ID               string
 	JobType          string
 	OutputPath       string
+	ProgressType     string
+	ProgressFunc     func(downloaded, total int64)
+	StreamFunc       func(line string)
 	URL              string
 	Connections      int
+	Metadata         map[string]any
 	HTTPClientConfig HTTPClientConfig
 }
 
