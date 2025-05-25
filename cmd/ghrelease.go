@@ -34,10 +34,3 @@ func newGHReleaseCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&manual, "manual", false, "Manually select release version and asset")
 	return cmd
 }
-
-func newGHCloneCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "ghclone",
-		Short: "Clone a GitHub repository",
-	}
-}
