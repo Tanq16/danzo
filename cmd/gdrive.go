@@ -18,7 +18,7 @@ func newGDriveCmd() *cobra.Command {
 
 Examples:
   danzo gdrive "https://drive.google.com/file/d/abc123/view" --api-key YOUR_KEY
-  danzo gdrive "https://drive.google.com/drive/folders/xyz789" --credentials creds.json`,
+  danzo gdrive "https://drive.google.com/drive/folders/xyz789" --creds creds.json`,
 		Args: cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			job := utils.DanzoJob{
@@ -45,8 +45,8 @@ Examples:
 	}
 
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "Output path")
-	cmd.Flags().StringVar(&apiKey, "api-key", "", "Google Drive API key")
-	cmd.Flags().StringVar(&credentialsFile, "credentials", "", "OAuth credentials JSON file")
+	cmd.Flags().StringVarP(&apiKey, "api-key", "a", "", "Google Drive API key")
+	cmd.Flags().StringVarP(&credentialsFile, "creds", "c", "", "OAuth credentials JSON file")
 
 	return cmd
 }

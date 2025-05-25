@@ -8,9 +8,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/internal/output"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"golang.org/x/term"
 )
 
 func getAccessTokenFromCredentials(credentialsFile string) (string, error) {
@@ -52,9 +53,9 @@ func getOAuthToken(config *oauth2.Config, tokenFile string) (*oauth2.Token, erro
 		return token, nil
 	}
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	utils.PrintDetail("\nVisit this URL to get the authorization code:\n")
+	output.PrintDetail("\nVisit this URL to get the authorization code:\n")
 	fmt.Printf("%s\n", authURL)
-	utils.PrintDetail("\nAfter authorizing, enter the authorization code:")
+	output.PrintDetail("\nAfter authorizing, enter the authorization code:")
 	var authCode string
 	if _, err := fmt.Scan(&authCode); err != nil {
 		return nil, fmt.Errorf("unable to read authorization code: %v", err)
@@ -66,7 +67,7 @@ func getOAuthToken(config *oauth2.Config, tokenFile string) (*oauth2.Token, erro
 	if err := saveToken(tokenFile, token); err != nil {
 	}
 	clearLength := 6
-	clearLength += len(authURL)/utils.GetTerminalWidth() + 1
+	clearLength += len(authURL)/getTerminalWidth() + 1
 	fmt.Printf("\033[%dA\033[J", clearLength)
 	return token, nil
 }
@@ -99,4 +100,12 @@ func saveToken(file string, token *oauth2.Token) error {
 		return fmt.Errorf("unable to encode token: %v", err)
 	}
 	return nil
+}
+
+func getTerminalWidth() int {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || width <= 0 {
+		return 80 // Default fallback width
+	}
+	return width
 }

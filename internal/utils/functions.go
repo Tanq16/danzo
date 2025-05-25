@@ -153,14 +153,6 @@ func FormatSpeed(bytes int64, elapsed float64) string {
 	return formatted[:len(formatted)-1] + "B/s" // Slice off "B" and add "B/s"
 }
 
-func Clean(outputPath string) error {
-	tempDir := filepath.Join(filepath.Dir(outputPath), ".danzo-temp")
-	if err := os.RemoveAll(tempDir); err != nil {
-		return err
-	}
-	return nil
-}
-
 func CleanFunction(outputPath string) error {
 	tempDir := filepath.Join(filepath.Dir(outputPath), ".danzo-temp")
 	files, err := os.ReadDir(tempDir)

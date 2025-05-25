@@ -41,6 +41,10 @@ func Run(jobs []utils.DanzoJob, numWorkers int, fileLog bool) {
 	s.outputMgr.StartDisplay()
 	defer s.outputMgr.StopDisplay()
 
+	outputDirs := make(map[string]bool)
+	allSuccessful := true
+	var mu sync.Mutex
+
 	// Start pause/resume handler
 	if s.singleJobMode {
 		go s.handlePauseResume()
@@ -57,11 +61,16 @@ func Run(jobs []utils.DanzoJob, numWorkers int, fileLog bool) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			s.processJobs(jobCh)
+			s.processJobs(jobCh, &outputDirs, &allSuccessful, &mu)
 		}()
 	}
 
 	wg.Wait()
+	if allSuccessful {
+		for dir := range outputDirs {
+			utils.CleanFunction(dir)
+		}
+	}
 }
 
 func (s *Scheduler) handlePauseResume() {
@@ -75,7 +84,7 @@ func (s *Scheduler) handlePauseResume() {
 	}
 }
 
-func (s *Scheduler) processJobs(jobCh <-chan utils.DanzoJob) {
+func (s *Scheduler) processJobs(jobCh <-chan utils.DanzoJob, outputDirs *map[string]bool, allSuccessful *bool, mu *sync.Mutex) {
 	for job := range jobCh {
 		funcID := s.outputMgr.RegisterFunction(job.OutputPath)
 
@@ -128,10 +137,16 @@ func (s *Scheduler) processJobs(jobCh <-chan utils.DanzoJob) {
 		s.outputMgr.SetMessage(funcID, fmt.Sprintf("Downloading %s", job.OutputPath))
 		err = downloader.Download(&job)
 		if err != nil {
+			mu.Lock()
+			*allSuccessful = false
+			mu.Unlock()
 			s.outputMgr.ReportError(funcID, fmt.Errorf("download failed: %v", err))
 			s.outputMgr.SetMessage(funcID, fmt.Sprintf("Download failed for %s", job.OutputPath))
 			continue
 		}
+		mu.Lock()
+		(*outputDirs)[job.OutputPath] = true
+		mu.Unlock()
 		s.outputMgr.Complete(funcID, fmt.Sprintf("Completed %s", job.OutputPath))
 	}
 }

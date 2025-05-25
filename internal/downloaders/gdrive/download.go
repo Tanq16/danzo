@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 
 	danzohttp "github.com/tanq16/danzo/internal/downloaders/http"
 	"github.com/tanq16/danzo/internal/utils"
@@ -74,23 +73,17 @@ func (d *GDriveDownloader) downloadFolder(job *utils.DanzoJob, token string, cli
 
 		outputPath := filepath.Join(job.OutputPath, fileName)
 
-		// Get individual file size
-		// var fileSize int64
-		// if sizeStr, ok := file["size"].(string); ok {
-		// 	fileSize, _ = parseSize(sizeStr)
-		// }
-
 		progressCh := make(chan int64)
 
 		// Track progress for this file
-		go func(ch <-chan int64, startingBytes int64) {
+		go func(ch <-chan int64) {
 			for bytes := range ch {
-				downloaded := atomic.AddInt64(&totalDownloaded, bytes)
+				totalDownloaded += bytes
 				if job.ProgressFunc != nil {
-					job.ProgressFunc(startingBytes+downloaded, totalSize)
+					job.ProgressFunc(totalDownloaded, totalSize)
 				}
 			}
-		}(progressCh, totalDownloaded)
+		}(progressCh)
 
 		config := utils.DownloadConfig{
 			URL:              fmt.Sprintf("https://drive.google.com/file/d/%s/view", fileID),
