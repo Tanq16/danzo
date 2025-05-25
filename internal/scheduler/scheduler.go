@@ -19,8 +19,8 @@ var downloaderRegistry = map[string]utils.Downloader{
 	// "m3u8":       &m3u8Downloader{},
 }
 
-func Run(jobs []utils.DanzoJob, numWorkers int) {
-	outputMgr := output.NewManager()
+func Run(jobs []utils.DanzoJob, numWorkers int, debug bool) {
+	outputMgr := output.NewManager() // TODO: pass debug flag
 	outputMgr.StartDisplay()
 	defer outputMgr.StopDisplay()
 

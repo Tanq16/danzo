@@ -29,12 +29,10 @@ func newHTTPCmd() *cobra.Command {
 
 			// Run with scheduler
 			jobs := []utils.DanzoJob{job}
-			scheduler.Run(jobs, workers)
+			scheduler.Run(jobs, workers, debug)
 		},
 	}
 
-	// Local flags
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "Output file path")
-
 	return cmd
 }

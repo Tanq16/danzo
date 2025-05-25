@@ -24,13 +24,14 @@ var (
 // Global HTTP client config that will be passed to subcommands
 var globalHTTPConfig utils.HTTPClientConfig
 
-// Registry for subcommands
+// Registry for all subcommands
 var commandRegistry = make(map[string]*cobra.Command)
 
 var rootCmd = &cobra.Command{
-	Use:     "danzo",
-	Short:   "Danzo is a fast CLI download manager",
-	Version: version,
+	Use:               "danzo",
+	Short:             "Danzo is a swiss-army knife CLI download manager",
+	Version:           version,
+	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Build global HTTP config from flags
 		globalHTTPConfig = utils.HTTPClientConfig{
@@ -51,6 +52,8 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
+
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL")
 	rootCmd.PersistentFlags().StringVar(&proxyUsername, "proxy-username", "", "Proxy username")
@@ -61,24 +64,23 @@ func init() {
 	rootCmd.PersistentFlags().IntVarP(&connections, "connections", "c", 8, "Number of connections per download")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 
-	// Register all commands
 	registerCommands()
-
-	// Global print new line
 	fmt.Println()
 }
 
-// RegisterCommand adds a command to the registry and root
 func RegisterCommand(name string, cmd *cobra.Command) {
 	commandRegistry[name] = cmd
 	rootCmd.AddCommand(cmd)
 }
 
-// registerCommands registers all download commands
 func registerCommands() {
+	RegisterCommand("clean", newCleanCmd())
+
 	RegisterCommand("http", newHTTPCmd())
-	// Future commands will be registered here:
 	// RegisterCommand("s3", newS3Cmd())
+	RegisterCommand("ghclone", newGHCloneCmd())
+	RegisterCommand("ghrelease", newGHReleaseCmd())
+
 	// RegisterCommand("youtube", newYouTubeCmd())
 	// RegisterCommand("batch", newBatchCmd())
 }
