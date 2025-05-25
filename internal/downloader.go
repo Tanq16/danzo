@@ -13,7 +13,6 @@ import (
 
 	// danzogitr "github.com/tanq16/danzo/internal/downloaders/gitrelease"
 	danzohttp "github.com/tanq16/danzo/internal/downloaders/http"
-	danzom3u8 "github.com/tanq16/danzo/internal/downloaders/m3u8"
 	danzos3 "github.com/tanq16/danzo/internal/downloaders/s3"
 	danzoyoutube "github.com/tanq16/danzo/internal/downloaders/youtube"
 	"github.com/tanq16/danzo/internal/utils"
@@ -515,43 +514,43 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 					close(progressCh)
 					progressWg.Wait()
 
-				// M3U8 Stream download
-				// =================================================================================================================
-				case "m3u8":
-					close(progressCh) // Not needed for M3U8 downloads
-					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Processing M3U8 stream: %s", entry.OutputPath))
-					if config.OutputPath == "" {
-						config.OutputPath = fmt.Sprintf("stream_%s.mp4", time.Now().Format("2006-01-02_15-04"))
-						entry.OutputPath = config.OutputPath
-					} else {
-						existingFile, _ := os.Stat(config.OutputPath)
-						if existingFile != nil {
-							config.OutputPath = utils.RenewOutputPath(config.OutputPath)
-							entry.OutputPath = config.OutputPath
-						}
-					}
-					client := utils.NewDanzoHTTPClient(httpClientConfig)
-					streamCh := make(chan string)
+					// M3U8 Stream download
+					// =================================================================================================================
+					// case "m3u8":
+					// 	close(progressCh) // Not needed for M3U8 downloads
+					// 	outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Processing M3U8 stream: %s", entry.OutputPath))
+					// 	if config.OutputPath == "" {
+					// 		config.OutputPath = fmt.Sprintf("stream_%s.mp4", time.Now().Format("2006-01-02_15-04"))
+					// 		entry.OutputPath = config.OutputPath
+					// 	} else {
+					// 		existingFile, _ := os.Stat(config.OutputPath)
+					// 		if existingFile != nil {
+					// 			config.OutputPath = utils.RenewOutputPath(config.OutputPath)
+					// 			entry.OutputPath = config.OutputPath
+					// 		}
+					// 	}
+					// 	client := utils.NewDanzoHTTPClient(httpClientConfig)
+					// 	streamCh := make(chan string)
 
-					// Goroutine to stream output to the manager
-					var streamWg sync.WaitGroup
-					streamWg.Add(1)
-					go func(outputPath string, streamCh <-chan string) {
-						defer streamWg.Done()
-						for streamOutput := range streamCh {
-							outputMgr.AddStreamLine(entryFunctionId, streamOutput)
-						}
-					}(entry.OutputPath, streamCh)
+					// 	// Goroutine to stream output to the manager
+					// 	var streamWg sync.WaitGroup
+					// 	streamWg.Add(1)
+					// 	go func(outputPath string, streamCh <-chan string) {
+					// 		defer streamWg.Done()
+					// 		for streamOutput := range streamCh {
+					// 			outputMgr.AddStreamLine(entryFunctionId, streamOutput)
+					// 		}
+					// 	}(entry.OutputPath, streamCh)
 
-					err := danzom3u8.PerformM3U8Download(config, client, streamCh)
-					close(streamCh)
-					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading M3U8 stream: %v", err))
-						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading M3U8 stream: %s", entry.OutputPath))
-					} else {
-						outputMgr.Complete(entryFunctionId, fmt.Sprintf("M3U8 stream downloaded: %s", entry.OutputPath))
-					}
-					streamWg.Wait()
+					// 	err := danzom3u8.PerformM3U8Download(config, client, streamCh)
+					// 	close(streamCh)
+					// 	if err != nil {
+					// 		outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading M3U8 stream: %v", err))
+					// 		outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading M3U8 stream: %s", entry.OutputPath))
+					// 	} else {
+					// 		outputMgr.Complete(entryFunctionId, fmt.Sprintf("M3U8 stream downloaded: %s", entry.OutputPath))
+					// 	}
+					// 	streamWg.Wait()
 				}
 			}
 		}(i + 1)
