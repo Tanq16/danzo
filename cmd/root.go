@@ -78,7 +78,7 @@ func registerCommands() {
 
 	RegisterCommand("http", newHTTPCmd())
 	RegisterCommand("m3u8", newM3U8Cmd())
-	// RegisterCommand("s3", newS3Cmd())
+	RegisterCommand("s3", newS3Cmd())
 	RegisterCommand("gitclone", newGitCloneCmd())
 	RegisterCommand("ghrelease", newGHReleaseCmd())
 
