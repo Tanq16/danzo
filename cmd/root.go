@@ -82,7 +82,6 @@ func registerCommands() {
 	RegisterCommand("gitclone", newGitCloneCmd())
 	RegisterCommand("ghrelease", newGHReleaseCmd())
 	RegisterCommand("gdrive", newGDriveCmd())
-
-	// RegisterCommand("youtube", newYouTubeCmd())
+	RegisterCommand("youtube", newYouTubeCmd())
 	// RegisterCommand("batch", newBatchCmd())
 }

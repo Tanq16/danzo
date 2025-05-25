@@ -10,6 +10,7 @@ import (
 	httpDownloader "github.com/tanq16/danzo/internal/downloaders/http"
 	"github.com/tanq16/danzo/internal/downloaders/m3u8"
 	"github.com/tanq16/danzo/internal/downloaders/s3"
+	"github.com/tanq16/danzo/internal/downloaders/youtube"
 	"github.com/tanq16/danzo/internal/output"
 	"github.com/tanq16/danzo/internal/utils"
 )
@@ -28,6 +29,7 @@ var downloaderRegistry = map[string]utils.Downloader{
 	"gitclone":  &gitclone.GitCloneDownloader{},
 	"ghrelease": &ghrelease.GitReleaseDownloader{},
 	"m3u8":      &m3u8.M3U8Downloader{},
+	"youtube":   &youtube.YouTubeDownloader{},
 }
 
 func Run(jobs []utils.DanzoJob, numWorkers int, fileLog bool) {
