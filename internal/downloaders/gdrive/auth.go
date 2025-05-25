@@ -13,18 +13,6 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
-func GetAuthToken() (string, error) {
-	credentialsFile := os.Getenv("GDRIVE_CREDENTIALS")
-	if credentialsFile != "" {
-		return getAccessTokenFromCredentials(credentialsFile)
-	}
-	apiKey := os.Getenv("GDRIVE_API_KEY")
-	if apiKey == "" {
-		return "", errors.New("neither GDRIVE_CREDENTIALS nor GDRIVE_API_KEY environment variables are set")
-	}
-	return apiKey, nil
-}
-
 func getAccessTokenFromCredentials(credentialsFile string) (string, error) {
 	b, err := os.ReadFile(credentialsFile)
 	if err != nil {

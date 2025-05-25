@@ -5,18 +5,17 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
-	danzohttp "github.com/tanq16/danzo/internal/downloaders/http"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
 var (
 	driveFileRegex      = regexp.MustCompile(`https://drive\.google\.com/file/d/([^/]+)`)
 	driveShortLinkRegex = regexp.MustCompile(`https://drive\.google\.com/open\?id=([^&\s]+)`)
+	driveFolderRegex    = regexp.MustCompile(`https://drive\.google\.com/drive/folders/([^/]+)`)
 )
 
 const driveAPIURL = "https://www.googleapis.com/drive/v3/files"
@@ -26,6 +25,9 @@ func extractFileID(rawURL string) (string, error) {
 		return matches[1], nil
 	}
 	if matches := driveShortLinkRegex.FindStringSubmatch(rawURL); len(matches) > 1 {
+		return matches[1], nil
+	}
+	if matches := driveFolderRegex.FindStringSubmatch(rawURL); len(matches) > 1 {
 		return matches[1], nil
 	}
 	// Heuristically try to extract from URL parameters
@@ -40,7 +42,7 @@ func extractFileID(rawURL string) (string, error) {
 	return "", fmt.Errorf("unable to extract file ID from URL: %s", rawURL)
 }
 
-func GetFileMetadata(rawURL string, client *utils.DanzoHTTPClient, token string) (map[string]any, string, error) {
+func getFileMetadata(rawURL string, client *utils.DanzoHTTPClient, token string) (map[string]any, string, error) {
 	fileID, err := extractFileID(rawURL)
 	if err != nil {
 		return nil, "", fmt.Errorf("error extracting file ID: %v", err)
@@ -77,21 +79,71 @@ func GetFileMetadata(rawURL string, client *utils.DanzoHTTPClient, token string)
 	return metadata, fileID, nil
 }
 
-func PerformGDriveDownload(config utils.DownloadConfig, token string, fileID string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
-	outputDir := filepath.Dir(config.OutputPath)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("error creating output directory: %v", err)
-	}
+func listFolderContents(folderID, token string, client *utils.DanzoHTTPClient) ([]map[string]any, error) {
+	var files []map[string]any
+	pageToken := ""
 	isOAuth := !strings.HasPrefix(token, "AIza")
-	var downloadURL string
-	if isOAuth {
-		downloadURL = fmt.Sprintf("%s/%s?alt=media|%s", driveAPIURL, fileID, token)
-	} else {
-		downloadURL = fmt.Sprintf("%s/%s?alt=media&key=%s", driveAPIURL, fileID, token)
+
+	for {
+		var url string
+		if isOAuth {
+			url = fmt.Sprintf("%s?q='%s'+in+parents&fields=nextPageToken,files(id,name,size,mimeType)&pageSize=1000",
+				driveAPIURL, folderID)
+			if pageToken != "" {
+				url += "&pageToken=" + pageToken
+			}
+		} else {
+			url = fmt.Sprintf("%s?q='%s'+in+parents&fields=nextPageToken,files(id,name,size,mimeType)&pageSize=1000&key=%s",
+				driveAPIURL, folderID, token)
+			if pageToken != "" {
+				url += "&pageToken=" + pageToken
+			}
+		}
+
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		if isOAuth {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		req.Header.Set("Accept", "application/json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("failed to list folder contents: %d", resp.StatusCode)
+		}
+
+		var result map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return nil, err
+		}
+
+		if items, ok := result["files"].([]any); ok {
+			for _, item := range items {
+				if fileMap, ok := item.(map[string]any); ok {
+					files = append(files, fileMap)
+				}
+			}
+		}
+
+		// Check for next page
+		if nextToken, ok := result["nextPageToken"].(string); ok && nextToken != "" {
+			pageToken = nextToken
+		} else {
+			break
+		}
 	}
-	err := danzohttp.PerformSimpleDownload(downloadURL, config.OutputPath, client, progressCh)
-	if err != nil {
-		return fmt.Errorf("error downloading Google Drive file: %v", err)
-	}
-	return nil
+
+	return files, nil
+}
+
+func parseSize(sizeStr string) (int64, error) {
+	return strconv.ParseInt(sizeStr, 10, 64)
 }

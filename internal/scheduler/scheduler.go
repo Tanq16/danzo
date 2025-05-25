@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/tanq16/danzo/internal/downloaders/gdrive"
 	"github.com/tanq16/danzo/internal/downloaders/ghrelease"
 	"github.com/tanq16/danzo/internal/downloaders/gitclone"
 	httpDownloader "github.com/tanq16/danzo/internal/downloaders/http"
@@ -21,10 +22,9 @@ type Scheduler struct {
 }
 
 var downloaderRegistry = map[string]utils.Downloader{
-	"http": &httpDownloader.HTTPDownloader{},
-	"s3":   &s3.S3Downloader{},
-	// "youtube":    &youtubeDownloader{},
-	// "gdrive":     &gdriveDownloader{},
+	"http":      &httpDownloader.HTTPDownloader{},
+	"s3":        &s3.S3Downloader{},
+	"gdrive":    &gdrive.GDriveDownloader{},
 	"gitclone":  &gitclone.GitCloneDownloader{},
 	"ghrelease": &ghrelease.GitReleaseDownloader{},
 	"m3u8":      &m3u8.M3U8Downloader{},

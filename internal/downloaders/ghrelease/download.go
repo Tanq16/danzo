@@ -13,7 +13,7 @@ func (d *GitReleaseDownloader) Download(job *utils.DanzoJob) error {
 
 	client := utils.NewDanzoHTTPClient(job.HTTPClientConfig)
 
-	progressCh := make(chan int64, 100)
+	progressCh := make(chan int64)
 	progressDone := make(chan struct{})
 
 	// Progress tracking goroutine

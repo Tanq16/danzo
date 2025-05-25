@@ -31,17 +31,7 @@ func PerformSimpleDownload(url, outputPath string, client *utils.DanzoHTTPClient
 	}
 	defer outFile.Close()
 
-	// Extract OAuth token for Google Drive download ONLY
-	// urlToken := []string{}
-	// if strings.HasPrefix(url, "https://www.googleapis.com/drive/v3/files") {
-	// 	urlToken = append(urlToken, strings.Split(url, "|")...)
-	// 	url = urlToken[0]
-	// }
 	req, err := http.NewRequest("GET", url, nil)
-	// Set OAuth bearer token for Google Drive download ONLY
-	// if len(urlToken) > 1 {
-	// 	req.Header.Set("Authorization", "Bearer "+urlToken[1])
-	// }
 	if err != nil {
 		return fmt.Errorf("error creating GET request: %v", err)
 	}

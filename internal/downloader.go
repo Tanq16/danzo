@@ -4,12 +4,9 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	danzogdrive "github.com/tanq16/danzo/internal/downloaders/gdrive"
 
 	// danzogitr "github.com/tanq16/danzo/internal/downloaders/gitrelease"
 	danzohttp "github.com/tanq16/danzo/internal/downloaders/http"
@@ -460,58 +457,58 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 				// SFTP download
 				// =================================================================================================================
 				case "sftp":
-				// TODO
+					// TODO
 
-				// Google Drive download
-				// =================================================================================================================
-				case "gdrive":
-					simpleClient := utils.NewDanzoHTTPClient(httpClientConfig)
-					outputMgr.Pause()
-					apiKey, err := danzogdrive.GetAuthToken()
-					outputMgr.Resume()
-					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting API key: %v", err))
-						outputMgr.SetMessage(entryFunctionId, "Error getting API key")
-						continue
-					}
-					metadata, fileID, err := danzogdrive.GetFileMetadata(entry.URL, simpleClient, apiKey)
-					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting file metadata: %v", err))
-						outputMgr.SetMessage(entryFunctionId, "Error getting file metadata")
-						continue
-					}
-					if config.OutputPath == "" {
-						config.OutputPath = metadata["name"].(string)
-						if existingFile, _ := os.Stat(config.OutputPath); existingFile != nil {
-							config.OutputPath = utils.RenewOutputPath(config.OutputPath)
-						}
-						entry.OutputPath = config.OutputPath
-					}
-					fileSize := metadata["size"].(string)
-					fileSizeInt, _ := strconv.ParseInt(fileSize, 10, 64)
-					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading GDrive file %s (%s)", entry.OutputPath, utils.FormatBytes(uint64(fileSizeInt))))
+					// Google Drive download
+					// =================================================================================================================
+					// case "gdrive":
+					// 	simpleClient := utils.NewDanzoHTTPClient(httpClientConfig)
+					// 	outputMgr.Pause()
+					// 	apiKey, err := danzogdrive.GetAuthToken()
+					// 	outputMgr.Resume()
+					// 	if err != nil {
+					// 		outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting API key: %v", err))
+					// 		outputMgr.SetMessage(entryFunctionId, "Error getting API key")
+					// 		continue
+					// 	}
+					// 	metadata, fileID, err := danzogdrive.GetFileMetadata(entry.URL, simpleClient, apiKey)
+					// 	if err != nil {
+					// 		outputMgr.ReportError(entryFunctionId, fmt.Errorf("error getting file metadata: %v", err))
+					// 		outputMgr.SetMessage(entryFunctionId, "Error getting file metadata")
+					// 		continue
+					// 	}
+					// 	if config.OutputPath == "" {
+					// 		config.OutputPath = metadata["name"].(string)
+					// 		if existingFile, _ := os.Stat(config.OutputPath); existingFile != nil {
+					// 			config.OutputPath = utils.RenewOutputPath(config.OutputPath)
+					// 		}
+					// 		entry.OutputPath = config.OutputPath
+					// 	}
+					// 	fileSize := metadata["size"].(string)
+					// 	fileSizeInt, _ := strconv.ParseInt(fileSize, 10, 64)
+					// 	outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading GDrive file %s (%s)", entry.OutputPath, utils.FormatBytes(uint64(fileSizeInt))))
 
-					var progressWg sync.WaitGroup
-					progressWg.Add(1)
-					go func(outputPath string, filesize int64, progCh <-chan int64) {
-						defer progressWg.Done()
-						var totalDownloaded int64
-						for bytesDownloaded := range progCh {
-							totalDownloaded += bytesDownloaded
-							// progressString := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(totalDownloaded)), utils.FormatBytes(uint64(filesize)))
-							outputMgr.AddProgressBarToStream(entryFunctionId, totalDownloaded, filesize, utils.FormatBytes(uint64(totalDownloaded)))
-						}
-					}(entry.OutputPath, fileSizeInt, progressCh)
+					// 	var progressWg sync.WaitGroup
+					// 	progressWg.Add(1)
+					// 	go func(outputPath string, filesize int64, progCh <-chan int64) {
+					// 		defer progressWg.Done()
+					// 		var totalDownloaded int64
+					// 		for bytesDownloaded := range progCh {
+					// 			totalDownloaded += bytesDownloaded
+					// 			// progressString := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(totalDownloaded)), utils.FormatBytes(uint64(filesize)))
+					// 			outputMgr.AddProgressBarToStream(entryFunctionId, totalDownloaded, filesize, utils.FormatBytes(uint64(totalDownloaded)))
+					// 		}
+					// 	}(entry.OutputPath, fileSizeInt, progressCh)
 
-					err = danzogdrive.PerformGDriveDownload(config, apiKey, fileID, simpleClient, progressCh)
-					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading GDrive file %s: %v", entry.OutputPath, err))
-						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading GDrive file %s", entry.OutputPath))
-					} else {
-						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Completed GDrive download - %s", entry.OutputPath))
-					}
-					close(progressCh)
-					progressWg.Wait()
+					// 	err = danzogdrive.PerformGDriveDownload(config, apiKey, fileID, simpleClient, progressCh)
+					// 	if err != nil {
+					// 		outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading GDrive file %s: %v", entry.OutputPath, err))
+					// 		outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading GDrive file %s", entry.OutputPath))
+					// 	} else {
+					// 		outputMgr.Complete(entryFunctionId, fmt.Sprintf("Completed GDrive download - %s", entry.OutputPath))
+					// 	}
+					// 	close(progressCh)
+					// 	progressWg.Wait()
 
 					// M3U8 Stream download
 					// =================================================================================================================

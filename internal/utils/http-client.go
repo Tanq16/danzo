@@ -21,6 +21,7 @@ type HTTPClientConfig struct {
 
 type HTTPDoer interface {
 	Do(req *http.Request) (*http.Response, error)
+	SetHeader(key, value string)
 }
 
 type DanzoHTTPClient struct {
@@ -74,6 +75,10 @@ func NewDanzoHTTPClient(cfg HTTPClientConfig) *DanzoHTTPClient {
 		},
 		config: cfg,
 	}
+}
+
+func (d *DanzoHTTPClient) SetHeader(key, value string) {
+	d.config.Headers[key] = value
 }
 
 func (d *DanzoHTTPClient) Do(req *http.Request) (*http.Response, error) {
