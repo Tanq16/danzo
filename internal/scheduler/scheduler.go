@@ -28,7 +28,7 @@ var downloaderRegistry = map[string]utils.Downloader{
 	// "m3u8":       &m3u8Downloader{},
 }
 
-func Run(jobs []utils.DanzoJob, numWorkers int, debug bool) {
+func Run(jobs []utils.DanzoJob, numWorkers int, fileLog bool) {
 	s := &Scheduler{
 		outputMgr:       output.NewManager(),
 		pauseRequestCh:  make(chan struct{}),

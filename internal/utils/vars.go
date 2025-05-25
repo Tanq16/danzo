@@ -62,6 +62,8 @@ type DownloadEntry struct {
 }
 
 const DefaultBufferSize = 1024 * 1024 * 8 // 8MB buffer
+const LogFile = ".danzo.log"
+
 // const ToolUserAgent = "danzo/1337"
 
 var ErrRangeRequestsNotSupported = errors.New("range requests are not supported")

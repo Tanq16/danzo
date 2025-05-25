@@ -17,7 +17,7 @@ var (
 	headers       []string
 	workers       int
 	connections   int
-	debug         bool
+	fileLog       bool
 	version       string = "dev"
 )
 
@@ -62,7 +62,7 @@ func init() {
 	rootCmd.PersistentFlags().StringArrayVarP(&headers, "header", "H", []string{}, "Custom headers")
 	rootCmd.PersistentFlags().IntVarP(&workers, "workers", "w", 1, "Number of parallel workers")
 	rootCmd.PersistentFlags().IntVarP(&connections, "connections", "c", 8, "Number of connections per download")
-	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
+	rootCmd.PersistentFlags().BoolVar(&fileLog, "log", false, "Enable debug logging")
 
 	registerCommands()
 	fmt.Println()

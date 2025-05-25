@@ -39,7 +39,7 @@ Authentication:
 			}
 
 			jobs := []utils.DanzoJob{job}
-			scheduler.Run(jobs, workers, debug)
+			scheduler.Run(jobs, workers, fileLog)
 		},
 	}
 
