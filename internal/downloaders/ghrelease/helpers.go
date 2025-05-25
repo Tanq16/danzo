@@ -1,4 +1,4 @@
-package gitrelease
+package ghrelease
 
 import (
 	"bufio"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -22,18 +23,37 @@ var assetSelectMap = map[string][]string{
 	"darwinarm64":  {"darwin-arm64", "darwin_arm64", "darwin-aarch64", "darwin_aarch64", "arm64-darwin", "aarch64-darwin", "arm64_darwin", "aarch64_darwin"},
 }
 
+var repoPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/]+)/?.*$`),
+	regexp.MustCompile(`^github\.com/([^/]+)/([^/]+)/?.*$`),
+	regexp.MustCompile(`^([^/]+)/([^/]+)$`),
+}
+
 var ignoredAssets = []string{
 	"license", "readme", "changelog", "checksums", "sha256checksum", ".sha256",
 }
 
-func parseGitHubURL(url string) (string, string, bool, error) {
-	processParts := strings.Split(url, "||")
-	parts := strings.Split(processParts[0][9:], "/") // Remove "github://"
-	if len(parts) < 2 {
-		return "", "", false, fmt.Errorf("invalid GitHub URL format, expected github://owner/repo")
+func parseGitHubURL(url string) (string, string, error) {
+	url = strings.TrimSuffix(strings.TrimSpace(url), "/")
+
+	for _, pattern := range repoPatterns {
+		matches := pattern.FindStringSubmatch(url)
+		if len(matches) >= 3 {
+			return matches[1], matches[2], nil
+		}
 	}
-	return parts[0], parts[1], len(processParts) == 2 && processParts[1] == "version", nil
+
+	return "", "", fmt.Errorf("invalid GitHub repository format: %s", url)
 }
+
+// func parseGitHubURL(url string) (string, string, bool, error) {
+// 	processParts := strings.Split(url, "||")
+// 	parts := strings.Split(processParts[0][9:], "/") // Remove "github://"
+// 	if len(parts) < 2 {
+// 		return "", "", false, fmt.Errorf("invalid GitHub URL format, expected github://owner/repo")
+// 	}
+// 	return parts[0], parts[1], len(processParts) == 2 && processParts[1] == "version", nil
+// }
 
 func getGitHubReleaseAssets(owner, repo string, client *utils.DanzoHTTPClient) ([]map[string]any, string, error) {
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
@@ -240,46 +260,46 @@ func selectGitHubLatestAsset(assets []map[string]any) (string, int64, error) {
 // 	return processGitHubRelease(owner, repo, userSelect, client)
 // }
 
-func ProcessRelease(url string, userSelectOverride bool, client *utils.DanzoHTTPClient, needInputCh, inputDoneCh chan<- bool) (string, string, int64, error) {
-	owner, repo, userSelect, err := parseGitHubURL(url)
-	if err != nil {
-		return "", "", 0, err
-	}
-	var assets []map[string]any
-	var tagName string
-	if userSelect {
-		needInputCh <- true
-		assets, tagName, err = askGitHubReleaseAssets(owner, repo, client)
-		if err != nil {
-			return "", "", 0, err
-		}
-		downloadURL, size, err := promptGitHubAssetSelection(assets, tagName)
-		if err != nil {
-			return "", "", 0, err
-		}
-		inputDoneCh <- true
-		urlParts := strings.Split(downloadURL, "/")
-		filename := urlParts[len(urlParts)-1]
-		return downloadURL, filename, size, nil
-	} else {
-		assets, tagName, err = getGitHubReleaseAssets(owner, repo, client)
-		if err != nil {
-			return "", "", 0, err
-		}
-		downloadURL, size, err := selectGitHubLatestAsset(assets)
-		if err != nil {
-			return "", "", 0, err
-		}
-		if downloadURL == "" {
-			needInputCh <- true
-			downloadURL, size, err = promptGitHubAssetSelection(assets, tagName)
-			if err != nil {
-				return "", "", 0, err
-			}
-			inputDoneCh <- true
-		}
-		urlParts := strings.Split(downloadURL, "/")
-		filename := urlParts[len(urlParts)-1]
-		return downloadURL, filename, size, nil
-	}
-}
+// func ProcessRelease(url string, userSelectOverride bool, client *utils.DanzoHTTPClient, needInputCh, inputDoneCh chan<- bool) (string, string, int64, error) {
+// 	owner, repo, userSelect, err := parseGitHubURL(url)
+// 	if err != nil {
+// 		return "", "", 0, err
+// 	}
+// 	var assets []map[string]any
+// 	var tagName string
+// 	if userSelect {
+// 		needInputCh <- true
+// 		assets, tagName, err = askGitHubReleaseAssets(owner, repo, client)
+// 		if err != nil {
+// 			return "", "", 0, err
+// 		}
+// 		downloadURL, size, err := promptGitHubAssetSelection(assets, tagName)
+// 		if err != nil {
+// 			return "", "", 0, err
+// 		}
+// 		inputDoneCh <- true
+// 		urlParts := strings.Split(downloadURL, "/")
+// 		filename := urlParts[len(urlParts)-1]
+// 		return downloadURL, filename, size, nil
+// 	} else {
+// 		assets, tagName, err = getGitHubReleaseAssets(owner, repo, client)
+// 		if err != nil {
+// 			return "", "", 0, err
+// 		}
+// 		downloadURL, size, err := selectGitHubLatestAsset(assets)
+// 		if err != nil {
+// 			return "", "", 0, err
+// 		}
+// 		if downloadURL == "" {
+// 			needInputCh <- true
+// 			downloadURL, size, err = promptGitHubAssetSelection(assets, tagName)
+// 			if err != nil {
+// 				return "", "", 0, err
+// 			}
+// 			inputDoneCh <- true
+// 		}
+// 		urlParts := strings.Split(downloadURL, "/")
+// 		filename := urlParts[len(urlParts)-1]
+// 		return downloadURL, filename, size, nil
+// 	}
+// }

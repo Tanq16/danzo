@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/tanq16/danzo/internal/downloaders/ghrelease"
 	httpDownloader "github.com/tanq16/danzo/internal/downloaders/http"
 	"github.com/tanq16/danzo/internal/output"
 	"github.com/tanq16/danzo/internal/utils"
@@ -15,7 +16,7 @@ var downloaderRegistry = map[string]utils.Downloader{
 	// "youtube":    &youtubeDownloader{},
 	// "gdrive":     &gdriveDownloader{},
 	// "gitclone":   &gitCloneDownloader{},
-	// "gitrelease": &gitReleaseDownloader{},
+	"ghrelease": &ghrelease.GitReleaseDownloader{},
 	// "m3u8":       &m3u8Downloader{},
 }
 
