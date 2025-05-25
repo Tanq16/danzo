@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/tanq16/danzo/internal/downloaders/ghrelease"
+	"github.com/tanq16/danzo/internal/downloaders/gitclone"
 	httpDownloader "github.com/tanq16/danzo/internal/downloaders/http"
 	"github.com/tanq16/danzo/internal/output"
 	"github.com/tanq16/danzo/internal/utils"
@@ -22,7 +23,7 @@ var downloaderRegistry = map[string]utils.Downloader{
 	// "s3":         &s3Downloader{},
 	// "youtube":    &youtubeDownloader{},
 	// "gdrive":     &gdriveDownloader{},
-	// "gitclone":   &gitCloneDownloader{},
+	"gitclone":  &gitclone.GitCloneDownloader{},
 	"ghrelease": &ghrelease.GitReleaseDownloader{},
 	// "m3u8":       &m3u8Downloader{},
 }

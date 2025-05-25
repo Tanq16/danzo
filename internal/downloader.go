@@ -10,8 +10,8 @@ import (
 	"time"
 
 	danzogdrive "github.com/tanq16/danzo/internal/downloaders/gdrive"
-	danzogitc "github.com/tanq16/danzo/internal/downloaders/gitclone"
-	danzogitr "github.com/tanq16/danzo/internal/downloaders/gitrelease"
+
+	// danzogitr "github.com/tanq16/danzo/internal/downloaders/gitrelease"
 	danzohttp "github.com/tanq16/danzo/internal/downloaders/http"
 	danzom3u8 "github.com/tanq16/danzo/internal/downloaders/m3u8"
 	danzos3 "github.com/tanq16/danzo/internal/downloaders/s3"
@@ -212,138 +212,138 @@ func BatchDownload(entries []utils.DownloadEntry, numLinks, connectionsPerLink i
 
 				// GitHub Release download
 				// =================================================================================================================
-				case "gitrelease":
-					simpleClient := utils.NewDanzoHTTPClient(httpClientConfig)
-					userSelectOverride := false
-					if len(entries) > 1 {
-						userSelectOverride = true
-					}
+				// case "gitrelease":
+				// 	simpleClient := utils.NewDanzoHTTPClient(httpClientConfig)
+				// 	userSelectOverride := false
+				// 	if len(entries) > 1 {
+				// 		userSelectOverride = true
+				// 	}
 
-					// input control (to pause manager)
-					needInputCh := make(chan bool)
-					inputDoneCh := make(chan bool)
-					var inputWg sync.WaitGroup
-					inputWg.Add(1)
-					go func() {
-						defer inputWg.Done()
-						for {
-							select {
-							case _, ok := <-needInputCh:
-								if !ok {
-									return
-								}
-								outputMgr.Pause()
-							case _, ok := <-inputDoneCh:
-								if !ok {
-									return
-								}
-								outputMgr.Resume()
-							}
-						}
-					}()
+				// 	// input control (to pause manager)
+				// 	needInputCh := make(chan bool)
+				// 	inputDoneCh := make(chan bool)
+				// 	var inputWg sync.WaitGroup
+				// 	inputWg.Add(1)
+				// 	go func() {
+				// 		defer inputWg.Done()
+				// 		for {
+				// 			select {
+				// 			case _, ok := <-needInputCh:
+				// 				if !ok {
+				// 					return
+				// 				}
+				// 				outputMgr.Pause()
+				// 			case _, ok := <-inputDoneCh:
+				// 				if !ok {
+				// 					return
+				// 				}
+				// 				outputMgr.Resume()
+				// 			}
+				// 		}
+				// 	}()
 
-					downloadURL, filename, size, err := danzogitr.ProcessRelease(entry.URL, userSelectOverride, simpleClient, needInputCh, inputDoneCh)
-					close(needInputCh)
-					close(inputDoneCh)
-					inputWg.Wait()
-					outputMgr.Resume()
+				// 	downloadURL, filename, size, err := danzogitr.ProcessRelease(entry.URL, userSelectOverride, simpleClient, needInputCh, inputDoneCh)
+				// 	close(needInputCh)
+				// 	close(inputDoneCh)
+				// 	inputWg.Wait()
+				// 	outputMgr.Resume()
 
-					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error processing GitHub release URL %s: %v", entry.OutputPath, err))
-						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error processing GitHub release URL %s", entry.OutputPath))
-						continue
-					}
-					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading %s (%s)", filename, utils.FormatBytes(uint64(size))))
+				// 	if err != nil {
+				// 		outputMgr.ReportError(entryFunctionId, fmt.Errorf("error processing GitHub release URL %s: %v", entry.OutputPath, err))
+				// 		outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error processing GitHub release URL %s", entry.OutputPath))
+				// 		continue
+				// 	}
+				// 	outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Downloading %s (%s)", filename, utils.FormatBytes(uint64(size))))
 
-					if config.OutputPath == "" {
-						config.OutputPath = filename
-						entry.OutputPath = filename
-					}
+				// 	if config.OutputPath == "" {
+				// 		config.OutputPath = filename
+				// 		entry.OutputPath = filename
+				// 	}
 
-					// Internal goroutine to forward progress updates to the manager
-					var progressWg sync.WaitGroup
-					progressWg.Add(1)
-					go func(outputPath string, totalFileSize int64, progCh <-chan int64) {
-						defer progressWg.Done()
-						var totalDownloaded int64
-						for bytesDownloaded := range progCh {
-							totalDownloaded += bytesDownloaded
-							// progressString := fmt.Sprintf("%s / %s", , utils.FormatBytes(uint64(totalFileSize)))
-							outputMgr.AddProgressBarToStream(entryFunctionId, totalDownloaded, totalFileSize, utils.FormatBytes(uint64(totalDownloaded)))
-						}
-					}(entry.OutputPath, size, progressCh)
+				// 	// Internal goroutine to forward progress updates to the manager
+				// 	var progressWg sync.WaitGroup
+				// 	progressWg.Add(1)
+				// 	go func(outputPath string, totalFileSize int64, progCh <-chan int64) {
+				// 		defer progressWg.Done()
+				// 		var totalDownloaded int64
+				// 		for bytesDownloaded := range progCh {
+				// 			totalDownloaded += bytesDownloaded
+				// 			// progressString := fmt.Sprintf("%s / %s", , utils.FormatBytes(uint64(totalFileSize)))
+				// 			outputMgr.AddProgressBarToStream(entryFunctionId, totalDownloaded, totalFileSize, utils.FormatBytes(uint64(totalDownloaded)))
+				// 		}
+				// 	}(entry.OutputPath, size, progressCh)
 
-					err = danzohttp.PerformSimpleDownload(downloadURL, entry.OutputPath, simpleClient, progressCh)
-					close(progressCh)
-					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading %s: %v", entry.OutputPath, err))
-						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading %s", entry.OutputPath))
-					} else {
-						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Download completed for %s", entry.OutputPath))
-					}
-					progressWg.Wait()
+				// 	err = danzohttp.PerformSimpleDownload(downloadURL, entry.OutputPath, simpleClient, progressCh)
+				// 	close(progressCh)
+				// 	if err != nil {
+				// 		outputMgr.ReportError(entryFunctionId, fmt.Errorf("error downloading %s: %v", entry.OutputPath, err))
+				// 		outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error downloading %s", entry.OutputPath))
+				// 	} else {
+				// 		outputMgr.Complete(entryFunctionId, fmt.Sprintf("Download completed for %s", entry.OutputPath))
+				// 	}
+				// 	progressWg.Wait()
 
 				// Git clone download
 				// =================================================================================================================
-				case "gitclone":
-					if config.OutputPath == "" {
-						urlParts := strings.Split(entry.URL, "/")
-						if len(urlParts) >= 2 {
-							tempName := strings.Split(urlParts[len(urlParts)-1], "||")
-							config.OutputPath = tempName[0]
-							entry.OutputPath = config.OutputPath
-						} else {
-							config.OutputPath = "git-repo"
-							entry.OutputPath = "git-repo"
-						}
-					}
-					existingFile, _ := os.Stat(config.OutputPath)
-					if existingFile != nil {
-						config.OutputPath = utils.RenewOutputPath(config.OutputPath)
-						entry.OutputPath = config.OutputPath
-					}
-					parsedURL, depth, err := danzogitc.InitGitClone(entry.URL, config.OutputPath)
-					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error checking Git clone %s: %v", entry.OutputPath, err))
-						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error checking Git clone %s", entry.OutputPath))
-						continue
-					}
-					outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Cloning %s to %s", parsedURL, entry.OutputPath))
-					streamCh := make(chan string)
+				// case "gitclone":
+				// 	if config.OutputPath == "" {
+				// 		urlParts := strings.Split(entry.URL, "/")
+				// 		if len(urlParts) >= 2 {
+				// 			tempName := strings.Split(urlParts[len(urlParts)-1], "||")
+				// 			config.OutputPath = tempName[0]
+				// 			entry.OutputPath = config.OutputPath
+				// 		} else {
+				// 			config.OutputPath = "git-repo"
+				// 			entry.OutputPath = "git-repo"
+				// 		}
+				// 	}
+				// 	existingFile, _ := os.Stat(config.OutputPath)
+				// 	if existingFile != nil {
+				// 		config.OutputPath = utils.RenewOutputPath(config.OutputPath)
+				// 		entry.OutputPath = config.OutputPath
+				// 	}
+				// 	parsedURL, depth, err := danzogitc.InitGitClone(entry.URL, config.OutputPath)
+				// 	if err != nil {
+				// 		outputMgr.ReportError(entryFunctionId, fmt.Errorf("error checking Git clone %s: %v", entry.OutputPath, err))
+				// 		outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error checking Git clone %s", entry.OutputPath))
+				// 		continue
+				// 	}
+				// 	outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Cloning %s to %s", parsedURL, entry.OutputPath))
+				// 	streamCh := make(chan string)
 
-					// Internal goroutine to forward progress updates to the manager
-					var progressWg sync.WaitGroup
-					progressWg.Add(1)
-					go func(outputPath string, progCh <-chan int64) {
-						defer progressWg.Done()
-						var totalSize int64
-						for size := range progCh {
-							totalSize += size
-						}
-					}(entry.OutputPath, progressCh)
+				// 	// Internal goroutine to forward progress updates to the manager
+				// 	var progressWg sync.WaitGroup
+				// 	progressWg.Add(1)
+				// 	go func(outputPath string, progCh <-chan int64) {
+				// 		defer progressWg.Done()
+				// 		var totalSize int64
+				// 		for size := range progCh {
+				// 			totalSize += size
+				// 		}
+				// 	}(entry.OutputPath, progressCh)
 
-					// Goroutine to forward streaming output to the manager
-					var streamWg sync.WaitGroup
-					streamWg.Add(1)
-					go func(outputPath string, streamCh <-chan string) {
-						defer streamWg.Done()
-						for streamOutput := range streamCh {
-							outputMgr.AddStreamLine(entryFunctionId, streamOutput)
-						}
-					}(entry.OutputPath, streamCh)
+				// 	// Goroutine to forward streaming output to the manager
+				// 	var streamWg sync.WaitGroup
+				// 	streamWg.Add(1)
+				// 	go func(outputPath string, streamCh <-chan string) {
+				// 		defer streamWg.Done()
+				// 		for streamOutput := range streamCh {
+				// 			outputMgr.AddStreamLine(entryFunctionId, streamOutput)
+				// 		}
+				// 	}(entry.OutputPath, streamCh)
 
-					err = danzogitc.CloneRepository(parsedURL, config.OutputPath, progressCh, streamCh, depth)
-					close(progressCh)
-					close(streamCh)
-					if err != nil {
-						outputMgr.ReportError(entryFunctionId, fmt.Errorf("error cloning %s: %v", entry.OutputPath, err))
-						outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error cloning %s", entry.OutputPath))
-					} else {
-						outputMgr.Complete(entryFunctionId, fmt.Sprintf("Cloned repository - %s", entry.OutputPath))
-					}
+				// 	err = danzogitc.CloneRepository(parsedURL, config.OutputPath, progressCh, streamCh, depth)
+				// 	close(progressCh)
+				// 	close(streamCh)
+				// 	if err != nil {
+				// 		outputMgr.ReportError(entryFunctionId, fmt.Errorf("error cloning %s: %v", entry.OutputPath, err))
+				// 		outputMgr.SetMessage(entryFunctionId, fmt.Sprintf("Error cloning %s", entry.OutputPath))
+				// 	} else {
+				// 		outputMgr.Complete(entryFunctionId, fmt.Sprintf("Cloned repository - %s", entry.OutputPath))
+				// 	}
 
-					progressWg.Wait()
-					streamWg.Wait()
+				// 	progressWg.Wait()
+				// 	streamWg.Wait()
 
 				// AWS S3 download
 				// =================================================================================================================
