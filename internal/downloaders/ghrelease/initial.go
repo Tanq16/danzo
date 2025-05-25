@@ -2,6 +2,7 @@ package ghrelease
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/tanq16/danzo/internal/utils"
@@ -33,43 +34,39 @@ func (d *GitReleaseDownloader) BuildJob(job *utils.DanzoJob) error {
 	var tagName string
 	var err error
 
-	// Fetch release info
-	if manual {
-		assets, tagName, err = askGitHubReleaseAssets(owner, repo, client)
-	} else {
-		assets, tagName, err = getGitHubReleaseAssets(owner, repo, client)
-	}
+	// Always get latest release first
+	assets, tagName, err = getGitHubReleaseAssets(owner, repo, client)
 	if err != nil {
 		return fmt.Errorf("error fetching release info: %v", err)
 	}
 
-	// Select asset
-	var downloadURL string
-	var size int64
-	var filename string
+	// Try auto-select first
+	downloadURL, size, err := selectGitHubLatestAsset(assets)
+	if err != nil {
+		return err
+	}
 
+	// If auto-select failed and manual not specified, fail
+	if downloadURL == "" && !manual {
+		return fmt.Errorf("could not automatically select asset for platform %s/%s, use --manual flag", runtime.GOOS, runtime.GOARCH)
+	}
+
+	// If manual mode or auto-select failed with manual flag
 	if manual {
+		job.PauseFunc()
+
+		// Get user selection
 		downloadURL, size, err = promptGitHubAssetSelection(assets, tagName)
+		job.ResumeFunc()
+
 		if err != nil {
 			return err
-		}
-	} else {
-		downloadURL, size, err = selectGitHubLatestAsset(assets)
-		if err != nil {
-			return err
-		}
-		// Fall back to manual selection if auto-select fails
-		if downloadURL == "" {
-			downloadURL, size, err = promptGitHubAssetSelection(assets, tagName)
-			if err != nil {
-				return err
-			}
 		}
 	}
 
 	// Extract filename from URL
 	urlParts := strings.Split(downloadURL, "/")
-	filename = urlParts[len(urlParts)-1]
+	filename := urlParts[len(urlParts)-1]
 
 	// Set output path if not specified
 	if job.OutputPath == "" {

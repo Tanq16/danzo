@@ -10,6 +10,13 @@ import (
 	"github.com/tanq16/danzo/internal/utils"
 )
 
+type Scheduler struct {
+	outputMgr       *output.Manager
+	pauseRequestCh  chan struct{}
+	resumeRequestCh chan struct{}
+	singleJobMode   bool
+}
+
 var downloaderRegistry = map[string]utils.Downloader{
 	"http": &httpDownloader.HTTPDownloader{},
 	// "s3":         &s3Downloader{},
@@ -21,9 +28,20 @@ var downloaderRegistry = map[string]utils.Downloader{
 }
 
 func Run(jobs []utils.DanzoJob, numWorkers int, debug bool) {
-	outputMgr := output.NewManager() // TODO: pass debug flag
-	outputMgr.StartDisplay()
-	defer outputMgr.StopDisplay()
+	s := &Scheduler{
+		outputMgr:       output.NewManager(),
+		pauseRequestCh:  make(chan struct{}),
+		resumeRequestCh: make(chan struct{}),
+		singleJobMode:   len(jobs) == 1,
+	}
+
+	s.outputMgr.StartDisplay()
+	defer s.outputMgr.StopDisplay()
+
+	// Start pause/resume handler
+	if s.singleJobMode {
+		go s.handlePauseResume()
+	}
 
 	jobCh := make(chan utils.DanzoJob, len(jobs))
 	for _, job := range jobs {
@@ -34,67 +52,83 @@ func Run(jobs []utils.DanzoJob, numWorkers int, debug bool) {
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
-		go func(workerID int) {
+		go func() {
 			defer wg.Done()
-			processJobs(jobCh, outputMgr)
-		}(i)
+			s.processJobs(jobCh)
+		}()
 	}
 
 	wg.Wait()
 }
 
-func processJobs(jobCh <-chan utils.DanzoJob, outputMgr *output.Manager) {
+func (s *Scheduler) handlePauseResume() {
+	for {
+		select {
+		case <-s.pauseRequestCh:
+			s.outputMgr.Pause()
+		case <-s.resumeRequestCh:
+			s.outputMgr.Resume()
+		}
+	}
+}
+
+func (s *Scheduler) processJobs(jobCh <-chan utils.DanzoJob) {
 	for job := range jobCh {
-		funcID := outputMgr.RegisterFunction(job.OutputPath)
+		funcID := s.outputMgr.RegisterFunction(job.OutputPath)
+
 		downloader, exists := downloaderRegistry[job.JobType]
 		if !exists {
-			outputMgr.ReportError(funcID, fmt.Errorf("unknown job type: %s", job.JobType))
-			outputMgr.SetMessage(funcID, fmt.Sprintf("Error: Unknown job type %s", job.JobType))
+			s.outputMgr.ReportError(funcID, fmt.Errorf("unknown job type: %s", job.JobType))
+			s.outputMgr.SetMessage(funcID, fmt.Sprintf("Error: Unknown job type %s", job.JobType))
 			continue
 		}
 
-		outputMgr.SetStatus(funcID, "pending")
-		outputMgr.SetMessage(funcID, fmt.Sprintf("Validating %s job", job.JobType))
+		s.outputMgr.SetStatus(funcID, "pending")
+		s.outputMgr.SetMessage(funcID, fmt.Sprintf("Validating %s job", job.JobType))
 		err := downloader.ValidateJob(&job)
 		if err != nil {
-			outputMgr.ReportError(funcID, fmt.Errorf("validation failed: %v", err))
-			outputMgr.SetMessage(funcID, fmt.Sprintf("Validation failed for %s", job.OutputPath))
+			s.outputMgr.ReportError(funcID, fmt.Errorf("validation failed: %v", err))
+			s.outputMgr.SetMessage(funcID, fmt.Sprintf("Validation failed for %s", job.OutputPath))
 			continue
 		}
 
-		outputMgr.SetMessage(funcID, fmt.Sprintf("Preparing %s job", job.JobType))
+		s.outputMgr.SetMessage(funcID, fmt.Sprintf("Preparing %s job", job.JobType))
+		if s.singleJobMode {
+			job.PauseFunc = func() { s.pauseRequestCh <- struct{}{} }
+			job.ResumeFunc = func() { s.resumeRequestCh <- struct{}{} }
+		}
 		err = downloader.BuildJob(&job)
 		if err != nil {
 			if err.Error() == "file already exists with same size" {
-				outputMgr.SetStatus(funcID, "success")
-				outputMgr.SetMessage(funcID, fmt.Sprintf("File already exists: %s", job.OutputPath))
-				outputMgr.Complete(funcID, "")
+				s.outputMgr.SetStatus(funcID, "success")
+				s.outputMgr.SetMessage(funcID, fmt.Sprintf("File already exists: %s", job.OutputPath))
+				s.outputMgr.Complete(funcID, "")
 				continue
 			}
-			outputMgr.ReportError(funcID, fmt.Errorf("build failed: %v", err))
-			outputMgr.SetMessage(funcID, fmt.Sprintf("Build failed for %s", job.OutputPath))
+			s.outputMgr.ReportError(funcID, fmt.Errorf("build failed: %v", err))
+			s.outputMgr.SetMessage(funcID, fmt.Sprintf("Build failed for %s", job.OutputPath))
 			continue
 		}
 
 		if job.ProgressType == "progress" {
 			job.ProgressFunc = func(downloaded, total int64) {
 				if total > 0 {
-					outputMgr.AddProgressBarToStream(funcID, downloaded, total, utils.FormatBytes(uint64(downloaded)))
+					s.outputMgr.AddProgressBarToStream(funcID, downloaded, total, utils.FormatBytes(uint64(downloaded)))
 				}
 			}
 		} else if job.ProgressType == "stream" {
 			job.StreamFunc = func(line string) {
-				outputMgr.AddStreamLine(funcID, line)
+				s.outputMgr.AddStreamLine(funcID, line)
 			}
 		}
 
-		outputMgr.SetMessage(funcID, fmt.Sprintf("Downloading %s", job.OutputPath))
+		s.outputMgr.SetMessage(funcID, fmt.Sprintf("Downloading %s", job.OutputPath))
 		err = downloader.Download(&job)
 		if err != nil {
-			outputMgr.ReportError(funcID, fmt.Errorf("download failed: %v", err))
-			outputMgr.SetMessage(funcID, fmt.Sprintf("Download failed for %s", job.OutputPath))
+			s.outputMgr.ReportError(funcID, fmt.Errorf("download failed: %v", err))
+			s.outputMgr.SetMessage(funcID, fmt.Sprintf("Download failed for %s", job.OutputPath))
 			continue
 		}
-		outputMgr.Complete(funcID, fmt.Sprintf("Completed %s", job.OutputPath))
+		s.outputMgr.Complete(funcID, fmt.Sprintf("Completed %s", job.OutputPath))
 	}
 }

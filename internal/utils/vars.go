@@ -23,6 +23,8 @@ type DanzoJob struct {
 	Connections      int
 	Metadata         map[string]any
 	HTTPClientConfig HTTPClientConfig
+	PauseFunc        func() // Request pause for output
+	ResumeFunc       func() // Request resume for output
 }
 
 type DownloadConfig struct {
