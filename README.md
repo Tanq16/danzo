@@ -8,53 +8,57 @@
 
 ---
 
+> [!WARNING]
+> Danzo has seen a significant refactor that changed how commands were called in previous versions. This was done to support an easier CLI interface and make it easier to add additional downloaders in the future.
+
 ## Quickstart
 
 This section gives a quick peek at the capabilities and the extremely simple command structure. For detailed descriptions, see [Usage](#usage).
 
 - HTTP(S) downloads
   ```bash
-  danzo https://example.com/internet-file.zip -o local.zip # (in lieu of `wget`)
-  danzo https://example.com/file.zip -H "Authorization: Basic dW46cHc=" # (custom headers like in curl)
-  danzo https://example.com/largefile.zip -c 40 # (fast, multi-threaded, multi-chunked with 40 threads)
+  danzo http https://example.com/internet-file.zip -o local.zip # (in lieu of `wget`)
+  danzo http https://example.com/file.zip -H "Authorization: Basic dW46cHc=" # (custom headers like in curl)
+  danzo http https://example.com/largefile.zip -c 40 # (fast, multi-threaded, multi-chunked with 40 threads)
   ```
 - Batch download from config (multiple workers)
   ```bash
-  danzo -l downloads.yaml -w 4 -c 16 # (4 workers with 16 threads each)
+  danzo batch downloads.yaml -w 4 -c 16 # (4 workers with 16 threads each; see Usage for YAML syntax)
   ```
 - YouTube video download (uses `yt-dlp`, `ffmpeg`, `ffprobe`)
   ```bash
-  danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # (default is best quality)
-  danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||1080p" # (download in 1080p)
-  # allows customization with `||best60`, `||decent`, `||1080p60`, and more (see usage)
-  danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||audio" # (download `.m4a` audio)
-  danzo "https://youtu.be/JJpFTUP6fIo||music:apple:1800533191" # (add music metadata from itunes)
-  danzo "https://youtu.be/JJpFTUP6fIo||music:deezer:3271607031" # (add music metadata from deezer)
+  danzo youtube "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # (default is <=1080p, <=60fps quality)
+  danzo youtube "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format 1080p # (download in 1080p)
+  # allows customization with `best60`, `decent`, `1080p60`, and more (see Usage)
+  danzo ytmusic "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # (download standard `.m4a` audio)
+  danzo ytmusic "https://youtu.be/JJpFTUP6fIo" --apple 1800533191 # (add music metadata from itunes)
+  danzo ytmusic "https://youtu.be/JJpFTUP6fIo" --deezer 3271607031 # (add music metadata from deezer)
   ```
 - Download file from Google Drive
   ```bash
-  GDRIVE_API_KEY="your_key" danzo "https://drive.google.com/file/d/abc123/view" # (static Key only for publicly shared files)
-  GDRIVE_CREDENTIALS=service-acc-key.json danzo "https://drive.google.com/file/d/abc123/view" # (OAuth device code flow for private files)
+  danzo gdrive "https://drive.google.com/file/d/abc123/view" --api-key your_key # (static Key only for publicly shared files)
+  danzo gdrive "https://drive.google.com/file/d/abc123/view" --creds service-acc-key.json # (OAuth device code flow for private files)
   ```
 - Download streamed output from an m3u8-manifest
   ```bash
-  danzo "m3u8://https://example.com/manifest.m3u8" -o video.mp4
+  danzo m3u8 "https://example.com/manifest.m3u8" -o video.mp4
   ```
 - Download an S3 object or folder
   ```bash
-  AWS_PROFILE=myprofile danzo "s3://mybucket/path/to/file.zip"
+  danzo s3 "s3://mybucket/path/to/file.zip" --profile myprofile
+  # also supports directories, it will use download multiple objects in parallel
   ```
 - Download GitHub release asset
   ```bash
-  danzo "github://username/repo" # (auto-selects release according to OS and arch)
-  danzo "github://username/repo||version" # (choose interactively)
+  danzo ghrelease "username/repo" # (auto-selects release according to OS and arch)
+  danzo ghrelease "username/repo" --manual # (choose interactively)
   ```
 - Clone a git repository
   ```bash
-  danzo "gitlab.com/username/repo" # (also supports `github.com/`, `bitbucket.org/`, and `git.com/`)
-  danzo "gitlab.com/username/repo||1" # (clone with --depth=1)
-  GIT_TOKEN=$(cat /secrets/ghtoken) danzo "github.com/tanq16/private" # (use a PAT; auto-manages for different providers)
-  GIT_SSH="/secrets/gh-ssh.key" danzo "github.com/tanq16/private" # (use an SSH key to authenticate)
+  danzo gitclone "gitlab.com/username/repo" # (supports `github.com/`, `bitbucket.org/`, and `git.com/`)
+  danzo gitclone "github.com/username/repo" --depth 1 # (clone with --depth=1)
+  danzo gitclone "github.com/tanq16/private" --token $(cat /secrets/ghtoken) # (use a PAT; auto-manages for different providers)
+  danzo gitclone "github.com/tanq16/private" --ssh "/secrets/gh-ssh.key" # (use an SSH key to authenticate)
   ```
 
 ## Installation
@@ -65,7 +69,7 @@ This section gives a quick peek at the capabilities and the extremely simple com
 - Unzip the file, make the binary executable (Linux/macOS) with `chmod +x danzo`, and run as
 
 ```bash
-danzo "https://example.com/largefile.zip"
+danzo http "https://example.com/largefile.zip"
 ```
 
 ### Using Go (Development Version)
@@ -83,56 +87,30 @@ git clone https://github.com/tanq16/danzo.git && cd danzo
 go build .
 ```
 
-### CLI Options
-
-The command line options can be printed with `danzo -h`:
-
-```
-Danzo is a fast CLI download manager
-
-Usage:
-  danzo [flags]
-
-Flags:
-      --clean                         Clean up temporary files for provided output path
-  -c, --connections int               Number of connections per download (above 8 enables high-thread-mode) (default 8)
-      --debug                         Enable debug logging
-  -H, --header stringArray            Custom headers (like 'Authorization: Basic dXNlcjpwYXNz'); can be specified multiple times
-  -h, --help                          help for danzo
-  -k, --keep-alive-timeout duration   Keep-alive timeout for client (eg. 10s, 1m, 80s) (default 1m30s)
-  -o, --output string                 Output file path (Danzo infers file name if not provided)
-  -p, --proxy string                  HTTP/HTTPS proxy URL (e.g., proxy.example.com:8080)
-      --proxy-password string         Proxy password (if not provided in proxy URL)
-      --proxy-username string         Proxy username (if not provided in proxy URL)
-  -t, --timeout duration              Connection timeout (eg. 5s, 10m) (default 3m0s)
-  -l, --urllist string                Path to YAML file containing URLs and output paths
-  -a, --user-agent string             User agent (default "danzo/1337")
-  -v, --version                       version for danzo
-  -w, --workers int                   Number of links to download in parallel (default 1)
-```
-
-> [!TIP]
-> The help section will aid in building a command, but not explain the nuances. It's highly recommended to read through this document to understand edge cases and nuanced details to bring the most out of downloads with Danzo.
-
 ## Usage
 
 ### Basic Usage
 
-The simplest way to download a file is to provide a URL directly and let Danzo do its thing:
+The simplest download is that of a file over HTTP(S). Just provide a URL and let Danzo do its thing:
 
 ```bash
-danzo https://example.com/largefile.zip
+danzo http https://example.com/largefile.zip
 ```
 
-Of course, this will not always yield the best result, so to optimize according to file types, use multiple thread (read through the next couple sections to learn more).
+Danzo supports these global options:
 
-Some quick tips:
+```
+--proxy, -p          HTTP/HTTPS proxy URL
+--proxy-username     Proxy authentication username  
+--proxy-password     Proxy authentication password
+--user-agent, -a     Custom user agent string
+--header, -H         Custom headers (repeatable)
+--workers, -w        Number of parallel workers (default: 1)
+--connections, -c    Connections per download (default: 8)
+--log                Enable debug logging (WORK IN PROGRESS)
+```
 
-- For troubleshooting, use `--debug` to see detailed operation logs
-- Use `-a randomize` to assign a random user agent for the HTTP client (only for HTTP(S) downloads)
-- Danzo supports a proxy using `-p` flag primarily for HTTP(S) downloads and defaults to HTTP scheme, otherwise uses what's provided
-- Proxy authentication can be provided with `--proxy-username` and `--proxy-password`
-- Custom headers can be passed with `-H` just like in `curl`
+Using a download directly won't always yield the best result, so to optimize according to file types, use multiple threads (read through the next couple sections to learn more).
 
 Follow these links to quickly jump to the relevant provider:
 
@@ -146,14 +124,14 @@ Follow these links to quickly jump to the relevant provider:
 
 ### HTTP(S) Downloads
 
-The output filename will be inferred from the URL and Danzo will use 4 connection threads by default. You can also specify an output filename manually with:
+The output filename will be inferred from the URL and Danzo will use 8 connection threads and 1 worker by default. You can also specify an output filename manually like:
 
 ```bash
-danzo https://example.com/largefile.zip -o ./path/to/file.zip
+danzo http https://example.com/largefile.zip -o ./path/to/file.zip
 ```
 
 > [!NOTE]
-> The value for `-c` can go upto `64` for a single URL. Danzo creates chunks equal to number of connections requested. Once all chunks are downloaded, they are combined into a single file. If the decided number of chunks are smaller than 20 MB, Danzo falls back to a single threaded download for that file. This number was **arbitrarily** chosen based on heuristics.
+> The value for `-c` can be arbitrary. Danzo creates chunks equal to number of connections requested. Once all chunks are downloaded, they are combined into a single file. If the decided number of chunks are too small, Danzo falls back to a single threaded download for that file.
 
 You can customize the number of connections to use like so:
 
@@ -170,35 +148,33 @@ danzo "https://example.com/largefile.zip" -c 16
 
 Lastly, if a URL does not use byte-range requests (i.e., server doesn't support partial content downloads), Danzo automatically switches to a simple, single-threaded, direct download.
 
-> [!TIP]
-> If a download is interrupted, Danzo will automatically resume from temporary files when you run the same command (requires matching connections count). Failed chunk downloads are automatically retried up to 5 times before failing.
-
 #### Batch Download Capability
 
 Danzo can be provided a YAML config to allow simultaneous downloads of several URLs. Each URL in turn will use multi-threaded connection mode by default to maximize throughput. The YAML file requires following format:
 
 ```yaml
-- op: "./output1.zip"
-  link: "https://example.com/file1.zip"
-- op: "./output2.zip"
-  link: "https://example.com/file2.zip"
-# more entries with output path and urls...
+http:
+  - link: https://example.com/file1.zip
+    op: downloads/file1.zip
+  - link: https://example.com/file2.zip
+
+youtube:
+  - link: https://youtube.com/watch?v=xxx
+    op: video.mp4
+
+s3:
+  - link: s3://bucket/file.zip
 ```
 
-Then run Danzo as:
-
 ```bash
-danzo -l config.yaml
+danzo batch downloads.yaml
 ```
 
 The number of files being downloaded in parallel can be configured as workers (default: 1) and the number of connections would be applied per worker. Define these parameters as follows:
 
 ```bash
-danzo -l downloads.yaml -w 3 -c 16
+danzo batch downloads.yaml -w 3 -c 16 # uses 3 works with 16 threads each
 ```
-
-> [!NOTE]
-> Danzo caps the total number of parallel workers at 64. Specifically `#workers * #connections <= 64`. This is a generous default to prevent overwhelming the system.
 
 #### Resumable Downloads & Temporary Files
 
@@ -212,25 +188,23 @@ These partial downloads on disk are useful when a download event is interrupted 
 To clear the temporary (partially downloaded) files, use the command with the `clean` flag:
 
 ```bash
-danzo --clean -o "./path/for/download.zip"
+danzo clean "./path/for/download.zip"
 # or if output was in current directory -
-danzo --clean
+danzo clean
 ```
 
-For batch downloads, you may need to run the clean command for each output path individually if they don't share the same parent directory.
-
-> [!NOTE]
-> The `clean` command is helpful only when your downloads have failed or were interrupted. Otherwise, Danzo automatically runs a clean for a download event once it is successful.
+> [!TIP]
+> Failed chunks are automatically retried up to 5 times before failing the entire file. Additionally, Danzo automatically runs a clean for a download event once it is successful.
 
 ### Google Drive Downloads
 
 Downloading a file from a Drive URL requires authentication, which Danzo supports in 2 ways:
 
-- `API Key`: The API key is automatically picked up from the `GDRIVE_API_KEY` environment variable.
+- `API Key`:
   - This requires the end-user to create an API key after enabling the drive API [here](https://console.cloud.google.com/apis/dashboard).
   - Users should visit the [GCP credentials console](https://console.cloud.google.com/apis/credentials), and then create an API key.
   - Then, click the key and restrict it to only the Google Drive API. Save this somewhere safe (**this is a secret**).
-- `OAuth2.0 Device Code`: This requires an OAuth client credential file passed to Danzo via the `GDRIVE_CREDENTIALS` environment credentials (similar to how `rclone` does it).
+- `OAuth2.0 Device Code`: This requires an OAuth client credential file passed to Danzo (similar to how `rclone` does it).
   - Users should enable the necessary APIs like shown in the `API Key` section before this.
   - Then, visit the [GCP credentials console](https://console.cloud.google.com/apis/credentials) and create an "OAuth2.0 Client ID".
   - Download and save the credential JSON file in a safe location (**this is a secret**).
@@ -240,7 +214,7 @@ Downloading a file from a Drive URL requires authentication, which Danzo support
   - The URL bar will have a link of the form `http ://localhost/?state=state-token&code=4/0.....AOwVQ&scope=https:// www.googleapis.com/auth/drive.readonly`.
   - The `code=....&`, i.e., the part after the `=` and before the next `&` sign (highlighted in bold in the previous URL) is what you need to copy and paste into the Danzo terminal waiting for input, then press return.
   - Danzo will exchange this for an authentication token and save it to `.danzo-token.json`.
-  - If you re-attempt the use of `GDRIVE_CREDENTIALS`, Danzo will reuse the token from current directory if it exists, refresh it if possible, and fallback to reauthentication.
+  - If you re-attempt the use of these credentials, Danzo will reuse the token from current directory if it exists, refresh it if possible, and fallback to reauthentication.
 
 > [!TIP]
 > The API Key method only works on files that are either publicly shared or shared with your user. It cannot be used to download private files that you own. So for your own files, use the OAuth device code method.
@@ -248,19 +222,17 @@ Downloading a file from a Drive URL requires authentication, which Danzo support
 Danzo can be used in this manner to download Google Drive files:
 
 ```bash
-GDRIVE_API_KEY=$(cat ~/secrets/gdrive-api.key) \
-danzo "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link"
+danzo gdrive "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link" --api-key $(cat ~/secrets/gdrive-api.key)
 ```
 
 OR
 
 ```bash
-GDRIVE_CREDENTIALS=~/secrets/gdrive-oauth.key \
-danzo "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link"
+danzo gdrive "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link" --creds ~/secrets/gdrive-oauth.key
 ```
 
 > [!WARNING]
-> Danzo does not perform multi-connection download for Google Drive files; instead it uses the simple download method. For Google Drive specifically, this does not present a loss in bandwidth; however, remember that Google does throttle repeated downloads after a while.
+> Danzo does not perform multi-connection download for Google Drive files; instead it uses the simple download method. For Google Drive specifically, this does not present a significant loss in bandwidth. This is done because Google can throttle multiple connections after a while.
 
 > [!NOTE]
 > Users who have never logged into GCP may be required to create a new GCP Project. This is normal and doesn't cost anything.
@@ -269,12 +241,11 @@ danzo "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link"
 
 Danzo supports downloading videos and audio from YouTube by using [yt-dlp](https://github.com/yt-dlp/yt-dlp) as a dependency. Some files and merge operations may also require `ffmpeg` and `ffprobe`. If not present, Danzo will make a temporary download of the appropriate `yt-dlp` binary. However, it is recommended to have `yt-dlp`, `ffmpeg`, and `ffprobe` pre-installed.
 
-
 To download a YouTube video:
 
 ```bash
-# By default, Danzo will download the best available quality.
-danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+# By default, Danzo will download the <=1080p and <=60fps quality.
+danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 ```
 
 > [!NOTE]
@@ -284,28 +255,26 @@ A download type can be appended to the URL to control Danzo's behavior. These de
 
 ```bash
 # Download 1080p MP4
-danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||1080p"
+danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format "1080p"
 
 # Download 720p MP4
-danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||720p"
+danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format "720p"
 
 # Download decent quality (≤1080p)
-danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||decent"
+danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format "decent"
 
 # Download audio only (m4a)
-danzo "https://www.youtube.com/watch?v=dQw4w9WgXcQ||audio"
+danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format "audio"
 ```
-
-All available types are listed in the [youtube.go](./downloaders/youtube/youtube.go) file.
 
 > [!NOTE]
 > YouTube downloads require `yt-dlp` to be installed on your system. If it's not found, Danzo will automatically download and use a compatible version. Additionally, since the STDOUT and STDERR are directly streamed from `yt-dlp` to `danzo`, YouTube videos are not tracked for progress the way HTTP downloads are. When downloading a single YouTube URL, the output from `yt-dlp` will be streamed to the user's STDOUT. But if the URL is part of a batch file, then the output is hidden and the progress appears stalled until finished.
 
-Danzo also supports downloading music from YouTube and automatically add metadata from the Deezer or the iTunes API, when the appropriate ID is provided. This can be done via the `||music...` tag, which customizes the behavior of the `||audio` tag and uses `ffmpeg` to add custom metadata for the file. Example:
+Danzo also supports downloading music from YouTube and automatically add metadata from the Deezer or the iTunes API, when the appropriate ID is provided. Example:
 
 ```bash
-danzo "https://youtu.be/JJpFTUP6fIo||music:apple:1800533191"
-danzo "https://youtu.be/JJpFTUP6fIo||music:deezer:3271607031"
+danzo ytmusic "https://youtu.be/JJpFTUP6fIo" --apple "1800533191"
+danzo ytmusic "https://youtu.be/JJpFTUP6fIo" --deezer "3271607031"
 ```
 
 ### M3U8 Stream Downloads
@@ -318,10 +287,10 @@ Danzo downloads the M3U8 manifest, parses the playlist (supports both master and
 > Danzo requires `ffmpeg` to be installed for merging the segments.
 
 ```bash
-danzo "m3u8://https://example.com/path/to/playlist.m3u8" -o video.mp4
+danzo m3u8 "https://example.com/path/to/playlist.m3u8" -o video.mp4
 
 # With default output name (stream_[timestamp].mp4)
-danzo "m3u8://https://example.com/video/master.m3u8"
+danzo m3u8 "https://example.com/video/master.m3u8"
 ```
 
 ### AWS S3 Downloads
@@ -335,23 +304,19 @@ Danzo supports downloading a single object, a single directory, or the entire bu
 
 ```bash
 # uses the `astro` profile to authenticate
-AWS_PROFILE=astro danzo "s3://mybucket/path/to/file.zip"
+danzo s3 "s3://mybucket/path/to/file.zip" --profile astro
 ```
 
-You can also download entire folders from S3:
+You can also download entire folders from S3 (specifying just the key):
 
 ```bash
-danzo "s3://mybucket/some/directory/"
+danzo s3 "mybucket/some/directory/"
 ```
 
-AWS session profiles are used to allow for flexibility and ease of access. As a result, specifying the environment variable (`AWS_PROFILE`) allows using a profile of the user's choice. Additionally, when not set inline or exported, Danzo uses the `default` profile.
-
-```bash
-AWS_PROFILE=myprofile danzo "s3://mybucket/path/to/file.zip"
-```
+AWS session profiles are used to allow for flexibility and ease of access. As a result, specifying the flag (`--profile`) allows using a profile of the user's choice. Additionally, when not set, Danzo uses the `default` profile.
 
 > [!WARNING]
-> For successful authentication, Danzo should use a profile that is configured for the same region as the S3 bucket.
+> For successful authentication, Danzo needs to use a profile that is configured for the same region as the S3 bucket.
 
 > [!NOTE]
 > For S3 downloads, the `connections` flag determines how many objects will be downloaded in parallel if downloading a folder.
@@ -362,7 +327,7 @@ It is often a task to download GitHub project releases because it requires figur
 
 ```bash
 # default: latest release for your platform
-danzo "github://owner/repo"
+danzo ghrelease "github.com/owner/repo"
 ```
 
 Danzo also automatically falls back to a user selection process where the user is displayed the release versions and the assets, requiring the user to confirm each to trigger the correct download.
@@ -370,11 +335,8 @@ Danzo also automatically falls back to a user selection process where the user i
 If the user selection process needs to be manually kicked off, use Danzo like so:
 
 ```bash
-danzo "github://owner/repo||version"
+danzo ghrelease "owner/repo" --manual
 ```
-
-> [!WARNING]
-> If you provide a `||version` subcommand or if the automatic download triggers a selection process when using a YAML config for batch downloads, the continuous progress display may interfere with the selection display. This may become especially harder if multiple `github://` URLs are used. Therefore, it is recommended to use the GitHub release download feature only for one-off downloads.
 
 ### Git Repository Cloning
 
@@ -390,28 +352,27 @@ Danzo supports the use of Personal Access Tokens as well as SSH keys when clonin
 - `github.com/owner/repo`
 - `gitlab.com/owner/repo`
 - `bitbucket.org/owner/repo`
-- `git.com/provider/owner/repo`: This is a special case where you can point to non-standard version control providers like Gitea, etc. The `git.com` prefix is effectively replaced with `https://`
 
 To clone a publicly available git repository, use a command like so:
 
 ```bash
-danzo "gitlab.com/volian/nala"
+danzo gitclone "gitlab.com/volian/nala"
 ```
 
 If there is a need to enforce clone depth (`git clone REPO --depth=1`), use a suffix like so:
 
 ```bash
-danzo "gitlab.com/volian/nala||1"
+danzo gitclone "gitlab.com/volian/nala" --depth 1
 ```
 
 To clone a git repository with authentication (PAT or SSH Key), use one of the following:
 
 ```bash
 # use a personal access token; Danzo will handle username per provider
-GIT_TOKEN=$(cat /secrets/ghtoken) danzo "github.com/tanq16/private"
+danzo gitclone "github.com/tanq16/private" --token $(cat /secrets/ghtoken)
 
 # use an SSH key to authenticate
-GIT_SSH="/secrets/gh-ssh.key" danzo github.com/tanq16/private
+danzo gitclone github.com/tanq16/private --ssh "/secrets/gh-ssh.key"
 ```
 
 > [!NOTE]
