@@ -32,6 +32,6 @@ func newYouTubeCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "Output file path")
-	cmd.Flags().StringVarP(&format, "format", "f", "decent", "Video format (best, 1080p, 720p, etc.)")
+	cmd.Flags().StringVar(&format, "format", "decent", "Video format (best, 1080p, 720p, etc.)")
 	return cmd
 }

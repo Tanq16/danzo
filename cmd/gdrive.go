@@ -37,7 +37,7 @@ func newGDriveCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "Output path")
-	cmd.Flags().StringVarP(&apiKey, "api-key", "a", "", "Google Drive API key")
-	cmd.Flags().StringVarP(&credentialsFile, "creds", "c", "", "OAuth credentials JSON file")
+	cmd.Flags().StringVar(&apiKey, "api-key", "", "Google Drive API key")
+	cmd.Flags().StringVar(&credentialsFile, "creds", "", "OAuth credentials JSON file")
 	return cmd
 }

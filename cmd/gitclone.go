@@ -40,7 +40,7 @@ func newGitCloneCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "Output directory path")
-	cmd.Flags().IntVarP(&depth, "depth", "d", 0, "Clone depth (0 for full history)")
+	cmd.Flags().IntVar(&depth, "depth", 0, "Clone depth (0 for full history)")
 	cmd.Flags().StringVar(&token, "token", "", "Git token for authentication")
 	cmd.Flags().StringVar(&sshKey, "ssh", "", "SSH key path for authentication")
 	return cmd

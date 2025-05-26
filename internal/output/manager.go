@@ -127,14 +127,15 @@ func (m *Manager) AddStreamLine(id int, line string) {
 	}
 }
 
-func (m *Manager) AddProgressBarToStream(id int, current, total int64, text string) {
+func (m *Manager) AddProgressBarToStream(id int, current, total int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if job, exists := m.jobs[id]; exists {
 		progressBar := printProgressBar(current, total, 30)
 		elapsed := time.Since(job.StartTime).Seconds()
 		speed := utils.FormatSpeed(current, elapsed)
-		display := fmt.Sprintf("%s%s %s %s", progressBar, debugStyle.Render(text), StyleSymbols["bullet"], debugStyle.Render(speed))
+		sizeDisplay := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(current)), utils.FormatBytes(uint64(total)))
+		display := fmt.Sprintf("%s%s %s %s", progressBar, debugStyle.Render(sizeDisplay), StyleSymbols["bullet"], debugStyle.Render(speed))
 		job.StreamLines = []string{display}
 	}
 }

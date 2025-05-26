@@ -31,6 +31,6 @@ func newS3Cmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "Output path")
-	cmd.Flags().StringVarP(&profile, "profile", "p", "default", "AWS profile to use")
+	cmd.Flags().StringVar(&profile, "profile", "default", "AWS profile to use")
 	return cmd
 }
