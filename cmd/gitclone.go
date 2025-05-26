@@ -9,6 +9,8 @@ import (
 func newGitCloneCmd() *cobra.Command {
 	var outputPath string
 	var depth int
+	var token string
+	var sshKey string
 
 	cmd := &cobra.Command{
 		Use:   "gitclone [REPO_URL]",
@@ -37,6 +39,12 @@ Authentication:
 			if depth > 0 {
 				job.Metadata["depth"] = depth
 			}
+			if token != "" {
+				job.Metadata["token"] = token
+			}
+			if sshKey != "" {
+				job.Metadata["sshKey"] = sshKey
+			}
 
 			jobs := []utils.DanzoJob{job}
 			scheduler.Run(jobs, workers, fileLog)
@@ -45,6 +53,8 @@ Authentication:
 
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "Output directory path")
 	cmd.Flags().IntVarP(&depth, "depth", "d", 0, "Clone depth (0 for full history)")
+	cmd.Flags().StringVar(&token, "token", "", "Git token for authentication")
+	cmd.Flags().StringVar(&sshKey, "ssh", "", "SSH key path for authentication")
 
 	return cmd
 }

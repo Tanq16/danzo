@@ -30,7 +30,7 @@ func (d *GitCloneDownloader) Download(job *utils.DanzoJob) error {
 	depth, _ := job.Metadata["depth"].(int)
 
 	// Get authentication if available
-	auth, err := getAuthMethod(cloneURL)
+	auth, err := getAuthMethod(cloneURL, job.Metadata)
 	if err != nil && job.StreamFunc != nil {
 		job.StreamFunc(fmt.Sprintf("Warning: %v", err))
 	}
