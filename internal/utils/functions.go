@@ -83,6 +83,23 @@ func FormatSpeed(bytes int64, elapsed float64) string {
 	return formatted[:len(formatted)-1] + "B/s" // Slice off "B" and add "B/s"
 }
 
+func CleanLocal() error {
+	tempDir := filepath.Join(filepath.Dir("."), ".danzo-temp")
+	files, err := os.ReadDir(tempDir)
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		if err := os.Remove(filepath.Join(tempDir, file.Name())); err != nil {
+			return err
+		}
+	}
+	if err := os.Remove(tempDir); err != nil {
+		return err
+	}
+	return nil
+}
+
 func CleanFunction(outputPath string) error {
 	tempDir := filepath.Join(filepath.Dir(outputPath), ".danzo-temp")
 	files, err := os.ReadDir(tempDir)

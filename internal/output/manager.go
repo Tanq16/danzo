@@ -2,6 +2,7 @@ package output
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -203,9 +204,19 @@ func (m *Manager) updateDisplay() {
 
 	var lines []string
 
+	// Collect all jobs and sort by ID to maintain consistent order
+	allJobs := make([]*JobOutput, 0, len(m.jobs))
+	for _, job := range m.jobs {
+		allJobs = append(allJobs, job)
+	}
+	// Sort by ID to maintain insertion order
+	sort.Slice(allJobs, func(i, j int) bool {
+		return allJobs[i].ID < allJobs[j].ID
+	})
+
 	// Group jobs by status
 	var active, pending, completed []*JobOutput
-	for _, job := range m.jobs {
+	for _, job := range allJobs {
 		switch job.Status {
 		case StatusPending:
 			pending = append(pending, job)

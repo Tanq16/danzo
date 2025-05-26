@@ -14,7 +14,7 @@ func newCleanCmd() *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) == 0 {
-				utils.CleanFunction(filepath.Dir("."))
+				utils.CleanLocal()
 			} else {
 				utils.CleanFunction(filepath.Dir(args[0]))
 			}
