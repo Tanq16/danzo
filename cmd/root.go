@@ -84,5 +84,5 @@ func registerCommands() {
 	RegisterCommand("gdrive", newGDriveCmd())
 	RegisterCommand("youtube", newYouTubeCmd())
 	RegisterCommand("ytmusic", newYTMusicCmd())
-	// RegisterCommand("batch", newBatchCmd())
+	RegisterCommand("batch", newBatchCmd())
 }

@@ -257,7 +257,7 @@ func (m *Manager) updateDisplay() {
 	defer m.mutex.RUnlock()
 
 	termHeight := getTerminalHeight()
-	availableLines := termHeight - 3 // Leave some buffer
+	availableLines := termHeight - 2 // Leave some buffer
 
 	if m.numLines > 0 {
 		fmt.Printf("\033[%dA\033[J", m.numLines)
@@ -269,19 +269,16 @@ func (m *Manager) updateDisplay() {
 	// Calculate how many lines we need
 	totalNeeded := 0
 	for _, f := range activeFuncs {
-		totalNeeded += 1 + len(f.StreamLines)
+		totalNeeded += 2 + len(f.StreamLines)
 	}
 	for _, f := range pendingFuncs {
-		totalNeeded += 1 + len(f.StreamLines)
+		totalNeeded += 2 + len(f.StreamLines)
 	}
 	totalNeeded += len(completedFuncs)
 
 	// If we need more than available, trim completed functions
 	if totalNeeded > availableLines {
-		maxCompleted := availableLines - (totalNeeded - len(completedFuncs))
-		if maxCompleted < 0 {
-			maxCompleted = 0
-		}
+		maxCompleted := max(availableLines-(totalNeeded-len(completedFuncs)), 0)
 		if len(completedFuncs) > maxCompleted {
 			completedFuncs = completedFuncs[len(completedFuncs)-maxCompleted:]
 		}
