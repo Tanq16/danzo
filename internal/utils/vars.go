@@ -52,13 +52,6 @@ type DownloadJob struct {
 	Chunks    []DownloadChunk
 	StartTime time.Time
 	TempFiles []string
-	FileHash  string
-}
-
-type DownloadEntry struct {
-	OutputPath string `yaml:"op"`
-	URL        string `yaml:"link"`
-	Type       string `yaml:"type"`
 }
 
 const DefaultBufferSize = 1024 * 1024 * 8 // 8MB buffer
