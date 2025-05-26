@@ -83,5 +83,6 @@ func registerCommands() {
 	RegisterCommand("ghrelease", newGHReleaseCmd())
 	RegisterCommand("gdrive", newGDriveCmd())
 	RegisterCommand("youtube", newYouTubeCmd())
+	RegisterCommand("ytmusic", newYTMusicCmd())
 	// RegisterCommand("batch", newBatchCmd())
 }

@@ -57,13 +57,13 @@ func (d *YouTubeDownloader) BuildJob(job *utils.DanzoJob) error {
 	job.Metadata["ytdlpFormat"] = ytdlpFormats[format]
 
 	// Check for required tools
-	ytdlpPath, err := ensureYtdlp()
+	ytdlpPath, err := EnsureYtdlp()
 	if err != nil {
 		return fmt.Errorf("error ensuring yt-dlp: %v", err)
 	}
 	job.Metadata["ytdlpPath"] = ytdlpPath
 
-	ffmpegPath, err := ensureFFmpeg()
+	ffmpegPath, err := EnsureFFmpeg()
 	if err != nil {
 		return fmt.Errorf("error ensuring ffmpeg: %v", err)
 	}
@@ -83,7 +83,7 @@ func (d *YouTubeDownloader) BuildJob(job *utils.DanzoJob) error {
 	return nil
 }
 
-func ensureYtdlp() (string, error) {
+func EnsureYtdlp() (string, error) {
 	// Check if yt-dlp is in PATH
 	path, err := exec.LookPath("yt-dlp")
 	if err == nil {
@@ -106,7 +106,7 @@ func ensureYtdlp() (string, error) {
 	return downloadYtdlp()
 }
 
-func ensureFFmpeg() (string, error) {
+func EnsureFFmpeg() (string, error) {
 	path, err := exec.LookPath("ffmpeg")
 	if err == nil {
 		return path, nil
