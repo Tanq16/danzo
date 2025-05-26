@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"unicode/utf8"
 
 	"golang.org/x/term"
 )
@@ -47,34 +46,4 @@ func getTerminalHeight() int {
 		return 24 // Default fallback height
 	}
 	return height
-}
-
-func wrapText(text string, indent int) []string {
-	termWidth := getTerminalWidth()
-	maxWidth := termWidth - indent - 2 // Account for indentation
-	if maxWidth <= 10 {
-		maxWidth = 80
-	}
-	if utf8.RuneCountInString(text) <= maxWidth {
-		return []string{text}
-	}
-	var lines []string
-	currentLine := ""
-	currentWidth := 0
-	for _, r := range text {
-		runeWidth := 1
-		// If adding this rune would exceed max width, flush the line
-		if currentWidth+runeWidth > maxWidth {
-			lines = append(lines, currentLine)
-			currentLine = string(r)
-			currentWidth = runeWidth
-		} else {
-			currentLine += string(r)
-			currentWidth += runeWidth
-		}
-	}
-	if currentLine != "" {
-		lines = append(lines, currentLine)
-	}
-	return lines
 }

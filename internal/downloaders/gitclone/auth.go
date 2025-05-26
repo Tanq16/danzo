@@ -11,8 +11,11 @@ import (
 )
 
 func getAuthMethod(repoURL string, metadata map[string]any) (transport.AuthMethod, error) {
-	// Check for token first
-	token := metadata["token"].(string)
+	tokenStr, ok := metadata["token"]
+	token := ""
+	if ok {
+		token = tokenStr.(string)
+	}
 	if token != "" {
 		if strings.Contains(repoURL, "github.com") {
 			return &http.BasicAuth{
@@ -32,8 +35,11 @@ func getAuthMethod(repoURL string, metadata map[string]any) (transport.AuthMetho
 		}
 	}
 
-	// Check for SSH key
-	sshKeyPath := metadata["sshKey"].(string)
+	sshKeyPath := ""
+	sshKeyStr, ok := metadata["sshKey"]
+	if ok {
+		sshKeyPath = sshKeyStr.(string)
+	}
 	if sshKeyPath != "" {
 		publicKeys, err := ssh.NewPublicKeysFromFile("git", sshKeyPath, "")
 		if err != nil {
