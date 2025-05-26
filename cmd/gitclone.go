@@ -13,19 +13,9 @@ func newGitCloneCmd() *cobra.Command {
 	var sshKey string
 
 	cmd := &cobra.Command{
-		Use:   "gitclone [REPO_URL]",
+		Use:   "gitclone [REPO_URL] [--output OUTPUT_PATH] [--depth DEPTH] [--token GIT_TOKEN] [--ssh SSH_KEY_PATH]",
 		Short: "Clone a Git repository",
-		Long: `Clone a Git repository from GitHub, GitLab, or Bitbucket.
-
-Supported formats:
-  - github.com/owner/repo
-  - gitlab.com/owner/repo
-  - bitbucket.org/owner/repo
-
-Authentication:
-  - Set GIT_TOKEN environment variable for token-based auth
-  - Set GIT_SSH environment variable for SSH key path`,
-		Args: cobra.ExactArgs(1),
+		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			job := utils.DanzoJob{
 				JobType:          "gitclone",
@@ -35,7 +25,6 @@ Authentication:
 				HTTPClientConfig: globalHTTPConfig,
 				Metadata:         make(map[string]any),
 			}
-
 			if depth > 0 {
 				job.Metadata["depth"] = depth
 			}
@@ -45,7 +34,6 @@ Authentication:
 			if sshKey != "" {
 				job.Metadata["sshKey"] = sshKey
 			}
-
 			jobs := []utils.DanzoJob{job}
 			scheduler.Run(jobs, workers, fileLog)
 		},
@@ -55,6 +43,5 @@ Authentication:
 	cmd.Flags().IntVarP(&depth, "depth", "d", 0, "Clone depth (0 for full history)")
 	cmd.Flags().StringVar(&token, "token", "", "Git token for authentication")
 	cmd.Flags().StringVar(&sshKey, "ssh", "", "SSH key path for authentication")
-
 	return cmd
 }

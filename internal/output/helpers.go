@@ -9,31 +9,6 @@ import (
 	"golang.org/x/term"
 )
 
-// FormatBytes converts bytes to human-readable format
-func FormatBytes(bytes uint64) string {
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-	div, exp := uint64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-}
-
-// FormatSpeed calculates and formats download speed
-func FormatSpeed(bytes int64, elapsed float64) string {
-	if elapsed == 0 {
-		return "0 B/s"
-	}
-	bps := float64(bytes) / elapsed
-	formatted := FormatBytes(uint64(bps))
-	return formatted[:len(formatted)-1] + "B/s" // Replace "B" with "B/s"
-}
-
-// PrintProgressBar creates a progress bar string
 func PrintProgressBar(current, total int64, width int) string {
 	if width <= 0 {
 		width = 30

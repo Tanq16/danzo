@@ -58,7 +58,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL")
 	rootCmd.PersistentFlags().StringVar(&proxyUsername, "proxy-username", "", "Proxy username")
 	rootCmd.PersistentFlags().StringVar(&proxyPassword, "proxy-password", "", "Proxy password")
-	rootCmd.PersistentFlags().StringVarP(&userAgent, "user-agent", "a", "", "User agent")
+	rootCmd.PersistentFlags().StringVarP(&userAgent, "user-agent", "a", "Danzo-CLI", "User agent")
 	rootCmd.PersistentFlags().StringArrayVarP(&headers, "header", "H", []string{}, "Custom headers")
 	rootCmd.PersistentFlags().IntVarP(&workers, "workers", "w", 1, "Number of parallel workers")
 	rootCmd.PersistentFlags().IntVarP(&connections, "connections", "c", 8, "Number of connections per download")

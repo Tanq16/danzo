@@ -10,13 +10,11 @@ func newHTTPCmd() *cobra.Command {
 	var outputPath string
 
 	cmd := &cobra.Command{
-		Use:   "http [URL]",
+		Use:   "http [URL] [--output OUTPUT_PATH]",
 		Short: "Download file via HTTP/HTTPS",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			url := args[0]
-
-			// Build job
 			job := utils.DanzoJob{
 				JobType:          "http",
 				URL:              url,
@@ -26,8 +24,6 @@ func newHTTPCmd() *cobra.Command {
 				HTTPClientConfig: globalHTTPConfig,
 				Metadata:         make(map[string]any),
 			}
-
-			// Run with scheduler
 			jobs := []utils.DanzoJob{job}
 			scheduler.Run(jobs, workers, fileLog)
 		},

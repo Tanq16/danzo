@@ -11,15 +11,9 @@ func newS3Cmd() *cobra.Command {
 	var profile string
 
 	cmd := &cobra.Command{
-		Use:   "s3 [BUCKET/KEY or s3://BUCKET/KEY]",
+		Use:   "s3 [BUCKET/KEY or s3://BUCKET/KEY] [--output OUTPUT_PATH] [--profile PROFILE]",
 		Short: "Download files from AWS S3",
-		Long: `Download files or folders from AWS S3.
-
-Examples:
-  danzo s3 mybucket/path/to/file.zip
-  danzo s3 s3://mybucket/path/to/folder/
-  danzo s3 mybucket/file.zip --profile myprofile`,
-		Args: cobra.ExactArgs(1),
+		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			job := utils.DanzoJob{
 				JobType:          "s3",
@@ -30,10 +24,7 @@ Examples:
 				HTTPClientConfig: globalHTTPConfig,
 				Metadata:         make(map[string]any),
 			}
-
-			// Add profile to metadata
 			job.Metadata["profile"] = profile
-
 			jobs := []utils.DanzoJob{job}
 			scheduler.Run(jobs, workers, fileLog)
 		},
@@ -41,6 +32,5 @@ Examples:
 
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "Output path")
 	cmd.Flags().StringVarP(&profile, "profile", "p", "default", "AWS profile to use")
-
 	return cmd
 }

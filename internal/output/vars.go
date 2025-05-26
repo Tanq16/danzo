@@ -7,7 +7,6 @@ import (
 )
 
 var (
-	// Core styles
 	successStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("37"))            // dark green
 	success2Style = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))             // green
 	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))             // red

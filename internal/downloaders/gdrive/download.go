@@ -14,9 +14,7 @@ func (d *GDriveDownloader) Download(job *utils.DanzoJob) error {
 	token := job.Metadata["token"].(string)
 	isFolder := job.Metadata["isFolder"].(bool)
 	totalSize := job.Metadata["totalSize"].(int64)
-
 	client := utils.NewDanzoHTTPClient(job.HTTPClientConfig)
-
 	if isFolder {
 		return d.downloadFolder(job, token, client, totalSize)
 	} else {
@@ -26,11 +24,7 @@ func (d *GDriveDownloader) Download(job *utils.DanzoJob) error {
 
 func (d *GDriveDownloader) downloadFile(job *utils.DanzoJob, token string, client *utils.DanzoHTTPClient, totalSize int64) error {
 	fileID := job.Metadata["fileID"].(string)
-
-	progressCh := make(chan int64, 100)
-	// defer close(progressCh)
-
-	// Progress tracking
+	progressCh := make(chan int64)
 	go func() {
 		var downloaded int64
 		for bytes := range progressCh {
@@ -46,36 +40,26 @@ func (d *GDriveDownloader) downloadFile(job *utils.DanzoJob, token string, clien
 		OutputPath:       job.OutputPath,
 		HTTPClientConfig: job.HTTPClientConfig,
 	}
-
 	return performGDriveDownload(config, token, fileID, client, progressCh)
 }
 
 func (d *GDriveDownloader) downloadFolder(job *utils.DanzoJob, token string, client *utils.DanzoHTTPClient, totalSize int64) error {
 	files := job.Metadata["folderFiles"].([]map[string]any)
-
-	// Create output directory
 	if err := os.MkdirAll(job.OutputPath, 0755); err != nil {
 		return fmt.Errorf("error creating folder: %v", err)
 	}
 
 	var totalDownloaded int64
-
-	// Download files serially
 	for _, file := range files {
 		fileID := file["id"].(string)
 		fileName := file["name"].(string)
 		mimeType := file["mimeType"].(string)
-
 		// Skip Google Docs files
 		if strings.HasPrefix(mimeType, "application/vnd.google-apps.") {
 			continue
 		}
-
 		outputPath := filepath.Join(job.OutputPath, fileName)
-
 		progressCh := make(chan int64)
-
-		// Track progress for this file
 		go func(ch <-chan int64) {
 			for bytes := range ch {
 				totalDownloaded += bytes
@@ -90,15 +74,11 @@ func (d *GDriveDownloader) downloadFolder(job *utils.DanzoJob, token string, cli
 			OutputPath:       outputPath,
 			HTTPClientConfig: job.HTTPClientConfig,
 		}
-
 		err := performGDriveDownload(config, token, fileID, client, progressCh)
-		// close(progressCh)
-
 		if err != nil {
 			return fmt.Errorf("error downloading %s: %v", fileName, err)
 		}
 	}
-
 	return nil
 }
 

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/tanq16/danzo/internal/utils"
@@ -99,12 +98,10 @@ func listFolderContents(folderID, token string, client *utils.DanzoHTTPClient) (
 				url += "&pageToken=" + pageToken
 			}
 		}
-
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
 			return nil, err
 		}
-
 		if isOAuth {
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
@@ -115,7 +112,6 @@ func listFolderContents(folderID, token string, client *utils.DanzoHTTPClient) (
 			return nil, err
 		}
 		defer resp.Body.Close()
-
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("failed to list folder contents: %d", resp.StatusCode)
 		}
@@ -124,7 +120,6 @@ func listFolderContents(folderID, token string, client *utils.DanzoHTTPClient) (
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 			return nil, err
 		}
-
 		if items, ok := result["files"].([]any); ok {
 			for _, item := range items {
 				if fileMap, ok := item.(map[string]any); ok {
@@ -133,17 +128,11 @@ func listFolderContents(folderID, token string, client *utils.DanzoHTTPClient) (
 			}
 		}
 
-		// Check for next page
 		if nextToken, ok := result["nextPageToken"].(string); ok && nextToken != "" {
 			pageToken = nextToken
 		} else {
 			break
 		}
 	}
-
 	return files, nil
-}
-
-func parseSize(sizeStr string) (int64, error) {
-	return strconv.ParseInt(sizeStr, 10, 64)
 }

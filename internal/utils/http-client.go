@@ -84,6 +84,8 @@ func (d *DanzoHTTPClient) SetHeader(key, value string) {
 func (d *DanzoHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	if d.config.UserAgent != "" {
 		req.Header.Set("User-Agent", d.config.UserAgent)
+	} else if d.config.UserAgent == "randomize" {
+		req.Header.Set("User-Agent", GetRandomUserAgent())
 	} else {
 		req.Header.Set("User-Agent", "Danzo-CLI")
 	}

@@ -1,19 +1,11 @@
 package utils
 
 import (
-	"errors"
 	"fmt"
-	"mime"
-	"net/http"
-	u "net/url"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 func GetRandomUserAgent() string {
@@ -39,27 +31,6 @@ func DetermineDownloadType(url string) string {
 		return "m3u8"
 	}
 	return "http"
-}
-
-func ReadDownloadList(filePath string) ([]DownloadEntry, error) {
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("error reading YAML file: %v", err)
-	}
-	var entries []DownloadEntry
-	err = yaml.Unmarshal(data, &entries)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing YAML file: %v", err)
-	}
-	for i, entry := range entries {
-		if entry.URL == "" {
-			return nil, fmt.Errorf("missing URL for entry %d", i+1)
-		}
-		// if entry.OutputPath == "" {
-		// 	return nil, fmt.Errorf("missing output path for entry %d", i+1)
-		// }
-	}
-	return entries, nil
 }
 
 func RenewOutputPath(outputPath string) string {
@@ -88,47 +59,6 @@ func ParseHeaderArgs(headers []string) map[string]string {
 		}
 	}
 	return result
-}
-
-func GetFileInfo(url string, client *DanzoHTTPClient) (int64, string, error) {
-	req, err := http.NewRequest("HEAD", url, nil)
-	if err != nil {
-		return 0, "", err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return 0, "", err
-	}
-	defer resp.Body.Close()
-	filename := ""
-	filenameRegex := regexp.MustCompile(`[^a-zA-Z0-9_\-\. ]+`)
-	if contentDisposition := resp.Header.Get("Content-Disposition"); contentDisposition != "" {
-		if _, params, err := mime.ParseMediaType(contentDisposition); err == nil {
-			if fn, ok := params["filename"]; ok && fn != "" {
-				filename = filenameRegex.ReplaceAllString(fn, "_")
-			} else if fn, ok := params["filename*"]; ok && fn != "" {
-				if strings.HasPrefix(fn, "UTF-8''") {
-					unescaped, _ := u.PathUnescape(strings.TrimPrefix(fn, "UTF-8''"))
-					filename = filenameRegex.ReplaceAllString(unescaped, "_")
-				}
-			}
-		}
-	}
-	if resp.Header.Get("Accept-Ranges") != "bytes" {
-		return 0, filename, ErrRangeRequestsNotSupported
-	}
-	contentLength := resp.Header.Get("Content-Length")
-	if contentLength == "" {
-		return 0, filename, errors.New("server didn't provide Content-Length header")
-	}
-	size, err := strconv.ParseInt(contentLength, 10, 64)
-	if err != nil {
-		return 0, filename, err
-	}
-	if size <= 0 {
-		return 0, filename, errors.New("invalid file size reported by server")
-	}
-	return size, filename, nil
 }
 
 func FormatBytes(bytes uint64) string {

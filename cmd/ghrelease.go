@@ -11,7 +11,7 @@ func newGHReleaseCmd() *cobra.Command {
 	var manual bool
 
 	cmd := &cobra.Command{
-		Use:   "ghrelease [USER/REPO or URL]",
+		Use:   "ghrelease [USER/REPO or URL] [--output OUTPUT_PATH] [--manual]",
 		Short: "Download a release asset for a GitHub repository",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {

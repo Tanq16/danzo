@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/tanq16/danzo/internal/utils"
 )
 
 type FunctionOutput struct {
@@ -182,7 +184,7 @@ func (m *Manager) AddProgressBarToStream(id int, outof, final int64, text string
 	if info, exists := m.outputs[fmt.Sprint(id)]; exists {
 		progressBar := PrintProgressBar(max(0, outof), final, 30)
 		elapsed := time.Since(info.StartTime).Round(time.Second).Seconds()
-		display := fmt.Sprintf("%s%s %s %s", progressBar, debugStyle.Render(text), StyleSymbols["bullet"], debugStyle.Render(FormatSpeed(outof, elapsed)))
+		display := fmt.Sprintf("%s%s %s %s", progressBar, debugStyle.Render(text), StyleSymbols["bullet"], debugStyle.Render(utils.FormatSpeed(outof, elapsed)))
 		info.StreamLines = []string{display} // Set as only stream so nothing else is displayed
 		info.LastUpdated = time.Now()
 	}

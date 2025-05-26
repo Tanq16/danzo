@@ -3,6 +3,7 @@ package gdrive
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/tanq16/danzo/internal/utils"
 )
@@ -10,38 +11,30 @@ import (
 type GDriveDownloader struct{}
 
 func (d *GDriveDownloader) ValidateJob(job *utils.DanzoJob) error {
-	// Extract file/folder ID from URL
 	fileID, err := extractFileID(job.URL)
 	if err != nil {
 		return err
 	}
 	job.Metadata["fileID"] = fileID
 
-	// Validate auth method
 	_, hasAPIKey := job.Metadata["apiKey"].(string)
 	credentialsFile, hasCredsFile := job.Metadata["credentialsFile"].(string)
-
 	if !hasAPIKey && !hasCredsFile {
 		return fmt.Errorf("either --api-key or --credentials must be provided")
 	}
-
 	if hasAPIKey && hasCredsFile {
 		return fmt.Errorf("only one of --api-key or --credentials can be provided")
 	}
-
 	if hasCredsFile {
 		if _, err := os.Stat(credentialsFile); err != nil {
 			return fmt.Errorf("credentials file not found: %v", err)
 		}
 	}
-
 	return nil
 }
 
 func (d *GDriveDownloader) BuildJob(job *utils.DanzoJob) error {
 	fileID := job.Metadata["fileID"].(string)
-
-	// Get auth token
 	var token string
 	var err error
 
@@ -57,7 +50,6 @@ func (d *GDriveDownloader) BuildJob(job *utils.DanzoJob) error {
 	}
 	job.Metadata["token"] = token
 
-	// Get metadata
 	client := utils.NewDanzoHTTPClient(job.HTTPClientConfig)
 	metadata, _, err := getFileMetadata(job.URL, client, token)
 	if err != nil {
@@ -68,7 +60,6 @@ func (d *GDriveDownloader) BuildJob(job *utils.DanzoJob) error {
 	mimeType, _ := metadata["mimeType"].(string)
 	if mimeType == "application/vnd.google-apps.folder" {
 		job.Metadata["isFolder"] = true
-		// List folder contents
 		files, err := listFolderContents(fileID, token, client)
 		if err != nil {
 			return fmt.Errorf("error listing folder contents: %v", err)
@@ -79,13 +70,12 @@ func (d *GDriveDownloader) BuildJob(job *utils.DanzoJob) error {
 		var totalSize int64
 		for _, file := range files {
 			if size, ok := file["size"].(string); ok {
-				if sizeInt, err := parseSize(size); err == nil {
+				if sizeInt, err := strconv.ParseInt(size, 10, 64); err == nil {
 					totalSize += sizeInt
 				}
 			}
 		}
 		job.Metadata["totalSize"] = totalSize
-
 		// Set output path as folder name
 		if job.OutputPath == "" {
 			job.OutputPath = metadata["name"].(string)
@@ -96,10 +86,8 @@ func (d *GDriveDownloader) BuildJob(job *utils.DanzoJob) error {
 		if job.OutputPath == "" {
 			job.OutputPath = metadata["name"].(string)
 		}
-
-		// Get file size
 		if sizeStr, ok := metadata["size"].(string); ok {
-			size, _ := parseSize(sizeStr)
+			size, _ := strconv.ParseInt(sizeStr, 10, 64)
 			job.Metadata["totalSize"] = size
 		}
 	}
@@ -112,6 +100,5 @@ func (d *GDriveDownloader) BuildJob(job *utils.DanzoJob) error {
 			job.OutputPath = utils.RenewOutputPath(job.OutputPath)
 		}
 	}
-
 	return nil
 }

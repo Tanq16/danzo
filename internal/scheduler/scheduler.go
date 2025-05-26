@@ -41,15 +41,12 @@ func Run(jobs []utils.DanzoJob, numWorkers int, fileLog bool) {
 		resumeRequestCh: make(chan struct{}),
 		singleJobMode:   len(jobs) == 1,
 	}
-
 	s.outputMgr.StartDisplay()
 	defer s.outputMgr.StopDisplay()
 
 	outputDirs := make(map[string]bool)
 	allSuccessful := true
 	var mu sync.Mutex
-
-	// Start pause/resume handler
 	if s.singleJobMode {
 		go s.handlePauseResume()
 	}
@@ -61,7 +58,7 @@ func Run(jobs []utils.DanzoJob, numWorkers int, fileLog bool) {
 	close(jobCh)
 
 	var wg sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -91,7 +88,6 @@ func (s *Scheduler) handlePauseResume() {
 func (s *Scheduler) processJobs(jobCh <-chan utils.DanzoJob, outputDirs *map[string]bool, allSuccessful *bool, mu *sync.Mutex) {
 	for job := range jobCh {
 		funcID := s.outputMgr.RegisterFunction(job.OutputPath)
-
 		downloader, exists := downloaderRegistry[job.JobType]
 		if !exists {
 			s.outputMgr.ReportError(funcID, fmt.Errorf("unknown job type: %s", job.JobType))
@@ -151,6 +147,7 @@ func (s *Scheduler) processJobs(jobCh <-chan utils.DanzoJob, outputDirs *map[str
 		mu.Lock()
 		(*outputDirs)[job.OutputPath] = true
 		mu.Unlock()
+
 		s.outputMgr.Complete(funcID, fmt.Sprintf("Completed %s", job.OutputPath))
 	}
 }

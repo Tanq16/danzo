@@ -12,16 +12,9 @@ func newYTMusicCmd() *cobra.Command {
 	var appleID string
 
 	cmd := &cobra.Command{
-		Use:     "ytmusic [URL]",
-		Aliases: []string{"music"},
-		Short:   "Download YouTube music with metadata",
-		Long: `Download audio from YouTube and optionally add metadata from Deezer or Apple Music.
-
-Examples:
-  danzo ytmusic "https://youtu.be/dQw4w9WgXcQ" -d 12345678
-  danzo ytmusic "https://youtube.com/watch?v=xxx" -a 1234567890
-  danzo ytmusic "https://youtu.be/xxx" # audio only, no metadata`,
-		Args: cobra.ExactArgs(1),
+		Use:   "ytmusic [URL] [--output OUTPUT_PATH] [--deezer DEEZER_ID] [--apple APPLE_ID]",
+		Short: "Download YouTube music with metadata",
+		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			job := utils.DanzoJob{
 				JobType:          "ytmusic",
@@ -31,8 +24,6 @@ Examples:
 				HTTPClientConfig: globalHTTPConfig,
 				Metadata:         make(map[string]any),
 			}
-
-			// Set music metadata source
 			if deezerID != "" {
 				job.Metadata["musicClient"] = "deezer"
 				job.Metadata["musicID"] = deezerID
@@ -40,7 +31,6 @@ Examples:
 				job.Metadata["musicClient"] = "apple"
 				job.Metadata["musicID"] = appleID
 			}
-
 			jobs := []utils.DanzoJob{job}
 			scheduler.Run(jobs, workers, fileLog)
 		},
@@ -49,6 +39,5 @@ Examples:
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "Output file path")
 	cmd.Flags().StringVar(&deezerID, "deezer", "", "Deezer track ID for metadata")
 	cmd.Flags().StringVar(&appleID, "apple", "", "Apple Music track ID for metadata")
-
 	return cmd
 }
