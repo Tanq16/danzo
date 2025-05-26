@@ -8,6 +8,8 @@ import (
 	"github.com/tanq16/danzo/internal/utils"
 )
 
+var DanzoVersion = "dev"
+
 var (
 	// Global flags
 	proxyURL      string
@@ -18,7 +20,6 @@ var (
 	workers       int
 	connections   int
 	fileLog       bool
-	version       string = "dev"
 )
 
 // Global HTTP client config that will be passed to subcommands
@@ -30,7 +31,7 @@ var commandRegistry = make(map[string]*cobra.Command)
 var rootCmd = &cobra.Command{
 	Use:               "danzo",
 	Short:             "Danzo is a swiss-army knife CLI download manager",
-	Version:           version,
+	Version:           DanzoVersion,
 	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Build global HTTP config from flags
