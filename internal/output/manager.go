@@ -32,7 +32,7 @@ type ErrorReport struct {
 type Manager struct {
 	outputs       map[string]*FunctionOutput
 	mutex         sync.RWMutex
-	numLines      int
+	lastLineCount int
 	maxStreams    int // Max output stream lines per function
 	errors        []ErrorReport
 	doneCh        chan struct{} // Channel to signal stopping the display
@@ -41,7 +41,6 @@ type Manager struct {
 	displayTick   time.Duration // Interval between display updates
 	functionCount int
 	displayWg     sync.WaitGroup // WaitGroup for display goroutine shutdown
-	enableLogging bool
 }
 
 func NewManager() *Manager {
@@ -54,12 +53,7 @@ func NewManager() *Manager {
 		isPaused:      false,
 		displayTick:   300 * time.Millisecond,
 		functionCount: 0,
-		enableLogging: false,
 	}
-}
-
-func (m *Manager) EnableLogging() {
-	m.enableLogging = true
 }
 
 func (m *Manager) Pause() {
@@ -143,7 +137,6 @@ func (m *Manager) ReportError(id int, err error) {
 		info.Status = "error"
 		info.Error = err
 		info.LastUpdated = time.Now()
-		// Add to global error list
 		m.errors = append(m.errors, ErrorReport{
 			FunctionName: info.URL,
 			Error:        err,
@@ -152,25 +145,11 @@ func (m *Manager) ReportError(id int, err error) {
 	}
 }
 
-func (m *Manager) UpdateStreamOutput(id int, output []string) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	if info, exists := m.outputs[fmt.Sprint(id)]; exists {
-		info.StreamLines = append(info.StreamLines, output...)
-		if len(info.StreamLines) > m.maxStreams {
-			info.StreamLines = info.StreamLines[len(info.StreamLines)-m.maxStreams:]
-		}
-		info.LastUpdated = time.Now()
-	}
-}
-
 func (m *Manager) AddStreamLine(id int, line string) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if info, exists := m.outputs[fmt.Sprint(id)]; exists {
-		// Wrap the line th indentation
-		wrappedLines := wrapText(line, 2+4)
-		info.StreamLines = append(info.StreamLines, wrappedLines...)
+		info.StreamLines = append(info.StreamLines, line)
 		if len(info.StreamLines) > m.maxStreams {
 			info.StreamLines = info.StreamLines[len(info.StreamLines)-m.maxStreams:]
 		}
@@ -185,35 +164,18 @@ func (m *Manager) AddProgressBarToStream(id int, outof, final int64, text string
 		progressBar := PrintProgressBar(max(0, outof), final, 30)
 		elapsed := time.Since(info.StartTime).Round(time.Second).Seconds()
 		display := fmt.Sprintf("%s%s %s %s", progressBar, debugStyle.Render(text), StyleSymbols["bullet"], debugStyle.Render(utils.FormatSpeed(outof, elapsed)))
-		info.StreamLines = []string{display} // Set as only stream so nothing else is displayed
+		info.StreamLines = []string{display}
 		info.LastUpdated = time.Now()
 	}
 }
 
-func (m *Manager) ClearLines(n int) {
-	if n <= 0 {
-		return
-	}
-	fmt.Printf("\033[%dA\033[J", min(m.numLines, n))
-	m.numLines = max(m.numLines-n, 0)
-}
-
-func (m *Manager) ClearFunction(id int) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	if info, exists := m.outputs[fmt.Sprint(id)]; exists {
-		info.StreamLines = []string{}
-		info.Message = ""
-	}
-}
-
-func (m *Manager) ClearAll() {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-	for id := range m.outputs {
-		m.outputs[id].StreamLines = []string{}
-	}
-}
+// func (m *Manager) ClearAll() {
+// 	m.mutex.Lock()
+// 	defer m.mutex.Unlock()
+// 	for id := range m.outputs {
+// 		m.outputs[id].StreamLines = []string{}
+// 	}
+// }
 
 func (m *Manager) GetStatusIndicator(status string) string {
 	switch status {
@@ -232,14 +194,13 @@ func (m *Manager) GetStatusIndicator(status string) string {
 
 func (m *Manager) sortFunctions() (active, pending, completed []*FunctionOutput) {
 	var allFuncs []*FunctionOutput
-	// Sort by index (registration order)
 	for _, info := range m.outputs {
 		allFuncs = append(allFuncs, info)
 	}
 	sort.Slice(allFuncs, func(i, j int) bool {
 		return allFuncs[i].Index < allFuncs[j].Index
 	})
-	// Group functions by status
+
 	for _, f := range allFuncs {
 		if f.Complete {
 			completed = append(completed, f)
@@ -256,140 +217,99 @@ func (m *Manager) updateDisplay() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	termHeight := getTerminalHeight()
-	availableLines := termHeight - 2 // Leave some buffer
-
-	if m.numLines > 0 {
-		fmt.Printf("\033[%dA\033[J", m.numLines)
+	// Clear previous display
+	if m.lastLineCount > 0 {
+		fmt.Printf("\033[%dA\033[J", m.lastLineCount)
 	}
 
-	lineCount := 0
+	// Build display content
+	var lines []string
+	termHeight := getTerminalHeight() - 2
+	termWidth := getTerminalWidth() - 2
+
 	activeFuncs, pendingFuncs, completedFuncs := m.sortFunctions()
 
-	// Calculate how many lines we need
-	totalNeeded := 0
+	// Add active functions
 	for _, f := range activeFuncs {
-		totalNeeded += 2 + len(f.StreamLines)
-	}
-	for _, f := range pendingFuncs {
-		totalNeeded += 2 + len(f.StreamLines)
-	}
-	totalNeeded += len(completedFuncs)
+		statusDisplay := m.GetStatusIndicator(f.Status)
+		elapsed := time.Since(f.StartTime).Round(time.Second).String()
 
-	// If we need more than available, trim completed functions
-	if totalNeeded > availableLines {
-		maxCompleted := max(availableLines-(totalNeeded-len(completedFuncs)), 0)
-		if len(completedFuncs) > maxCompleted {
-			completedFuncs = completedFuncs[len(completedFuncs)-maxCompleted:]
-		}
-	}
-
-	// Display active functions
-	for _, f := range activeFuncs {
-		if lineCount >= availableLines {
-			break
-		}
-		info := f
-		statusDisplay := m.GetStatusIndicator(info.Status)
-		elapsed := time.Since(info.StartTime).Round(time.Second)
-		if info.Complete {
-			elapsed = info.LastUpdated.Sub(info.StartTime).Round(time.Second)
-		}
-		elapsedStr := elapsed.String()
-
-		// Style the message based on status
 		var styledMessage string
-		switch info.Status {
+		switch f.Status {
 		case "success":
-			styledMessage = successStyle.Render(info.Message)
+			styledMessage = successStyle.Render(f.Message)
 		case "error":
-			styledMessage = errorStyle.Render(info.Message)
+			styledMessage = errorStyle.Render(f.Message)
 		case "warning":
-			styledMessage = warningStyle.Render(info.Message)
-		default: // pending or other
-			styledMessage = pendingStyle.Render(info.Message)
+			styledMessage = warningStyle.Render(f.Message)
+		default:
+			styledMessage = pendingStyle.Render(f.Message)
 		}
-		fmt.Printf("%s%s %s %s\n", strings.Repeat(" ", 2), statusDisplay, debugStyle.Render(elapsedStr), styledMessage)
-		lineCount++
 
-		// Print stream lines with indentation
-		if len(info.StreamLines) > 0 && lineCount < availableLines {
-			indent := strings.Repeat(" ", 2+4) // Additional indentation for stream output
-			for _, line := range info.StreamLines {
-				if lineCount >= availableLines {
-					break
-				}
-				fmt.Printf("%s%s\n", indent, streamStyle.Render(line))
-				lineCount++
-			}
+		lines = append(lines, fmt.Sprintf("  %s %s %s", statusDisplay, debugStyle.Render(elapsed), styledMessage))
+
+		// Add stream lines
+		for _, streamLine := range f.StreamLines {
+			lines = append(lines, fmt.Sprintf("      %s", streamStyle.Render(streamLine)))
 		}
 	}
 
-	// Display pending functions
+	// Add pending functions
 	for _, f := range pendingFuncs {
-		if lineCount >= availableLines {
-			break
-		}
-		info := f
-		statusDisplay := m.GetStatusIndicator(info.Status)
-		fmt.Printf("%s%s %s\n", strings.Repeat(" ", 2), statusDisplay, pendingStyle.Render("Waiting..."))
-		lineCount++
-		if len(info.StreamLines) > 0 && lineCount < availableLines {
-			indent := strings.Repeat(" ", 2+4)
-			for _, line := range info.StreamLines {
-				if lineCount >= availableLines {
-					break
-				}
-				fmt.Printf("%s%s\n", indent, streamStyle.Render(line))
-				lineCount++
-			}
-		}
+		statusDisplay := m.GetStatusIndicator(f.Status)
+		lines = append(lines, fmt.Sprintf("  %s %s", statusDisplay, pendingStyle.Render("Waiting...")))
 	}
 
-	// Display completed functions summary if many
-	if len(completedFuncs) > 10 && lineCount < availableLines {
-		PrintInfo(fmt.Sprintf("%s%d links completed with varying hidden status ...", strings.Repeat(" ", 2), len(completedFuncs)-8))
+	// Add completed functions summary if many
+	if len(completedFuncs) > 10 {
+		lines = append(lines, infoStyle.Render(fmt.Sprintf("  %d links completed with varying hidden status ...", len(completedFuncs)-8)))
 		completedFuncs = completedFuncs[len(completedFuncs)-8:]
-		lineCount++
 	}
 
-	// Display completed functions
+	// Add completed functions
 	for _, f := range completedFuncs {
-		if lineCount >= availableLines {
-			break
-		}
-		info := f
-		statusDisplay := m.GetStatusIndicator(info.Status)
-		totalTime := info.LastUpdated.Sub(info.StartTime).Round(time.Second)
-		timeStr := totalTime.String()
+		statusDisplay := m.GetStatusIndicator(f.Status)
+		totalTime := f.LastUpdated.Sub(f.StartTime).Round(time.Second).String()
 
-		// Style message based on status
 		var styledMessage string
-		if info.Status == "success" {
-			styledMessage = successStyle.Render(info.Message)
-		} else if info.Status == "error" {
-			styledMessage = errorStyle.Render(info.Message)
-		} else if info.Status == "warning" {
-			styledMessage = warningStyle.Render(info.Message)
-		} else { // pending or other
-			styledMessage = pendingStyle.Render(info.Message)
+		switch f.Status {
+		case "success":
+			styledMessage = successStyle.Render(f.Message)
+		case "error":
+			styledMessage = errorStyle.Render(f.Message)
+		case "warning":
+			styledMessage = warningStyle.Render(f.Message)
+		default:
+			styledMessage = pendingStyle.Render(f.Message)
 		}
-		fmt.Printf("%s%s %s %s\n", strings.Repeat(" ", 2), statusDisplay, debugStyle.Render(timeStr), styledMessage)
-		lineCount++
 
-		// Print stream lines with indentation
-		if len(info.StreamLines) > 0 && lineCount < availableLines {
-			indent := strings.Repeat(" ", 2+4)
-			for _, line := range info.StreamLines {
-				if lineCount >= availableLines {
-					break
-				}
-				fmt.Printf("%s%s\n", indent, streamStyle.Render(line))
-				lineCount++
-			}
+		lines = append(lines, fmt.Sprintf("  %s %s %s", statusDisplay, debugStyle.Render(totalTime), styledMessage))
+	}
+
+	// Calculate total lines needed (accounting for line wrapping)
+	totalLines := 0
+	for _, line := range lines {
+		visualLen := len(line)
+		if visualLen > termWidth {
+			totalLines += (visualLen + termWidth - 1) / termWidth
+		} else {
+			totalLines++
 		}
 	}
-	m.numLines = lineCount
+
+	// Limit to terminal height
+	if len(lines) > termHeight {
+		lines = lines[:termHeight]
+		totalLines = len(lines)
+	}
+
+	// Print all at once
+	if len(lines) > 0 {
+		fmt.Print(strings.Join(lines, "\n"))
+		fmt.Println()
+	}
+
+	m.lastLineCount = totalLines
 }
 
 func (m *Manager) StartDisplay() {
@@ -407,7 +327,6 @@ func (m *Manager) StartDisplay() {
 			case pauseState := <-m.pauseCh:
 				m.isPaused = pauseState
 			case <-m.doneCh:
-				m.ClearAll()
 				m.updateDisplay()
 				m.ShowSummary()
 				return
@@ -426,14 +345,13 @@ func (m *Manager) displayErrors() {
 		return
 	}
 	fmt.Println()
-	fmt.Println(strings.Repeat(" ", 2) + errorStyle.Bold(true).Render("Errors:"))
+	fmt.Println("  " + errorStyle.Bold(true).Render("Errors:"))
 	for i, err := range m.errors {
-		fmt.Printf("%s%s %s %s\n",
-			strings.Repeat(" ", 2+2),
+		fmt.Printf("    %s %s %s\n",
 			errorStyle.Render(fmt.Sprintf("%d.", i+1)),
 			debugStyle.Render(fmt.Sprintf("[%s]", err.Time.Format("15:04:05"))),
 			errorStyle.Render(fmt.Sprintf("Function: %s", err.FunctionName)))
-		fmt.Printf("%s%s\n", strings.Repeat(" ", 2+4), errorStyle.Render(fmt.Sprintf("Error: %v", err.Error)))
+		fmt.Printf("      %s\n", errorStyle.Render(fmt.Sprintf("Error: %v", err.Error)))
 	}
 }
 
@@ -449,11 +367,9 @@ func (m *Manager) ShowSummary() {
 			failures++
 		}
 	}
-	succeeded := fmt.Sprintf("Completed %d of %d", success, len(m.outputs))
-	failed := fmt.Sprintf("Failed %d of %d", failures, len(m.outputs))
-	fmt.Println(strings.Repeat(" ", 2) + success2Style.Render(succeeded))
+	fmt.Println("  " + success2Style.Render(fmt.Sprintf("Completed %d of %d", success, len(m.outputs))))
 	if failures > 0 {
-		fmt.Println(strings.Repeat(" ", 2) + errorStyle.Render(failed))
+		fmt.Println("  " + errorStyle.Render(fmt.Sprintf("Failed %d of %d", failures, len(m.outputs))))
 	}
 	m.displayErrors()
 	fmt.Println()
