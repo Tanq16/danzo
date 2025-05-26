@@ -169,14 +169,6 @@ func (m *Manager) AddProgressBarToStream(id int, outof, final int64, text string
 	}
 }
 
-// func (m *Manager) ClearAll() {
-// 	m.mutex.Lock()
-// 	defer m.mutex.Unlock()
-// 	for id := range m.outputs {
-// 		m.outputs[id].StreamLines = []string{}
-// 	}
-// }
-
 func (m *Manager) GetStatusIndicator(status string) string {
 	switch status {
 	case "success", "pass":
@@ -224,7 +216,7 @@ func (m *Manager) updateDisplay() {
 
 	// Build display content
 	var lines []string
-	termHeight := getTerminalHeight() - 2
+	// termHeight := getTerminalHeight() - 2
 	termWidth := getTerminalWidth() - 2
 
 	activeFuncs, pendingFuncs, completedFuncs := m.sortFunctions()
@@ -295,12 +287,6 @@ func (m *Manager) updateDisplay() {
 		} else {
 			totalLines++
 		}
-	}
-
-	// Limit to terminal height
-	if len(lines) > termHeight {
-		lines = lines[:termHeight]
-		totalLines = len(lines)
 	}
 
 	// Print all at once
