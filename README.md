@@ -27,8 +27,8 @@ This section gives a quick peek at the capabilities and the extremely simple com
   ```
 - YouTube video download (uses `yt-dlp`, `ffmpeg`, `ffprobe`)
   ```bash
-  danzo youtube "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # (default is <=1080p, <=60fps quality)
-  danzo youtube "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format 1080p # (download in 1080p)
+  danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # (default is <=1080p, <=60fps quality)
+  danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format 1080p # (download in 1080p)
   # allows customization with `best60`, `decent`, `1080p60`, and more (see Usage)
   danzo ytmusic "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # (download standard `.m4a` audio)
   danzo ytmusic "https://youtu.be/JJpFTUP6fIo" --apple 1800533191 # (add music metadata from itunes)
