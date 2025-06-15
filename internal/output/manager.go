@@ -10,8 +10,6 @@ import (
 	"github.com/tanq16/danzo/internal/utils"
 )
 
-type JobStatus string
-
 const (
 	StatusPending JobStatus = "pending"
 	StatusActive  JobStatus = "active"
@@ -19,13 +17,22 @@ const (
 	StatusError   JobStatus = "error"
 )
 
+const (
+	BarWidth = 30
+)
+
+type JobStatus string
+
 type JobOutput struct {
 	ID          int
 	Name        string
 	Status      JobStatus
 	Message     string
+	Downloaded  int64
 	StreamLines []string
 	StartTime   time.Time
+	CheckTime   time.Time
+	EndTime     time.Time
 }
 
 type Manager struct {
@@ -61,6 +68,7 @@ func (m *Manager) RegisterFunction(name string) int {
 		Status:      StatusPending,
 		StreamLines: []string{},
 		StartTime:   time.Now(),
+		CheckTime:   time.Now(),
 	}
 	return id
 }
@@ -73,6 +81,14 @@ func (m *Manager) SetMessage(id int, message string) {
 		if job.Status == StatusPending {
 			job.Status = StatusActive
 		}
+	}
+}
+
+func (m *Manager) SetName(id int, name string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if job, exists := m.jobs[id]; exists {
+		job.Name = name
 	}
 }
 
@@ -102,8 +118,9 @@ func (m *Manager) Complete(id int, message string) {
 		if message != "" {
 			job.Message = message
 		} else {
-			job.Message = fmt.Sprintf("Completed %s", job.Name)
+			job.Message = fmt.Sprintf("Completed %s ", job.Name)
 		}
+		job.EndTime = time.Now()
 	}
 }
 
@@ -113,6 +130,7 @@ func (m *Manager) ReportError(id int, err error) {
 	if job, exists := m.jobs[id]; exists {
 		job.Status = StatusError
 		job.Message = fmt.Sprintf("Failed: %v", err)
+		job.EndTime = time.Now()
 	}
 }
 
@@ -127,16 +145,15 @@ func (m *Manager) AddStreamLine(id int, line string) {
 	}
 }
 
-func (m *Manager) AddProgressBarToStream(id int, current, total int64) {
+func (m *Manager) ReportDownloaded(id int, downloaded, total int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if job, exists := m.jobs[id]; exists {
-		progressBar := printProgressBar(current, total, 30)
-		elapsed := time.Since(job.StartTime).Seconds()
-		speed := utils.FormatSpeed(current, elapsed)
-		sizeDisplay := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(current)), utils.FormatBytes(uint64(total)))
-		display := fmt.Sprintf("%s%s %s %s", progressBar, debugStyle.Render(sizeDisplay), StyleSymbols["bullet"], debugStyle.Render(speed))
-		job.StreamLines = []string{display}
+		previousDownloaded := job.Downloaded
+		job.Downloaded = downloaded
+		speed := utils.FormatSpeed(downloaded-previousDownloaded, time.Since(job.CheckTime).Seconds())
+		job.StreamLines = []string{addProgressBar(job.Downloaded, total, speed)}
+		job.CheckTime = time.Now()
 	}
 }
 
@@ -225,7 +242,7 @@ func (m *Manager) updateDisplay() {
 		completed = completed[len(completed)-8:]
 	}
 	for _, job := range completed {
-		totalTime := time.Since(job.StartTime).Round(time.Second)
+		totalTime := job.EndTime.Sub(job.StartTime).Round(time.Second)
 		style := successStyle
 		if job.Status == StatusError {
 			style = errorStyle
@@ -273,10 +290,7 @@ func getStatusIcon(status JobStatus) string {
 	}
 }
 
-func printProgressBar(current, total int64, width int) string {
-	if width <= 0 {
-		width = 30
-	}
+func printProgressBar(current, total int64) string {
 	if total <= 0 {
 		total = 1
 	}
@@ -287,30 +301,19 @@ func printProgressBar(current, total int64, width int) string {
 		current = total
 	}
 	percent := float64(current) / float64(total)
-	filled := max(0, min(int(percent*float64(width)), width))
+	filled := max(0, min(int(percent*float64(BarWidth)), BarWidth))
 	bar := StyleSymbols["bullet"]
 	bar += strings.Repeat(StyleSymbols["hline"], filled)
-	if filled < width {
-		bar += strings.Repeat(" ", width-filled)
+	if filled < BarWidth {
+		bar += strings.Repeat(" ", BarWidth-filled)
 	}
 	bar += StyleSymbols["bullet"]
 	return debugStyle.Render(fmt.Sprintf("%s %.1f%% %s ", bar, percent*100, StyleSymbols["bullet"]))
 }
 
-// TODO: Implement this at some point
-
-// func getTerminalWidth() int {
-// 	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-// 	if err != nil || width <= 0 {
-// 		return 80 // Default fallback width
-// 	}
-// 	return width
-// }
-
-// func getTerminalHeight() int {
-// 	height, _, err := term.GetSize(int(os.Stdout.Fd()))
-// 	if err != nil || height <= 0 {
-// 		return 24 // Default fallback height
-// 	}
-// 	return height
-// }
+func addProgressBar(current, total int64, speed string) string {
+	progressBar := printProgressBar(current, total)
+	sizeDisplay := fmt.Sprintf("%s / %s", utils.FormatBytes(uint64(current)), utils.FormatBytes(uint64(total)))
+	display := fmt.Sprintf("%s%s %s %s", progressBar, debugStyle.Render(sizeDisplay), StyleSymbols["bullet"], debugStyle.Render(speed))
+	return display
+}

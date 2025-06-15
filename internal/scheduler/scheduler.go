@@ -125,7 +125,7 @@ func (s *Scheduler) processJobs(jobCh <-chan utils.DanzoJob, outputDirs *map[str
 		if job.ProgressType == "progress" {
 			job.ProgressFunc = func(downloaded, total int64) {
 				if total > 0 {
-					s.outputMgr.AddProgressBarToStream(funcID, downloaded, total)
+					s.outputMgr.ReportDownloaded(funcID, downloaded, total)
 				}
 			}
 		} else if job.ProgressType == "stream" {

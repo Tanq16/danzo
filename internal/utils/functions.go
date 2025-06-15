@@ -12,27 +12,6 @@ func GetRandomUserAgent() string {
 	return userAgents[time.Now().UnixNano()%int64(len(userAgents))]
 }
 
-func DetermineDownloadType(url string) string {
-	if strings.HasPrefix(url, "https://drive.google.com") {
-		return "gdrive"
-	} else if strings.HasPrefix(url, "s3://") {
-		return "s3"
-	} else if strings.HasPrefix(url, "https://youtu.be") || strings.HasPrefix(url, "https://www.youtube.com") || strings.HasPrefix(url, "https://music.youtube.com") {
-		return "youtube"
-	} else if strings.HasPrefix(url, "ftp://") || strings.HasPrefix(url, "ftps://") {
-		return "ftp"
-	} else if strings.HasPrefix(url, "sftp://") {
-		return "sftp"
-	} else if strings.HasPrefix(url, "github://") {
-		return "gitrelease"
-	} else if strings.HasPrefix(url, "github.com") || strings.HasPrefix(url, "gitlab.com") || strings.HasPrefix(url, "bitbucket.org") || strings.HasPrefix(url, "git.com") {
-		return "gitclone"
-	} else if strings.HasPrefix(url, "m3u8://") {
-		return "m3u8"
-	}
-	return "http"
-}
-
 func RenewOutputPath(outputPath string) string {
 	dir := filepath.Dir(outputPath)
 	base := filepath.Base(outputPath)

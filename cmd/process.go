@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -131,5 +132,20 @@ func addJobTypeSpecificMetadata(job *utils.DanzoJob, jobType string) {
 		if _, ok := job.Metadata["depth"]; !ok {
 			job.Metadata["depth"] = 0
 		}
+	}
+}
+
+func newCleanCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "clean [path]",
+		Short: "Clean up temporary files",
+		Args:  cobra.MaximumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 {
+				utils.CleanLocal()
+			} else {
+				utils.CleanFunction(filepath.Dir(args[0]))
+			}
+		},
 	}
 }
