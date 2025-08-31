@@ -18,22 +18,18 @@ func getM3U8Contents(manifestURL string, client *utils.DanzoHTTPClient) (string,
 	if err != nil {
 		return "", fmt.Errorf("error creating request: %v", err)
 	}
-
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("error fetching m3u8 manifest: %v", err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("server returned status code %d", resp.StatusCode)
 	}
-
 	content, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("error reading manifest content: %v", err)
 	}
-
 	return string(content), nil
 }
 
@@ -42,7 +38,6 @@ func processM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClie
 	if err != nil {
 		return nil, fmt.Errorf("error parsing manifest URL: %v", err)
 	}
-
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	var segmentURLs []string
 	var masterPlaylistURLs []string
@@ -50,22 +45,18 @@ func processM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClie
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-
 		if line == "" || (strings.HasPrefix(line, "#") && !strings.Contains(line, "#EXT-X-STREAM-INF")) {
 			continue
 		}
-
 		if strings.Contains(line, "#EXT-X-STREAM-INF") {
 			isMasterPlaylist = true
 			continue
 		}
-
 		if !strings.HasPrefix(line, "#") {
 			segmentURL, err := resolveURL(baseURL, line)
 			if err != nil {
 				return nil, fmt.Errorf("error resolving URL: %v", err)
 			}
-
 			if isMasterPlaylist {
 				masterPlaylistURLs = append(masterPlaylistURLs, segmentURL)
 			} else {
@@ -73,7 +64,6 @@ func processM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClie
 			}
 		}
 	}
-
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("error scanning m3u8 content: %v", err)
 	}
@@ -86,7 +76,6 @@ func processM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClie
 		}
 		return processM3U8Content(subContent, masterPlaylistURLs[0], client)
 	}
-
 	return segmentURLs, nil
 }
 
@@ -94,12 +83,10 @@ func resolveURL(baseURL *url.URL, urlStr string) (string, error) {
 	if strings.HasPrefix(urlStr, "http://") || strings.HasPrefix(urlStr, "https://") {
 		return urlStr, nil
 	}
-
 	relURL, err := url.Parse(urlStr)
 	if err != nil {
 		return "", err
 	}
-
 	absURL := baseURL.ResolveReference(relURL)
 	return absURL.String(), nil
 }
@@ -109,20 +96,17 @@ func calculateTotalSize(segmentURLs []string, numWorkers int, client *utils.Danz
 	var totalSize int64
 	var mu sync.Mutex
 	var sizeErr error
-
 	type sizeJob struct {
 		index int
 		url   string
 	}
-
 	jobCh := make(chan sizeJob, len(segmentURLs))
 	for i, url := range segmentURLs {
 		jobCh <- sizeJob{index: i, url: url}
 	}
 	close(jobCh)
-
 	var wg sync.WaitGroup
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -136,7 +120,6 @@ func calculateTotalSize(segmentURLs []string, numWorkers int, client *utils.Danz
 					mu.Unlock()
 					continue
 				}
-
 				mu.Lock()
 				segmentSizes[job.index] = size
 				totalSize += size
@@ -144,13 +127,10 @@ func calculateTotalSize(segmentURLs []string, numWorkers int, client *utils.Danz
 			}
 		}()
 	}
-
 	wg.Wait()
-
 	if sizeErr != nil {
 		return 0, nil, sizeErr
 	}
-
 	return totalSize, segmentSizes, nil
 }
 
@@ -159,22 +139,18 @@ func getSize(url string, client *utils.DanzoHTTPClient) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("server returned status code %d", resp.StatusCode)
 	}
-
 	contentLength := resp.Header.Get("Content-Length")
 	if contentLength == "" {
 		return 0, fmt.Errorf("no content length")
 	}
-
 	var size int64
 	fmt.Sscanf(contentLength, "%d", &size)
 	return size, nil
@@ -185,27 +161,22 @@ func downloadSegment(segmentURL, outputPath string, client *utils.DanzoHTTPClien
 	if err != nil {
 		return 0, fmt.Errorf("error creating request: %v", err)
 	}
-
 	resp, err := client.Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("error downloading segment: %v", err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("server returned status code %d", resp.StatusCode)
 	}
-
 	outFile, err := os.Create(outputPath)
 	if err != nil {
 		return 0, fmt.Errorf("error creating output file: %v", err)
 	}
 	defer outFile.Close()
-
 	written, err := io.Copy(outFile, resp.Body)
 	if err != nil {
 		return 0, fmt.Errorf("error writing segment: %v", err)
 	}
-
 	return written, nil
 }

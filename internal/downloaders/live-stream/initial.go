@@ -27,15 +27,10 @@ func (d *M3U8Downloader) BuildJob(job *utils.DanzoJob) error {
 	if job.OutputPath == "" {
 		job.OutputPath = fmt.Sprintf("stream_%s.mp4", time.Now().Format("2006-01-02_15-04"))
 	}
-
-	// Check if output file exists
 	if existingFile, err := os.Stat(job.OutputPath); err == nil && existingFile != nil {
 		job.OutputPath = utils.RenewOutputPath(job.OutputPath)
 	}
-
-	// Create temp directory path
 	tempDir := filepath.Join(filepath.Dir(job.OutputPath), ".danzo-temp", "m3u8_"+time.Now().Format("20060102150405"))
 	job.Metadata["tempDir"] = tempDir
-
 	return nil
 }

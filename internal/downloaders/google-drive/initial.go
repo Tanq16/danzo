@@ -37,7 +37,6 @@ func (d *GDriveDownloader) BuildJob(job *utils.DanzoJob) error {
 	fileID := job.Metadata["fileID"].(string)
 	var token string
 	var err error
-
 	if apiKey, ok := job.Metadata["apiKey"].(string); ok {
 		token = apiKey
 	} else if credFile, ok := job.Metadata["credentialsFile"].(string); ok {
@@ -65,8 +64,6 @@ func (d *GDriveDownloader) BuildJob(job *utils.DanzoJob) error {
 			return fmt.Errorf("error listing folder contents: %v", err)
 		}
 		job.Metadata["folderFiles"] = files
-
-		// Calculate total size
 		var totalSize int64
 		for _, file := range files {
 			if size, ok := file["size"].(string); ok {
@@ -76,13 +73,11 @@ func (d *GDriveDownloader) BuildJob(job *utils.DanzoJob) error {
 			}
 		}
 		job.Metadata["totalSize"] = totalSize
-		// Set output path as folder name
 		if job.OutputPath == "" {
 			job.OutputPath = metadata["name"].(string)
 		}
 	} else {
 		job.Metadata["isFolder"] = false
-		// Single file
 		if job.OutputPath == "" {
 			job.OutputPath = metadata["name"].(string)
 		}
@@ -91,8 +86,6 @@ func (d *GDriveDownloader) BuildJob(job *utils.DanzoJob) error {
 			job.Metadata["totalSize"] = size
 		}
 	}
-
-	// Check if output exists
 	if info, err := os.Stat(job.OutputPath); err == nil {
 		if job.Metadata["isFolder"].(bool) && info.IsDir() {
 			job.OutputPath = utils.RenewOutputPath(job.OutputPath)

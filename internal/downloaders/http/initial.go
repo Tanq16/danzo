@@ -25,20 +25,16 @@ func (d *HTTPDownloader) ValidateJob(job *utils.DanzoJob) error {
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
 		return fmt.Errorf("unsupported scheme: %s", parsedURL.Scheme)
 	}
-
 	client := utils.NewDanzoHTTPClient(job.HTTPClientConfig)
-
 	req, err := http.NewRequest("HEAD", job.URL, nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %v", err)
 	}
-
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("error checking URL: %v", err)
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode == http.StatusMovedPermanently || resp.StatusCode == http.StatusFound {
 		if location := resp.Header.Get("Location"); location != "" {
 			job.URL = location
@@ -48,15 +44,12 @@ func (d *HTTPDownloader) ValidateJob(job *utils.DanzoJob) error {
 	} else if resp.StatusCode >= 400 {
 		return fmt.Errorf("server returned error: %d", resp.StatusCode)
 	}
-
 	return nil
 }
 
 func (d *HTTPDownloader) BuildJob(job *utils.DanzoJob) error {
 	job.HTTPClientConfig.HighThreadMode = job.Connections > 5
-
 	client := utils.NewDanzoHTTPClient(job.HTTPClientConfig)
-
 	fileSize, fileName, err := getFileInfo(job.URL, client)
 	if err != nil && err != utils.ErrRangeRequestsNotSupported {
 		return fmt.Errorf("error getting file info: %v", err)
@@ -73,28 +66,22 @@ func (d *HTTPDownloader) BuildJob(job *utils.DanzoJob) error {
 		}
 	}
 
-	// Check existing file
 	if existingFile, err := os.Stat(job.OutputPath); err == nil {
 		if fileSize > 0 && existingFile.Size() == fileSize {
 			return fmt.Errorf("file already exists with same size")
 		}
 		job.OutputPath = utils.RenewOutputPath(job.OutputPath)
 	}
-
 	job.Metadata["fileSize"] = fileSize
 	job.Metadata["rangeSupported"] = err != utils.ErrRangeRequestsNotSupported
-
 	return nil
 }
 
 func (d *HTTPDownloader) Download(job *utils.DanzoJob) error {
 	client := utils.NewDanzoHTTPClient(job.HTTPClientConfig)
-
 	fileSize, _ := job.Metadata["fileSize"].(int64)
 	rangeSupported, _ := job.Metadata["rangeSupported"].(bool)
-
 	progressCh := make(chan int64, 100)
-
 	progressDone := make(chan struct{})
 	startTime := time.Now()
 
@@ -103,15 +90,12 @@ func (d *HTTPDownloader) Download(job *utils.DanzoJob) error {
 		var totalDownloaded int64
 		var lastUpdate time.Time
 		var lastBytes int64
-
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
-
 		for {
 			select {
 			case bytes, ok := <-progressCh:
 				if !ok {
-					// Final update when channel closes
 					if job.ProgressFunc != nil {
 						job.ProgressFunc(totalDownloaded, fileSize)
 					}
@@ -120,20 +104,16 @@ func (d *HTTPDownloader) Download(job *utils.DanzoJob) error {
 				totalDownloaded += bytes
 
 			case <-ticker.C:
-				// Periodic update for smooth progress display
 				if totalDownloaded > lastBytes {
 					if job.ProgressFunc != nil {
 						job.ProgressFunc(totalDownloaded, fileSize)
 					}
-
-					// Calculate and store speed
 					elapsed := time.Since(lastUpdate).Seconds()
 					if elapsed > 0 {
 						speed := float64(totalDownloaded-lastBytes) / elapsed
 						job.Metadata["downloadSpeed"] = speed
 						job.Metadata["elapsedTime"] = time.Since(startTime).Seconds()
 					}
-
 					lastUpdate = time.Now()
 					lastBytes = totalDownloaded
 				}
@@ -141,17 +121,13 @@ func (d *HTTPDownloader) Download(job *utils.DanzoJob) error {
 		}
 	}()
 
-	// Perform download
 	var err error
-
-	// Decide download strategy
 	if !rangeSupported || job.Connections == 1 {
 		err = PerformSimpleDownload(job.URL, job.OutputPath, client, progressCh)
 	} else if fileSize/int64(job.Connections) < 2*utils.DefaultBufferSize {
 		// Chunk size would be too small, use simple download
 		err = PerformSimpleDownload(job.URL, job.OutputPath, client, progressCh)
 	} else {
-		// Use multi-connection download
 		config := utils.HTTPDownloadConfig{
 			URL:              job.URL,
 			OutputPath:       job.OutputPath,
@@ -165,10 +141,8 @@ func (d *HTTPDownloader) Download(job *utils.DanzoJob) error {
 	// close(progressCh)
 	<-progressDone
 
-	// Store final statistics
 	job.Metadata["totalDownloaded"] = fileSize
 	job.Metadata["totalTime"] = time.Since(startTime).Seconds()
-
 	return err
 }
 
