@@ -6,12 +6,15 @@ import (
 	"time"
 )
 
+var GlobalDebugFlag bool
+
 type Downloader interface {
 	Download(job *DanzoJob) error
 	BuildJob(job *DanzoJob) error
 	ValidateJob(job *DanzoJob) error
 }
 
+// A single download job for Danzo
 type DanzoJob struct {
 	ID               string
 	JobType          string
@@ -27,14 +30,14 @@ type DanzoJob struct {
 	ResumeFunc       func() // Request resume for output
 }
 
-type DownloadConfig struct {
+type HTTPDownloadConfig struct {
 	URL              string
 	OutputPath       string
 	Connections      int
 	HTTPClientConfig HTTPClientConfig
 }
 
-type DownloadChunk struct {
+type HTTPDownloadChunk struct {
 	ID         int
 	StartByte  int64
 	EndByte    int64
@@ -46,10 +49,10 @@ type DownloadChunk struct {
 	FinishTime time.Time
 }
 
-type DownloadJob struct {
-	Config    DownloadConfig
+type HTTPDownloadJob struct {
+	Config    HTTPDownloadConfig
 	FileSize  int64
-	Chunks    []DownloadChunk
+	Chunks    []HTTPDownloadChunk
 	StartTime time.Time
 	TempFiles []string
 }

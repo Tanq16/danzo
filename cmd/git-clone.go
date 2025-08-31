@@ -13,12 +13,13 @@ func newGitCloneCmd() *cobra.Command {
 	var sshKey string
 
 	cmd := &cobra.Command{
-		Use:   "gitclone [REPO_URL] [--output OUTPUT_PATH] [--depth DEPTH] [--token GIT_TOKEN] [--ssh SSH_KEY_PATH]",
-		Short: "Clone a Git repository",
-		Args:  cobra.ExactArgs(1),
+		Use:     "git-clone [REPO_URL] [--output OUTPUT_PATH] [--depth DEPTH] [--token GIT_TOKEN] [--ssh SSH_KEY_PATH]",
+		Short:   "Clone a Git repository",
+		Aliases: []string{"gitclone", "gitc", "git", "clone"},
+		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			job := utils.DanzoJob{
-				JobType:          "gitclone",
+				JobType:          "git-clone",
 				URL:              args[0],
 				OutputPath:       outputPath,
 				ProgressType:     "stream",
@@ -35,7 +36,7 @@ func newGitCloneCmd() *cobra.Command {
 				job.Metadata["sshKey"] = sshKey
 			}
 			jobs := []utils.DanzoJob{job}
-			scheduler.Run(jobs, workers, fileLog)
+			scheduler.Run(jobs, workers)
 		},
 	}
 

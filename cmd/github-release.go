@@ -11,12 +11,13 @@ func newGHReleaseCmd() *cobra.Command {
 	var manual bool
 
 	cmd := &cobra.Command{
-		Use:   "ghrelease [USER/REPO or URL] [--output OUTPUT_PATH] [--manual]",
-		Short: "Download a release asset for a GitHub repository",
-		Args:  cobra.ExactArgs(1),
+		Use:     "github-release [USER/REPO or URL] [--output OUTPUT_PATH] [--manual]",
+		Short:   "Download a release asset for a GitHub repository",
+		Aliases: []string{"ghrelease", "ghr"},
+		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			job := utils.DanzoJob{
-				JobType:          "ghrelease",
+				JobType:          "github-release",
 				URL:              args[0],
 				OutputPath:       outputPath,
 				Connections:      connections,
@@ -26,7 +27,7 @@ func newGHReleaseCmd() *cobra.Command {
 			}
 			job.Metadata["manual"] = manual
 			jobs := []utils.DanzoJob{job}
-			scheduler.Run(jobs, workers, fileLog)
+			scheduler.Run(jobs, workers)
 		},
 	}
 

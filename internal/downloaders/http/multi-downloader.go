@@ -14,8 +14,8 @@ import (
 	"github.com/tanq16/danzo/internal/utils"
 )
 
-func PerformMultiDownload(config utils.DownloadConfig, client *utils.DanzoHTTPClient, fileSize int64, progressCh chan<- int64) error {
-	job := utils.DownloadJob{
+func PerformMultiDownload(config utils.HTTPDownloadConfig, client *utils.DanzoHTTPClient, fileSize int64, progressCh chan<- int64) error {
+	job := utils.HTTPDownloadJob{
 		Config:    config,
 		FileSize:  fileSize,
 		StartTime: time.Now(),
@@ -39,7 +39,7 @@ func PerformMultiDownload(config utils.DownloadConfig, client *utils.DanzoHTTPCl
 			endByte = fileSize - 1
 		}
 		if endByte >= startByte {
-			job.Chunks = append(job.Chunks, utils.DownloadChunk{
+			job.Chunks = append(job.Chunks, utils.HTTPDownloadChunk{
 				ID:        i,
 				StartByte: startByte,
 				EndByte:   endByte,
@@ -78,7 +78,7 @@ func PerformMultiDownload(config utils.DownloadConfig, client *utils.DanzoHTTPCl
 	return nil
 }
 
-func assembleFile(job utils.DownloadJob) error {
+func assembleFile(job utils.HTTPDownloadJob) error {
 	allChunksCompleted := true
 	for _, chunk := range job.Chunks {
 		if !chunk.Completed {

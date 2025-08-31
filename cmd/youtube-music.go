@@ -12,12 +12,13 @@ func newYTMusicCmd() *cobra.Command {
 	var appleID string
 
 	cmd := &cobra.Command{
-		Use:   "ytmusic [URL] [--output OUTPUT_PATH] [--deezer DEEZER_ID] [--apple APPLE_ID]",
-		Short: "Download YouTube music with metadata",
-		Args:  cobra.ExactArgs(1),
+		Use:     "youtube-music [URL] [--output OUTPUT_PATH] [--deezer DEEZER_ID] [--apple APPLE_ID]",
+		Short:   "Download YouTube music with metadata",
+		Aliases: []string{"ytm", "yt-music"},
+		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			job := utils.DanzoJob{
-				JobType:          "ytmusic",
+				JobType:          "youtube-music",
 				URL:              args[0],
 				OutputPath:       outputPath,
 				ProgressType:     "stream",
@@ -32,7 +33,7 @@ func newYTMusicCmd() *cobra.Command {
 				job.Metadata["musicID"] = appleID
 			}
 			jobs := []utils.DanzoJob{job}
-			scheduler.Run(jobs, workers, fileLog)
+			scheduler.Run(jobs, workers)
 		},
 	}
 

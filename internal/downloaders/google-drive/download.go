@@ -35,7 +35,7 @@ func (d *GDriveDownloader) downloadFile(job *utils.DanzoJob, token string, clien
 		}
 	}()
 
-	config := utils.DownloadConfig{
+	config := utils.HTTPDownloadConfig{
 		URL:              job.URL,
 		OutputPath:       job.OutputPath,
 		HTTPClientConfig: job.HTTPClientConfig,
@@ -69,7 +69,7 @@ func (d *GDriveDownloader) downloadFolder(job *utils.DanzoJob, token string, cli
 			}
 		}(progressCh)
 
-		config := utils.DownloadConfig{
+		config := utils.HTTPDownloadConfig{
 			URL:              fmt.Sprintf("https://drive.google.com/file/d/%s/view", fileID),
 			OutputPath:       outputPath,
 			HTTPClientConfig: job.HTTPClientConfig,
@@ -82,7 +82,7 @@ func (d *GDriveDownloader) downloadFolder(job *utils.DanzoJob, token string, cli
 	return nil
 }
 
-func performGDriveDownload(config utils.DownloadConfig, token string, fileID string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
+func performGDriveDownload(config utils.HTTPDownloadConfig, token string, fileID string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
 	outputDir := filepath.Dir(config.OutputPath)
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("error creating output directory: %v", err)

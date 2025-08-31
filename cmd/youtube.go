@@ -11,9 +11,10 @@ func newYouTubeCmd() *cobra.Command {
 	var format string
 
 	cmd := &cobra.Command{
-		Use:   "yt [URL] [--output OUTPUT_PATH] [--format FORMAT]",
-		Short: "Download YouTube videos",
-		Args:  cobra.ExactArgs(1),
+		Use:     "youtube [URL] [--output OUTPUT_PATH] [--format FORMAT]",
+		Short:   "Download YouTube videos",
+		Aliases: []string{"yt"},
+		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			job := utils.DanzoJob{
 				JobType:          "youtube",
@@ -27,7 +28,7 @@ func newYouTubeCmd() *cobra.Command {
 				job.Metadata["format"] = format
 			}
 			jobs := []utils.DanzoJob{job}
-			scheduler.Run(jobs, workers, fileLog)
+			scheduler.Run(jobs, workers)
 		},
 	}
 

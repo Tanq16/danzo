@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/tanq16/danzo/internal/downloaders/gdrive"
-	"github.com/tanq16/danzo/internal/downloaders/ghrelease"
-	"github.com/tanq16/danzo/internal/downloaders/gitclone"
+	gitclone "github.com/tanq16/danzo/internal/downloaders/git-clone"
+	ghrelease "github.com/tanq16/danzo/internal/downloaders/github-release"
+	gdrive "github.com/tanq16/danzo/internal/downloaders/google-drive"
 	httpDownloader "github.com/tanq16/danzo/internal/downloaders/http"
-	"github.com/tanq16/danzo/internal/downloaders/m3u8"
+	m3u8 "github.com/tanq16/danzo/internal/downloaders/live-stream"
 	"github.com/tanq16/danzo/internal/downloaders/s3"
 	"github.com/tanq16/danzo/internal/downloaders/youtube"
 	youtubemusic "github.com/tanq16/danzo/internal/downloaders/youtube-music"
@@ -24,17 +24,17 @@ type Scheduler struct {
 }
 
 var downloaderRegistry = map[string]utils.Downloader{
-	"http":      &httpDownloader.HTTPDownloader{},
-	"s3":        &s3.S3Downloader{},
-	"gdrive":    &gdrive.GDriveDownloader{},
-	"gitclone":  &gitclone.GitCloneDownloader{},
-	"ghrelease": &ghrelease.GitReleaseDownloader{},
-	"m3u8":      &m3u8.M3U8Downloader{},
-	"youtube":   &youtube.YouTubeDownloader{},
-	"ytmusic":   &youtubemusic.YTMusicDownloader{},
+	"http":           &httpDownloader.HTTPDownloader{},
+	"s3":             &s3.S3Downloader{},
+	"google-drive":   &gdrive.GDriveDownloader{},
+	"git-clone":      &gitclone.GitCloneDownloader{},
+	"github-release": &ghrelease.GitReleaseDownloader{},
+	"live-stream":    &m3u8.M3U8Downloader{},
+	"youtube":        &youtube.YouTubeDownloader{},
+	"youtube-music":  &youtubemusic.YTMusicDownloader{},
 }
 
-func Run(jobs []utils.DanzoJob, numWorkers int, fileLog bool) {
+func Run(jobs []utils.DanzoJob, numWorkers int) {
 	s := &Scheduler{
 		outputMgr:       output.NewManager(),
 		pauseRequestCh:  make(chan struct{}),
@@ -122,13 +122,14 @@ func (s *Scheduler) processJobs(jobCh <-chan utils.DanzoJob, outputDirs *map[str
 			continue
 		}
 
-		if job.ProgressType == "progress" {
+		switch job.ProgressType {
+		case "progress":
 			job.ProgressFunc = func(downloaded, total int64) {
 				if total > 0 {
 					s.outputMgr.AddProgressBarToStream(funcID, downloaded, total)
 				}
 			}
-		} else if job.ProgressType == "stream" {
+		case "stream":
 			job.StreamFunc = func(line string) {
 				s.outputMgr.AddStreamLine(funcID, line)
 			}

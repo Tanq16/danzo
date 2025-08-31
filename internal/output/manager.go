@@ -20,12 +20,13 @@ const (
 )
 
 type JobOutput struct {
-	ID          int
-	Name        string
-	Status      JobStatus
-	Message     string
-	StreamLines []string
-	StartTime   time.Time
+	ID            int
+	Name          string
+	Status        JobStatus
+	Message       string
+	StreamLines   []string
+	StartTime     time.Time
+	CompletedTime time.Duration
 }
 
 type Manager struct {
@@ -98,6 +99,7 @@ func (m *Manager) Complete(id int, message string) {
 	defer m.mu.Unlock()
 	if job, exists := m.jobs[id]; exists {
 		job.Status = StatusSuccess
+		job.CompletedTime = time.Since(job.StartTime).Round(time.Second)
 		job.StreamLines = []string{} // Clear streams on completion
 		if message != "" {
 			job.Message = message
@@ -225,7 +227,11 @@ func (m *Manager) updateDisplay() {
 		completed = completed[len(completed)-8:]
 	}
 	for _, job := range completed {
-		totalTime := time.Since(job.StartTime).Round(time.Second)
+		totalTime := job.CompletedTime
+		if job.CompletedTime == 0 {
+			totalTime = time.Since(job.StartTime).Round(time.Second)
+			job.CompletedTime = totalTime
+		}
 		style := successStyle
 		if job.Status == StatusError {
 			style = errorStyle
@@ -253,7 +259,7 @@ func (m *Manager) showSummary() {
 		}
 	}
 	fmt.Println()
-	fmt.Println("  " + success2Style.Render(fmt.Sprintf("Completed %d of %d", success, len(m.jobs))))
+	fmt.Println("  " + successStyle.Render(fmt.Sprintf("Completed %d of %d", success, len(m.jobs))))
 	if errors > 0 {
 		fmt.Println("  " + errorStyle.Render(fmt.Sprintf("Failed %d of %d", errors, len(m.jobs))))
 	}
@@ -296,21 +302,3 @@ func printProgressBar(current, total int64, width int) string {
 	bar += StyleSymbols["bullet"]
 	return debugStyle.Render(fmt.Sprintf("%s %.1f%% %s ", bar, percent*100, StyleSymbols["bullet"]))
 }
-
-// TODO: Implement this at some point
-
-// func getTerminalWidth() int {
-// 	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-// 	if err != nil || width <= 0 {
-// 		return 80 // Default fallback width
-// 	}
-// 	return width
-// }
-
-// func getTerminalHeight() int {
-// 	height, _, err := term.GetSize(int(os.Stdout.Fd()))
-// 	if err != nil || height <= 0 {
-// 		return 24 // Default fallback height
-// 	}
-// 	return height
-// }

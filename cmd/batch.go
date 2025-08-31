@@ -40,7 +40,7 @@ func newBatchCmd() *cobra.Command {
 				fmt.Fprintf(os.Stderr, "No valid jobs found in the batch file\n")
 				os.Exit(1)
 			}
-			scheduler.Run(jobs, workers, fileLog)
+			scheduler.Run(jobs, workers)
 		},
 	}
 	return cmd
@@ -67,14 +67,14 @@ func buildJobsFromBatch(batchFile BatchFile) []utils.DanzoJob {
 				Metadata:         make(map[string]any),
 			}
 			switch normalizedType {
-			case "http", "gdrive", "ghrelease", "m3u8":
+			case "http", "google-drive", "github-release", "live-stream":
 				job.Connections = connections
 				job.ProgressType = "progress"
 			case "s3":
 				job.Connections = connections
 				job.ProgressType = "progress"
 				job.Metadata["profile"] = "default"
-			case "youtube", "ytmusic", "gitclone":
+			case "youtube", "youtube-music", "git-clone":
 				job.ProgressType = "stream"
 			default:
 				job.ProgressType = "progress"
@@ -88,26 +88,30 @@ func buildJobsFromBatch(batchFile BatchFile) []utils.DanzoJob {
 
 func normalizeJobType(jobType string) string {
 	typeMap := map[string]string{
-		"http":           "http",
-		"https":          "http",
-		"s3":             "s3",
-		"gdrive":         "gdrive",
-		"googledrive":    "gdrive",
-		"google-drive":   "gdrive",
-		"gitclone":       "gitclone",
-		"git-clone":      "gitclone",
-		"git":            "gitclone",
-		"ghrelease":      "ghrelease",
-		"gh-release":     "ghrelease",
-		"github":         "ghrelease",
-		"github-release": "ghrelease",
-		"m3u8":           "m3u8",
-		"hls":            "m3u8",
-		"youtube":        "youtube",
-		"yt":             "youtube",
-		"ytmusic":        "ytmusic",
-		"youtube-music":  "ytmusic",
-		"yt-music":       "ytmusic",
+		"http":            "http",
+		"https":           "http",
+		"s3":              "s3",
+		"gdrive":          "google-drive",
+		"googledrive":     "google-drive",
+		"google-drive":    "google-drive",
+		"gitclone":        "git-clone",
+		"git-clone":       "git-clone",
+		"git":             "git-clone",
+		"ghr":             "github-release",
+		"ghrelease":       "github-release",
+		"gh-release":      "github-release",
+		"github":          "github-release",
+		"github-release":  "github-release",
+		"m3u8":            "live-stream",
+		"hls":             "live-stream",
+		"http-livestream": "live-stream",
+		"live-stream":     "live-stream",
+		"youtube":         "youtube",
+		"yt":              "youtube",
+		"ytm":             "yt-music",
+		"ytmusic":         "yt-music",
+		"youtube-music":   "yt-music",
+		"yt-music":        "yt-music",
 	}
 	normalized := ""
 	for key, value := range typeMap {
@@ -125,9 +129,9 @@ func addJobTypeSpecificMetadata(job *utils.DanzoJob, jobType string) {
 		if _, ok := job.Metadata["format"]; !ok {
 			job.Metadata["format"] = "decent"
 		}
-	case "ghrelease":
+	case "github-release":
 		job.Metadata["manual"] = false
-	case "gitclone":
+	case "git-clone":
 		if _, ok := job.Metadata["depth"]; !ok {
 			job.Metadata["depth"] = 0
 		}
