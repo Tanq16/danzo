@@ -13,10 +13,7 @@ import (
 func (d *YTMusicDownloader) Download(job *utils.DanzoJob) error {
 	ytdlpPath := job.Metadata["ytdlpPath"].(string)
 	ffmpegPath := job.Metadata["ffmpegPath"].(string)
-
-	// Download audio using yt-dlp
 	tempOutput := strings.TrimSuffix(job.OutputPath, ".m4a")
-
 	args := []string{
 		"--progress",
 		"--newline",
@@ -29,27 +26,22 @@ func (d *YTMusicDownloader) Download(job *utils.DanzoJob) error {
 		"--no-playlist",
 		job.URL,
 	}
-
 	cmd := exec.Command(ytdlpPath, args...)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("error creating stdout pipe: %v", err)
 	}
-
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return fmt.Errorf("error creating stderr pipe: %v", err)
 	}
-
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("error starting yt-dlp: %v", err)
 	}
 
-	// Process output streams
 	go processStream(stdout, job.StreamFunc)
 	go processStream(stderr, job.StreamFunc)
-
 	if err := cmd.Wait(); err != nil {
 		return fmt.Errorf("yt-dlp failed: %v", err)
 	}
@@ -57,17 +49,14 @@ func (d *YTMusicDownloader) Download(job *utils.DanzoJob) error {
 	// Apply metadata if music client is specified
 	if musicClient, ok := job.Metadata["musicClient"].(string); ok {
 		musicID := job.Metadata["musicID"].(string)
-
 		if job.StreamFunc != nil {
 			job.StreamFunc(fmt.Sprintf("Fetching metadata from %s...", musicClient))
 		}
-
 		// Ensure output path ends with .m4a
 		finalPath := job.OutputPath
 		if !strings.HasSuffix(finalPath, ".m4a") {
 			finalPath = tempOutput + ".m4a"
 		}
-
 		err := addMusicMetadata(tempOutput+".m4a", finalPath, musicClient, musicID, job.StreamFunc)
 		if err != nil {
 			if job.StreamFunc != nil {
@@ -75,7 +64,6 @@ func (d *YTMusicDownloader) Download(job *utils.DanzoJob) error {
 			}
 		}
 	}
-
 	return nil
 }
 

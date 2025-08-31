@@ -34,7 +34,6 @@ func getAuthMethod(repoURL string, metadata map[string]any) (transport.AuthMetho
 			}, nil
 		}
 	}
-
 	sshKeyPath := ""
 	sshKeyStr, ok := metadata["sshKey"]
 	if ok {
@@ -47,6 +46,5 @@ func getAuthMethod(repoURL string, metadata map[string]any) (transport.AuthMetho
 		}
 		return publicKeys, nil
 	}
-
 	return nil, errors.New("no authentication method found")
 }

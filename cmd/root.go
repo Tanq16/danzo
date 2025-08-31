@@ -56,9 +56,9 @@ func setupLogs() {
 		NoColor:    false, // Enable color output
 	}
 	log.Logger = zerolog.New(output).With().Timestamp().Logger()
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	zerolog.SetGlobalLevel(zerolog.Disabled)
 	if debugFlag {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 		utils.GlobalDebugFlag = true
 	}
 }

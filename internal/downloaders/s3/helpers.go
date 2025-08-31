@@ -42,48 +42,39 @@ func getS3ObjectInfo(bucket, key string, client *S3Client) (string, int64, error
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
-
-	if err == nil {
-		// It's a file
+	if err == nil { // It's a file
 		size := int64(0)
 		if headObj.ContentLength != nil {
 			size = *headObj.ContentLength
 		}
 		return "file", size, nil
 	}
-
 	// Check if it's a folder by listing with prefix
 	result, err := client.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
 		Bucket:  aws.String(bucket),
 		Prefix:  aws.String(key),
 		MaxKeys: aws.Int32(1),
 	})
-
 	if err != nil {
 		return "", 0, fmt.Errorf("error accessing S3 object: %v", err)
 	}
-
 	if len(result.Contents) > 0 || len(result.CommonPrefixes) > 0 {
 		return "folder", -1, nil
 	}
-
 	return "", 0, fmt.Errorf("S3 object not found")
 }
 
 func listS3Objects(bucket, prefix string, client *S3Client) ([]s3Object, error) {
 	var objects []s3Object
-
 	paginator := s3.NewListObjectsV2Paginator(client.client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(bucket),
 		Prefix: aws.String(prefix),
 	})
-
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("error listing objects: %v", err)
 		}
-
 		for _, obj := range page.Contents {
 			if obj.Key != nil && obj.Size != nil {
 				// Skip directories (0-byte objects ending with /)
@@ -97,12 +88,10 @@ func listS3Objects(bucket, prefix string, client *S3Client) ([]s3Object, error) 
 			}
 		}
 	}
-
 	return objects, nil
 }
 
 func performS3Download(bucket, key, outputPath string, client *S3Client, progressCh chan<- int64) error {
-	// Get object
 	result, err := client.client.GetObject(context.Background(), &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
@@ -111,8 +100,6 @@ func performS3Download(bucket, key, outputPath string, client *S3Client, progres
 		return fmt.Errorf("error getting object: %v", err)
 	}
 	defer result.Body.Close()
-
-	// Create output file
 	file, err := os.Create(outputPath)
 	if err != nil {
 		return fmt.Errorf("error creating file: %v", err)
@@ -137,11 +124,9 @@ func performS3Download(bucket, key, outputPath string, client *S3Client, progres
 			return fmt.Errorf("error reading object: %v", err)
 		}
 	}
-
 	return nil
 }
 
-// Helper functions that might be missing from utils package
 func directoryExists(path string) (bool, error) {
 	info, err := os.Stat(path)
 	if os.IsNotExist(err) {

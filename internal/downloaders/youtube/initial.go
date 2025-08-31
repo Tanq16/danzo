@@ -28,35 +28,26 @@ var ytdlpFormats = map[string]string{
 }
 
 func (d *YouTubeDownloader) ValidateJob(job *utils.DanzoJob) error {
-	// Validate URL
 	if !strings.Contains(job.URL, "youtube.com/watch") &&
 		!strings.Contains(job.URL, "youtu.be/") &&
 		!strings.Contains(job.URL, "music.youtube.com") {
 		return fmt.Errorf("invalid YouTube URL")
 	}
-
-	// Validate format if specified
 	if format, ok := job.Metadata["format"].(string); ok {
 		if _, exists := ytdlpFormats[format]; !exists {
 			return fmt.Errorf("unsupported format: %s", format)
 		}
 	}
-
 	return nil
 }
 
 func (d *YouTubeDownloader) BuildJob(job *utils.DanzoJob) error {
-	// Set default format if not specified
 	format, ok := job.Metadata["format"].(string)
 	if !ok || format == "" {
 		format = "best"
 		job.Metadata["format"] = format
 	}
-
-	// Set ytdlp format string
 	job.Metadata["ytdlpFormat"] = ytdlpFormats[format]
-
-	// Check for required tools
 	ytdlpPath, err := EnsureYtdlp()
 	if err != nil {
 		return fmt.Errorf("error ensuring yt-dlp: %v", err)
@@ -68,29 +59,23 @@ func (d *YouTubeDownloader) BuildJob(job *utils.DanzoJob) error {
 		return fmt.Errorf("error ensuring ffmpeg: %v", err)
 	}
 	job.Metadata["ffmpegPath"] = ffmpegPath
-
 	ffprobePath, err := ensureFFprobe()
 	if err != nil {
 		return fmt.Errorf("error ensuring ffprobe: %v", err)
 	}
 	job.Metadata["ffprobePath"] = ffprobePath
 
-	// Set output path if not specified
 	if job.OutputPath == "" {
 		job.OutputPath = "%(title)s.%(ext)s"
 	}
-
 	return nil
 }
 
 func EnsureYtdlp() (string, error) {
-	// Check if yt-dlp is in PATH
 	path, err := exec.LookPath("yt-dlp")
 	if err == nil {
 		return path, nil
 	}
-
-	// Check in current directory
 	execDir, err := os.Executable()
 	if err == nil {
 		ytdlpPath := filepath.Join(filepath.Dir(execDir), "yt-dlp")
@@ -101,8 +86,6 @@ func EnsureYtdlp() (string, error) {
 			return ytdlpPath, nil
 		}
 	}
-
-	// Download yt-dlp
 	return downloadYtdlp()
 }
 
@@ -111,7 +94,6 @@ func EnsureFFmpeg() (string, error) {
 	if err == nil {
 		return path, nil
 	}
-
 	execDir, err := os.Executable()
 	if err == nil {
 		ffmpegPath := filepath.Join(filepath.Dir(execDir), "ffmpeg")
@@ -122,7 +104,6 @@ func EnsureFFmpeg() (string, error) {
 			return ffmpegPath, nil
 		}
 	}
-
 	return "", fmt.Errorf("ffmpeg not found in PATH, please install manually")
 }
 
@@ -131,7 +112,6 @@ func ensureFFprobe() (string, error) {
 	if err == nil {
 		return path, nil
 	}
-
 	execDir, err := os.Executable()
 	if err == nil {
 		ffprobePath := filepath.Join(filepath.Dir(execDir), "ffprobe")
@@ -142,6 +122,5 @@ func ensureFFprobe() (string, error) {
 			return ffprobePath, nil
 		}
 	}
-
 	return "", fmt.Errorf("ffprobe not found in PATH, please install manually")
 }

@@ -83,6 +83,7 @@ func PerformSimpleDownload(url, outputPath string, client *utils.DanzoHTTPClient
 			return fmt.Errorf("error reading response body: %v", err)
 		}
 	}
+
 	// Ensure file is synced and closed (while auto-handled in Unix, Windows needs this)
 	outFile.Sync()
 	if err := outFile.Close(); err != nil {

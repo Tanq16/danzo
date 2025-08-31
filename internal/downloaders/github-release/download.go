@@ -10,9 +10,7 @@ import (
 func (d *GitReleaseDownloader) Download(job *utils.DanzoJob) error {
 	downloadURL := job.Metadata["downloadURL"].(string)
 	fileSize := job.Metadata["fileSize"].(int64)
-
 	client := utils.NewDanzoHTTPClient(job.HTTPClientConfig)
-
 	progressCh := make(chan int64)
 	progressDone := make(chan struct{})
 
@@ -21,10 +19,8 @@ func (d *GitReleaseDownloader) Download(job *utils.DanzoJob) error {
 		defer close(progressDone)
 		var totalDownloaded int64
 		startTime := time.Now()
-
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
-
 		for {
 			select {
 			case bytes, ok := <-progressCh:
@@ -35,7 +31,6 @@ func (d *GitReleaseDownloader) Download(job *utils.DanzoJob) error {
 					return
 				}
 				totalDownloaded += bytes
-
 			case <-ticker.C:
 				if job.ProgressFunc != nil {
 					job.ProgressFunc(totalDownloaded, fileSize)
@@ -45,10 +40,7 @@ func (d *GitReleaseDownloader) Download(job *utils.DanzoJob) error {
 		}
 	}()
 
-	// Perform download using simple HTTP download
 	err := danzohttp.PerformSimpleDownload(downloadURL, job.OutputPath, client, progressCh)
-
 	<-progressDone
-
 	return err
 }

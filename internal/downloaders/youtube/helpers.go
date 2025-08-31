@@ -14,11 +14,12 @@ import (
 func downloadYtdlp() (string, error) {
 	goos := runtime.GOOS
 	goarch := runtime.GOARCH
-
 	var filename string
 	switch {
 	case goos == "windows" && goarch == "amd64":
 		filename = "yt-dlp.exe"
+	case goos == "windows" && goarch == "arm64":
+		filename = "yt-dlp_arm64.exe"
 	case goos == "linux" && goarch == "amd64":
 		filename = "yt-dlp_linux"
 	case goos == "linux" && goarch == "arm64":
@@ -33,25 +34,19 @@ func downloadYtdlp() (string, error) {
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		return "", fmt.Errorf("error creating temp directory: %v", err)
 	}
-
 	downloadURL := fmt.Sprintf("https://github.com/yt-dlp/yt-dlp/releases/latest/download/%s", filename)
 	filePath := filepath.Join(tempDir, "yt-dlp")
 	if goos == "windows" {
 		filePath += ".exe"
 	}
-
-	// Download file
 	if err := downloadFile(downloadURL, filePath); err != nil {
 		return "", err
 	}
-
-	// Make executable on Unix systems
 	if goos != "windows" {
 		if err := os.Chmod(filePath, 0755); err != nil {
 			return "", fmt.Errorf("error setting permissions: %v", err)
 		}
 	}
-
 	return filePath, nil
 }
 
@@ -61,23 +56,19 @@ func downloadFile(url, filepath string) error {
 	if err != nil {
 		return err
 	}
-
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("bad status: %s", resp.Status)
 	}
-
 	out, err := os.Create(filepath)
 	if err != nil {
 		return err
 	}
 	defer out.Close()
-
 	_, err = io.Copy(out, resp.Body)
 	return err
 }
