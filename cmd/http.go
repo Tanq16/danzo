@@ -25,7 +25,7 @@ func newHTTPCmd() *cobra.Command {
 				Metadata:         make(map[string]any),
 			}
 			jobs := []utils.DanzoJob{job}
-			scheduler.Run(jobs, workers, fileLog)
+			scheduler.Run(jobs, workers)
 		},
 	}
 

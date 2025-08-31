@@ -3,7 +3,10 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal/utils"
 )
@@ -19,7 +22,7 @@ var (
 	headers       []string
 	workers       int
 	connections   int
-	fileLog       bool
+	debugFlag     bool
 )
 
 // Global HTTP client config that will be passed to subcommands
@@ -45,6 +48,21 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+func setupLogs() {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	output := zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		TimeFormat: time.DateTime,
+		NoColor:    false, // Enable color output
+	}
+	log.Logger = zerolog.New(output).With().Timestamp().Logger()
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	if debugFlag {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		utils.GlobalDebugFlag = true
+	}
+}
+
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -54,6 +72,8 @@ func Execute() {
 
 func init() {
 	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
+	rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Enable debug logging")
+	cobra.OnInitialize(setupLogs)
 
 	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL")
@@ -63,7 +83,6 @@ func init() {
 	rootCmd.PersistentFlags().StringArrayVarP(&headers, "header", "H", []string{}, "Custom headers")
 	rootCmd.PersistentFlags().IntVarP(&workers, "workers", "w", 1, "Number of parallel workers")
 	rootCmd.PersistentFlags().IntVarP(&connections, "connections", "c", 8, "Number of connections per download")
-	rootCmd.PersistentFlags().BoolVar(&fileLog, "log", false, "Enable debug logging")
 
 	registerCommands()
 	fmt.Println()

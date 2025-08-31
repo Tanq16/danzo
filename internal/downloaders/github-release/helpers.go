@@ -23,6 +23,15 @@ var assetSelectMap = map[string][]string{
 	"darwinarm64":  {"darwin-arm64", "darwin_arm64", "darwin-aarch64", "darwin_aarch64", "arm64-darwin", "aarch64-darwin", "arm64_darwin", "aarch64_darwin"},
 }
 
+var assetSelectMapFallback = map[string][]string{
+	"linuxamd64":   {"linux", "gnu", "x86-64", "x86_64", "amd64", "amd"},
+	"linuxarm64":   {"linux", "gnu", "arm", "arm64"},
+	"windowsamd64": {"exe", "x86-64", "x86_64", "amd64", "amd"},
+	"windowsarm64": {"exe", "arm", "arm64"},
+	"darwinamd64":  {"darwin", "apple", "x86-64", "x86_64", "amd64", "amd"},
+	"darwinarm64":  {"darwin", "apple", "arm", "arm64"},
+}
+
 var repoPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/]+)/?.*$`),
 	regexp.MustCompile(`^github\.com/([^/]+)/([^/]+)/?.*$`),

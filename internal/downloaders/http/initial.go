@@ -152,7 +152,7 @@ func (d *HTTPDownloader) Download(job *utils.DanzoJob) error {
 		err = PerformSimpleDownload(job.URL, job.OutputPath, client, progressCh)
 	} else {
 		// Use multi-connection download
-		config := utils.DownloadConfig{
+		config := utils.HTTPDownloadConfig{
 			URL:              job.URL,
 			OutputPath:       job.OutputPath,
 			Connections:      job.Connections,

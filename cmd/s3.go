@@ -26,7 +26,7 @@ func newS3Cmd() *cobra.Command {
 			}
 			job.Metadata["profile"] = profile
 			jobs := []utils.DanzoJob{job}
-			scheduler.Run(jobs, workers, fileLog)
+			scheduler.Run(jobs, workers)
 		},
 	}
 

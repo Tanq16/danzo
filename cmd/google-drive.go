@@ -12,12 +12,13 @@ func newGDriveCmd() *cobra.Command {
 	var credentialsFile string
 
 	cmd := &cobra.Command{
-		Use:   "gdrive [URL] [--output OUTPUT_PATH] [--api-key YOUR_KEY] [--creds creds.json]",
-		Short: "Download files or folders from Google Drive",
-		Args:  cobra.ExactArgs(1),
+		Use:     "google-drive [URL] [--output OUTPUT_PATH] [--api-key YOUR_KEY] [--creds creds.json]",
+		Short:   "Download files or folders from Google Drive",
+		Aliases: []string{"gdrive", "gd", "drive"},
+		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			job := utils.DanzoJob{
-				JobType:          "gdrive",
+				JobType:          "google-drive",
 				URL:              args[0],
 				OutputPath:       outputPath,
 				Connections:      connections,
@@ -32,7 +33,7 @@ func newGDriveCmd() *cobra.Command {
 				job.Metadata["credentialsFile"] = credentialsFile
 			}
 			jobs := []utils.DanzoJob{job}
-			scheduler.Run(jobs, workers, fileLog)
+			scheduler.Run(jobs, workers)
 		},
 	}
 
