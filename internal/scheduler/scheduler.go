@@ -116,7 +116,7 @@ func (s *Scheduler) processJobs(jobCh <-chan utils.DanzoJob, outputDirs *map[str
 			continue
 		}
 
-		log.Debug().Str("op", "scheduler/processJobs").Msgf("Preparing job %s", job.OutputPath)
+		log.Info().Str("op", "scheduler/processJobs").Msgf("Preparing job %s", job.OutputPath)
 		s.outputMgr.SetMessage(funcID, fmt.Sprintf("Preparing %s job", job.JobType))
 		if s.singleJobMode {
 			job.PauseFunc = func() { s.pauseRequestCh <- struct{}{} }
@@ -150,7 +150,7 @@ func (s *Scheduler) processJobs(jobCh <-chan utils.DanzoJob, outputDirs *map[str
 			}
 		}
 
-		log.Debug().Str("op", "scheduler/processJobs").Msgf("Performing download for %s", job.OutputPath)
+		log.Info().Str("op", "scheduler/processJobs").Msgf("Performing download for %s", job.OutputPath)
 		s.outputMgr.SetMessage(funcID, fmt.Sprintf("Downloading %s", job.OutputPath))
 		err = downloader.Download(&job)
 		if err != nil {
@@ -162,7 +162,7 @@ func (s *Scheduler) processJobs(jobCh <-chan utils.DanzoJob, outputDirs *map[str
 			s.outputMgr.SetMessage(funcID, fmt.Sprintf("Download failed for %s", job.OutputPath))
 			continue
 		}
-		log.Debug().Str("op", "scheduler/processJobs").Msgf("Download completed for %s", job.OutputPath)
+		log.Info().Str("op", "scheduler/processJobs").Msgf("Download completed for %s", job.OutputPath)
 		mu.Lock()
 		(*outputDirs)[job.OutputPath] = true
 		mu.Unlock()
