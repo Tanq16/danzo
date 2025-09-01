@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"syscall"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 type HTTPClientConfig struct {
@@ -54,6 +56,7 @@ func NewDanzoHTTPClient(cfg HTTPClientConfig) *DanzoHTTPClient {
 				})
 			},
 		}).DialContext
+		log.Debug().Str("op", "utils/http-client").Msg("Using high thread mode")
 	}
 	if cfg.ProxyURL != "" {
 		proxyURL, err := url.Parse(cfg.ProxyURL)
@@ -65,6 +68,7 @@ func NewDanzoHTTPClient(cfg HTTPClientConfig) *DanzoHTTPClient {
 					proxyURL.User = url.User(cfg.ProxyUsername)
 				}
 			}
+			log.Debug().Str("op", "utils/http-client").Msgf("Using proxy: %s", proxyURL.String())
 			transport.Proxy = http.ProxyURL(proxyURL)
 		}
 	}

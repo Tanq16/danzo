@@ -62,7 +62,6 @@ const LogFile = ".danzo.log"
 
 var ErrRangeRequestsNotSupported = errors.New("range requests are not supported")
 var ChunkIDRegex = regexp.MustCompile(`\.part(\d+)$`)
-var PMDebug = false
 
 // Local-only User-Agent list
 var userAgents = []string{

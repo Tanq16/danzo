@@ -154,9 +154,12 @@ func (m *Manager) StartDisplay() {
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
-		ticker := time.NewTicker(300 * time.Millisecond)
+		timePerUpdate := 300 * time.Millisecond
+		if utils.GlobalDebugFlag {
+			timePerUpdate = 1 * time.Second // slow refresh for debugging
+		}
+		ticker := time.NewTicker(timePerUpdate)
 		defer ticker.Stop()
-
 		for {
 			select {
 			case <-ticker.C:
@@ -181,7 +184,7 @@ func (m *Manager) StopDisplay() {
 func (m *Manager) updateDisplay() {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	if m.lastLineCount > 0 {
+	if m.lastLineCount > 0 && !utils.GlobalDebugFlag {
 		fmt.Printf("\033[%dA\033[J", m.lastLineCount)
 	}
 

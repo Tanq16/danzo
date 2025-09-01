@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal/scheduler"
 	"github.com/tanq16/danzo/internal/utils"
@@ -33,6 +34,7 @@ func newGDriveCmd() *cobra.Command {
 				job.Metadata["credentialsFile"] = credentialsFile
 			}
 			jobs := []utils.DanzoJob{job}
+			log.Debug().Str("op", "cmd/google-drive").Msgf("Starting scheduler with %d jobs", len(jobs))
 			scheduler.Run(jobs, workers)
 		},
 	}
