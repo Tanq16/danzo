@@ -8,6 +8,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/rs/zerolog/log"
 )
 
 func getAuthMethod(repoURL string, metadata map[string]any) (transport.AuthMethod, error) {
@@ -15,6 +16,7 @@ func getAuthMethod(repoURL string, metadata map[string]any) (transport.AuthMetho
 	token := ""
 	if ok {
 		token = tokenStr.(string)
+		log.Debug().Str("op", "git-clone/auth").Msg("token found")
 	}
 	if token != "" {
 		if strings.Contains(repoURL, "github.com") {
@@ -37,6 +39,7 @@ func getAuthMethod(repoURL string, metadata map[string]any) (transport.AuthMetho
 	sshKeyPath := ""
 	sshKeyStr, ok := metadata["sshKey"]
 	if ok {
+		log.Debug().Str("op", "git-clone/auth").Msg("sshKey found")
 		sshKeyPath = sshKeyStr.(string)
 	}
 	if sshKeyPath != "" {
@@ -46,5 +49,6 @@ func getAuthMethod(repoURL string, metadata map[string]any) (transport.AuthMetho
 		}
 		return publicKeys, nil
 	}
+	log.Debug().Str("op", "git-clone/auth").Msg("no authentication method found")
 	return nil, errors.New("no authentication method found")
 }

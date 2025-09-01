@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -40,16 +41,20 @@ func (d *GitCloneDownloader) Download(job *utils.DanzoJob) error {
 		Progress: progress,
 		Auth:     auth,
 	}
+	log.Debug().Str("op", "git-clone/download").Msg("clone options created")
 	if depth > 0 {
 		cloneOptions.Depth = depth
 	}
 	if job.StreamFunc != nil {
 		job.StreamFunc(fmt.Sprintf("Cloning %s", cloneURL))
 	}
+	log.Info().Str("op", "git-clone/download").Msg("initiating clone")
 	_, err = git.PlainClone(job.OutputPath, false, cloneOptions)
 	if err != nil {
+		log.Error().Str("op", "git-clone/download").Msgf("git clone failed: %v", err)
 		return fmt.Errorf("git clone failed: %v", err)
 	}
+	log.Info().Str("op", "git-clone/download").Msg("clone completed")
 	size, err := getDirSize(job.OutputPath)
 	if err == nil && job.StreamFunc != nil {
 		job.StreamFunc(fmt.Sprintf("Clone complete - Total size: %s", utils.FormatBytes(uint64(size))))

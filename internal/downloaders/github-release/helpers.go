@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -57,16 +58,20 @@ func getGitHubReleaseAssets(owner, repo string, client *utils.DanzoHTTPClient) (
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
+		log.Error().Str("op", "github-release/helpers").Msgf("error creating API request: %v", err)
 		return nil, "", fmt.Errorf("error creating API request: %v", err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Error().Str("op", "github-release/helpers").Msgf("error making API request: %v", err)
 		return nil, "", fmt.Errorf("error making API request: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		log.Error().Str("op", "github-release/helpers").Msgf("API request failed with status code: %d", resp.StatusCode)
 		return nil, "", fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
 	}
+	log.Debug().Str("op", "github-release/helpers").Msg("API request successful")
 
 	var release map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
@@ -75,8 +80,10 @@ func getGitHubReleaseAssets(owner, repo string, client *utils.DanzoHTTPClient) (
 	tagName, _ := release["tag_name"].(string)
 	assets, ok := release["assets"].([]any)
 	if !ok {
+		log.Warn().Str("op", "github-release/helpers").Msg("no assets found in the release")
 		return nil, "", fmt.Errorf("no assets found in the release")
 	}
+	log.Info().Str("op", "github-release/helpers").Msgf("found %d assets in the release", len(assets))
 	var assetList []map[string]any
 	for _, asset := range assets {
 		assetMap, ok := asset.(map[string]any)
@@ -114,6 +121,7 @@ func promptGitHubAssetSelection(assets []map[string]any, tagName string) (string
 	}
 	linesUsed := len(assets) + 4 // Assets list + Release line + Prompt line + Input line + newline
 	fmt.Printf("\033[%dA\033[J", linesUsed)
+	log.Info().Str("op", "github-release/helpers").Msgf("selected asset: %s", assets[selection-1]["name"])
 
 	selectedAsset := assets[selection-1]
 	downloadURL, _ := selectedAsset["browser_download_url"].(string)

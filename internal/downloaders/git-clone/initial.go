@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -19,6 +20,7 @@ func (d *GitCloneDownloader) ValidateJob(job *utils.DanzoJob) error {
 	job.Metadata["provider"] = provider
 	job.Metadata["owner"] = owner
 	job.Metadata["repo"] = repo
+	log.Info().Str("op", "git-clone/initial").Msgf("job validated for %s/%s/%s", provider, owner, repo)
 	return nil
 }
 
@@ -38,6 +40,7 @@ func (d *GitCloneDownloader) BuildJob(job *utils.DanzoJob) error {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("error creating output directory: %v", err)
 	}
+	log.Info().Str("op", "git-clone/initial").Msgf("job built for %s/%s/%s", provider, owner, repo)
 	return nil
 }
 

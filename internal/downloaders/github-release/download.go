@@ -3,6 +3,7 @@ package ghrelease
 import (
 	"time"
 
+	"github.com/rs/zerolog/log"
 	danzohttp "github.com/tanq16/danzo/internal/downloaders/http"
 	"github.com/tanq16/danzo/internal/utils"
 )
@@ -13,6 +14,7 @@ func (d *GitReleaseDownloader) Download(job *utils.DanzoJob) error {
 	client := utils.NewDanzoHTTPClient(job.HTTPClientConfig)
 	progressCh := make(chan int64)
 	progressDone := make(chan struct{})
+	log.Info().Str("op", "github-release/download").Msgf("downloading %s", downloadURL)
 
 	// Progress tracking goroutine
 	go func() {
@@ -21,6 +23,7 @@ func (d *GitReleaseDownloader) Download(job *utils.DanzoJob) error {
 		startTime := time.Now()
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
+		log.Debug().Str("op", "github-release/download").Msg("progress tracking goroutine started")
 		for {
 			select {
 			case bytes, ok := <-progressCh:
@@ -40,6 +43,7 @@ func (d *GitReleaseDownloader) Download(job *utils.DanzoJob) error {
 		}
 	}()
 
+	log.Debug().Str("op", "github-release/download").Msg("calling simple download")
 	err := danzohttp.PerformSimpleDownload(downloadURL, job.OutputPath, client, progressCh)
 	<-progressDone
 	return err
