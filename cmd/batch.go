@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/goccy/go-yaml"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal/scheduler"
 	"github.com/tanq16/danzo/internal/utils"
@@ -26,20 +27,25 @@ func newBatchCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			yamlFile := args[0]
 			data, err := os.ReadFile(yamlFile)
+			log.Debug().Str("op", "cmd/batch").Msgf("Reading YAML file: %s", yamlFile)
 			if err != nil {
+				log.Error().Str("op", "cmd/batch").Msgf("Error reading YAML file: %v", err)
 				fmt.Fprintf(os.Stderr, "Error reading YAML file: %v\n", err)
 				os.Exit(1)
 			}
 			var batchFile BatchFile
 			if err := yaml.Unmarshal(data, &batchFile); err != nil {
+				log.Error().Str("op", "cmd/batch").Msgf("Error parsing YAML file: %v", err)
 				fmt.Fprintf(os.Stderr, "Error parsing YAML file: %v\n", err)
 				os.Exit(1)
 			}
 			jobs := buildJobsFromBatch(batchFile)
 			if len(jobs) == 0 {
+				log.Error().Str("op", "cmd/batch").Msgf("No valid jobs found in the batch file")
 				fmt.Fprintf(os.Stderr, "No valid jobs found in the batch file\n")
 				os.Exit(1)
 			}
+			log.Debug().Str("op", "cmd/batch").Msgf("Starting scheduler with %d jobs", len(jobs))
 			scheduler.Run(jobs, workers)
 		},
 	}
@@ -51,11 +57,13 @@ func buildJobsFromBatch(batchFile BatchFile) []utils.DanzoJob {
 	for jobType, entries := range batchFile {
 		normalizedType := normalizeJobType(jobType)
 		if normalizedType == "" {
+			log.Warn().Str("op", "cmd/batch").Msgf("Unknown job type '%s', skipping...", jobType)
 			fmt.Fprintf(os.Stderr, "Warning: Unknown job type '%s', skipping...\n", jobType)
 			continue
 		}
 		for _, entry := range entries {
 			if entry.Link == "" {
+				log.Warn().Str("op", "cmd/batch").Msgf("Empty link found in %s section, skipping...", jobType)
 				fmt.Fprintf(os.Stderr, "Warning: Empty link found in %s section, skipping...\n", jobType)
 				continue
 			}
@@ -83,6 +91,7 @@ func buildJobsFromBatch(batchFile BatchFile) []utils.DanzoJob {
 			jobs = append(jobs, job)
 		}
 	}
+	log.Debug().Str("op", "cmd/batch").Msgf("Built %d jobs from batch file", len(jobs))
 	return jobs
 }
 

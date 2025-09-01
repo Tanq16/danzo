@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal/scheduler"
 	"github.com/tanq16/danzo/internal/utils"
@@ -33,6 +34,7 @@ func newYTMusicCmd() *cobra.Command {
 				job.Metadata["musicID"] = appleID
 			}
 			jobs := []utils.DanzoJob{job}
+			log.Debug().Str("op", "cmd/youtube-music").Msgf("Starting scheduler with %d jobs", len(jobs))
 			scheduler.Run(jobs, workers)
 		},
 	}

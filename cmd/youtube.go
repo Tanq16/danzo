@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal/scheduler"
 	"github.com/tanq16/danzo/internal/utils"
@@ -28,6 +29,7 @@ func newYouTubeCmd() *cobra.Command {
 				job.Metadata["format"] = format
 			}
 			jobs := []utils.DanzoJob{job}
+			log.Debug().Str("op", "cmd/youtube").Msgf("Starting scheduler with %d jobs", len(jobs))
 			scheduler.Run(jobs, workers)
 		},
 	}

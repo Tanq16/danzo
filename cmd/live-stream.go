@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal/scheduler"
 	"github.com/tanq16/danzo/internal/utils"
@@ -25,6 +26,7 @@ func newM3U8Cmd() *cobra.Command {
 				Metadata:         make(map[string]any),
 			}
 			jobs := []utils.DanzoJob{job}
+			log.Debug().Str("op", "cmd/live-stream").Msgf("Starting scheduler with %d jobs", len(jobs))
 			scheduler.Run(jobs, workers)
 		},
 	}

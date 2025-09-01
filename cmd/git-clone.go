@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal/scheduler"
 	"github.com/tanq16/danzo/internal/utils"
@@ -36,6 +37,7 @@ func newGitCloneCmd() *cobra.Command {
 				job.Metadata["sshKey"] = sshKey
 			}
 			jobs := []utils.DanzoJob{job}
+			log.Debug().Str("op", "cmd/git-clone").Msgf("Starting scheduler with %d jobs", len(jobs))
 			scheduler.Run(jobs, workers)
 		},
 	}

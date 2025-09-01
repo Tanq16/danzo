@@ -22,14 +22,11 @@ var (
 	headers       []string
 	workers       int
 	connections   int
-	debugFlag     bool
+	debugFlag     string
 )
 
 // Global HTTP client config that will be passed to subcommands
 var globalHTTPConfig utils.HTTPClientConfig
-
-// Registry for all subcommands
-var commandRegistry = make(map[string]*cobra.Command)
 
 var rootCmd = &cobra.Command{
 	Use:               "danzo",
@@ -57,9 +54,19 @@ func setupLogs() {
 	}
 	log.Logger = zerolog.New(output).With().Timestamp().Logger()
 	zerolog.SetGlobalLevel(zerolog.Disabled)
-	if debugFlag {
+	switch debugFlag {
+	case "debug":
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		utils.GlobalDebugFlag = true
+	case "info":
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 		utils.GlobalDebugFlag = true
+	case "disabled":
+		zerolog.SetGlobalLevel(zerolog.Disabled)
+		utils.GlobalDebugFlag = false
+	default:
+		zerolog.SetGlobalLevel(zerolog.Disabled)
+		utils.GlobalDebugFlag = false
 	}
 }
 
@@ -72,7 +79,7 @@ func Execute() {
 
 func init() {
 	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
-	rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Enable debug logging")
+	rootCmd.PersistentFlags().StringVar(&debugFlag, "debug", "disabled", "Enable logging for debug, info or disabled (TUI mode) level")
 	cobra.OnInitialize(setupLogs)
 
 	// Global flags
@@ -88,21 +95,15 @@ func init() {
 	fmt.Println()
 }
 
-func RegisterCommand(name string, cmd *cobra.Command) {
-	commandRegistry[name] = cmd
-	rootCmd.AddCommand(cmd)
-}
-
 func registerCommands() {
-	RegisterCommand("clean", newCleanCmd())
-
-	RegisterCommand("http", newHTTPCmd())
-	RegisterCommand("m3u8", newM3U8Cmd())
-	RegisterCommand("s3", newS3Cmd())
-	RegisterCommand("gitclone", newGitCloneCmd())
-	RegisterCommand("ghrelease", newGHReleaseCmd())
-	RegisterCommand("gdrive", newGDriveCmd())
-	RegisterCommand("youtube", newYouTubeCmd())
-	RegisterCommand("ytmusic", newYTMusicCmd())
-	RegisterCommand("batch", newBatchCmd())
+	rootCmd.AddCommand(newCleanCmd())
+	rootCmd.AddCommand(newHTTPCmd())
+	rootCmd.AddCommand(newM3U8Cmd())
+	rootCmd.AddCommand(newS3Cmd())
+	rootCmd.AddCommand(newGitCloneCmd())
+	rootCmd.AddCommand(newGHReleaseCmd())
+	rootCmd.AddCommand(newGDriveCmd())
+	rootCmd.AddCommand(newYouTubeCmd())
+	rootCmd.AddCommand(newYTMusicCmd())
+	rootCmd.AddCommand(newBatchCmd())
 }

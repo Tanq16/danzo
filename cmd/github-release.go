@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal/scheduler"
 	"github.com/tanq16/danzo/internal/utils"
@@ -27,6 +28,7 @@ func newGHReleaseCmd() *cobra.Command {
 			}
 			job.Metadata["manual"] = manual
 			jobs := []utils.DanzoJob{job}
+			log.Debug().Str("op", "cmd/github-release").Msgf("Starting scheduler with %d jobs", len(jobs))
 			scheduler.Run(jobs, workers)
 		},
 	}
