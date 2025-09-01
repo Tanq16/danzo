@@ -156,7 +156,7 @@ func (m *Manager) StartDisplay() {
 		defer m.wg.Done()
 		timePerUpdate := 300 * time.Millisecond
 		if utils.GlobalDebugFlag {
-			timePerUpdate = 1 * time.Second // slow refresh for debugging
+			timePerUpdate = 3 * time.Second // slow refresh for debug mode
 		}
 		ticker := time.NewTicker(timePerUpdate)
 		defer ticker.Stop()
