@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -44,8 +45,10 @@ func extractFileID(rawURL string) (string, error) {
 func getFileMetadata(rawURL string, client *utils.DanzoHTTPClient, token string) (map[string]any, string, error) {
 	fileID, err := extractFileID(rawURL)
 	if err != nil {
+		log.Error().Str("op", "google-drive/helpers").Msgf("error extracting file ID: %v", err)
 		return nil, "", fmt.Errorf("error extracting file ID: %v", err)
 	}
+	log.Debug().Str("op", "google-drive/helpers").Msgf("extracted file ID: %s", fileID)
 	isOAuth := !strings.HasPrefix(token, "AIza")
 	var metadataURL string
 	if isOAuth {
@@ -68,6 +71,7 @@ func getFileMetadata(rawURL string, client *utils.DanzoHTTPClient, token string)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		log.Error().Str("op", "google-drive/helpers").Msgf("failed to get file metadata, status: %d", resp.StatusCode)
 		return nil, "", fmt.Errorf("failed to get file metadata, status: %d", resp.StatusCode)
 	}
 	var metadata map[string]any
@@ -75,6 +79,7 @@ func getFileMetadata(rawURL string, client *utils.DanzoHTTPClient, token string)
 	if err != nil {
 		return nil, "", fmt.Errorf("error parsing metadata response: %v", err)
 	}
+	log.Debug().Str("op", "google-drive/helpers").Msgf("file metadata retrieved")
 	return metadata, fileID, nil
 }
 
@@ -82,7 +87,7 @@ func listFolderContents(folderID, token string, client *utils.DanzoHTTPClient) (
 	var files []map[string]any
 	pageToken := ""
 	isOAuth := !strings.HasPrefix(token, "AIza")
-
+	log.Debug().Str("op", "google-drive/helpers").Msgf("listing folder contents for %s", folderID)
 	for {
 		var url string
 		if isOAuth {
@@ -121,6 +126,7 @@ func listFolderContents(folderID, token string, client *utils.DanzoHTTPClient) (
 			return nil, err
 		}
 		if items, ok := result["files"].([]any); ok {
+			log.Debug().Str("op", "google-drive/helpers").Msgf("listing %d items", len(items))
 			for _, item := range items {
 				if fileMap, ok := item.(map[string]any); ok {
 					files = append(files, fileMap)
@@ -130,6 +136,7 @@ func listFolderContents(folderID, token string, client *utils.DanzoHTTPClient) (
 
 		if nextToken, ok := result["nextPageToken"].(string); ok && nextToken != "" {
 			pageToken = nextToken
+			log.Debug().Str("op", "google-drive/helpers").Msgf("listing next page")
 		} else {
 			break
 		}

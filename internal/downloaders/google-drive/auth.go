@@ -8,7 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/output"
+	"github.com/tanq16/danzo/internal/utils"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/term"
@@ -19,8 +21,10 @@ func getAccessTokenFromCredentials(credentialsFile string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("unable to read credentials file: %v", err)
 	}
+	log.Debug().Str("op", "google-drive/auth").Msgf("using credentials from %s", credentialsFile)
 	config, err := google.ConfigFromJSON(b, "https://www.googleapis.com/auth/drive.readonly")
 	if err != nil {
+		log.Error().Str("op", "google-drive/auth").Msgf("unable to parse client secret file: %v", err)
 		return "", fmt.Errorf("unable to parse client secret file: %v", err)
 	}
 
@@ -39,6 +43,7 @@ func getAccessTokenFromCredentials(credentialsFile string) (string, error) {
 			token = newToken
 			// Save refreshed token
 			if err := saveToken(tokenFile, token); err != nil {
+				log.Warn().Str("op", "google-drive/auth").Msgf("unable to save refreshed token: %v", err)
 			}
 		} else {
 			return "", errors.New("OAuth token is expired and cannot be refreshed")
@@ -50,8 +55,10 @@ func getAccessTokenFromCredentials(credentialsFile string) (string, error) {
 func getOAuthToken(config *oauth2.Config, tokenFile string) (*oauth2.Token, error) {
 	token, err := tokenFromFile(tokenFile)
 	if err == nil {
+		log.Debug().Str("op", "google-drive/auth").Msgf("existing token retrieved")
 		return token, nil
 	}
+	log.Debug().Str("op", "google-drive/auth").Msgf("no existing token retrieved, get new one with OAuth flow")
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 	output.PrintDetail("\nVisit this URL to get the authorization code:\n")
 	fmt.Printf("%s\n", authURL)
@@ -60,15 +67,19 @@ func getOAuthToken(config *oauth2.Config, tokenFile string) (*oauth2.Token, erro
 	if _, err := fmt.Scan(&authCode); err != nil {
 		return nil, fmt.Errorf("unable to read authorization code: %v", err)
 	}
+	log.Debug().Str("op", "google-drive/auth").Msgf("exchanging scanned auth code for token")
 	token, err = config.Exchange(context.Background(), authCode)
 	if err != nil {
 		return nil, fmt.Errorf("unable to exchange auth code for token: %v", err)
 	}
 	if err := saveToken(tokenFile, token); err != nil {
+		log.Warn().Str("op", "google-drive/auth").Msgf("unable to save new token: %v", err)
 	}
 	clearLength := 6
 	clearLength += len(authURL)/getTerminalWidth() + 1
-	fmt.Printf("\033[%dA\033[J", clearLength)
+	if !utils.GlobalDebugFlag {
+		fmt.Printf("\033[%dA\033[J", clearLength)
+	}
 	return token, nil
 }
 
@@ -80,6 +91,7 @@ func tokenFromFile(file string) (*oauth2.Token, error) {
 	defer f.Close()
 	token := &oauth2.Token{}
 	err = json.NewDecoder(f).Decode(token)
+	log.Debug().Str("op", "google-drive/auth").Msgf("token retrieved from file")
 	return token, err
 }
 

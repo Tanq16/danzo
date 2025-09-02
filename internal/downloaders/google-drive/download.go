@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	danzohttp "github.com/tanq16/danzo/internal/downloaders/http"
 	"github.com/tanq16/danzo/internal/utils"
 )
@@ -15,6 +16,7 @@ func (d *GDriveDownloader) Download(job *utils.DanzoJob) error {
 	isFolder := job.Metadata["isFolder"].(bool)
 	totalSize := job.Metadata["totalSize"].(int64)
 	client := utils.NewDanzoHTTPClient(job.HTTPClientConfig)
+	log.Info().Str("op", "google-drive/download").Msgf("downloading gdrive file; isFolder:%v", isFolder)
 	if isFolder {
 		return d.downloadFolder(job, token, client, totalSize)
 	} else {
@@ -34,7 +36,6 @@ func (d *GDriveDownloader) downloadFile(job *utils.DanzoJob, token string, clien
 			}
 		}
 	}()
-
 	config := utils.HTTPDownloadConfig{
 		URL:              job.URL,
 		OutputPath:       job.OutputPath,
@@ -48,7 +49,6 @@ func (d *GDriveDownloader) downloadFolder(job *utils.DanzoJob, token string, cli
 	if err := os.MkdirAll(job.OutputPath, 0755); err != nil {
 		return fmt.Errorf("error creating folder: %v", err)
 	}
-
 	var totalDownloaded int64
 	for _, file := range files {
 		fileID := file["id"].(string)
@@ -68,7 +68,6 @@ func (d *GDriveDownloader) downloadFolder(job *utils.DanzoJob, token string, cli
 				}
 			}
 		}(progressCh)
-
 		config := utils.HTTPDownloadConfig{
 			URL:              fmt.Sprintf("https://drive.google.com/file/d/%s/view", fileID),
 			OutputPath:       outputPath,
@@ -95,6 +94,7 @@ func performGDriveDownload(config utils.HTTPDownloadConfig, token string, fileID
 	} else {
 		downloadURL = fmt.Sprintf("%s/%s?alt=media&key=%s", driveAPIURL, fileID, token)
 	}
+	log.Debug().Str("op", "google-drive/download").Msgf("performing simple http download for %s", downloadURL)
 	err := danzohttp.PerformSimpleDownload(downloadURL, config.OutputPath, client, progressCh)
 	if err != nil {
 		return fmt.Errorf("error downloading Google Drive file: %v", err)
