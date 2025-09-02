@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -38,42 +39,51 @@ func (d *YouTubeDownloader) ValidateJob(job *utils.DanzoJob) error {
 			return fmt.Errorf("unsupported format: %s", format)
 		}
 	}
+	log.Info().Str("op", "youtube/initial").Msgf("job validated for %s", job.URL)
 	return nil
 }
 
 func (d *YouTubeDownloader) BuildJob(job *utils.DanzoJob) error {
 	format, ok := job.Metadata["format"].(string)
 	if !ok || format == "" {
-		format = "best"
+		format = "decent"
 		job.Metadata["format"] = format
 	}
 	job.Metadata["ytdlpFormat"] = ytdlpFormats[format]
+	log.Debug().Str("op", "youtube/initial").Msgf("Using format key '%s' for yt-dlp format '%s'", format, ytdlpFormats[format])
+
 	ytdlpPath, err := EnsureYtdlp()
 	if err != nil {
 		return fmt.Errorf("error ensuring yt-dlp: %v", err)
 	}
 	job.Metadata["ytdlpPath"] = ytdlpPath
+	log.Debug().Str("op", "youtube/initial").Msgf("Using yt-dlp at: %s", ytdlpPath)
 
 	ffmpegPath, err := EnsureFFmpeg()
 	if err != nil {
 		return fmt.Errorf("error ensuring ffmpeg: %v", err)
 	}
 	job.Metadata["ffmpegPath"] = ffmpegPath
+	log.Debug().Str("op", "youtube/initial").Msgf("Using ffmpeg at: %s", ffmpegPath)
+
 	ffprobePath, err := ensureFFprobe()
 	if err != nil {
 		return fmt.Errorf("error ensuring ffprobe: %v", err)
 	}
 	job.Metadata["ffprobePath"] = ffprobePath
+	log.Debug().Str("op", "youtube/initial").Msgf("Using ffprobe at: %s", ffprobePath)
 
 	if job.OutputPath == "" {
 		job.OutputPath = "%(title)s.%(ext)s"
 	}
+	log.Info().Str("op", "youtube/initial").Msgf("job built for %s", job.URL)
 	return nil
 }
 
 func EnsureYtdlp() (string, error) {
 	path, err := exec.LookPath("yt-dlp")
 	if err == nil {
+		log.Debug().Str("op", "youtube/initial").Msgf("yt-dlp found in PATH: %s", path)
 		return path, nil
 	}
 	execDir, err := os.Executable()
@@ -83,15 +93,18 @@ func EnsureYtdlp() (string, error) {
 			ytdlpPath += ".exe"
 		}
 		if _, err := os.Stat(ytdlpPath); err == nil {
+			log.Debug().Str("op", "youtube/initial").Msgf("yt-dlp found in executable directory: %s", ytdlpPath)
 			return ytdlpPath, nil
 		}
 	}
+	log.Warn().Str("op", "youtube/initial").Msg("yt-dlp not found, attempting download")
 	return downloadYtdlp()
 }
 
 func EnsureFFmpeg() (string, error) {
 	path, err := exec.LookPath("ffmpeg")
 	if err == nil {
+		log.Debug().Str("op", "youtube/initial").Msgf("ffmpeg found in PATH: %s", path)
 		return path, nil
 	}
 	execDir, err := os.Executable()
@@ -101,15 +114,18 @@ func EnsureFFmpeg() (string, error) {
 			ffmpegPath += ".exe"
 		}
 		if _, err := os.Stat(ffmpegPath); err == nil {
+			log.Debug().Str("op", "youtube/initial").Msgf("ffmpeg found in executable directory: %s", ffmpegPath)
 			return ffmpegPath, nil
 		}
 	}
+	log.Error().Str("op", "youtube/initial").Msg("ffmpeg not found in PATH or executable directory. Please install it.")
 	return "", fmt.Errorf("ffmpeg not found in PATH, please install manually")
 }
 
 func ensureFFprobe() (string, error) {
 	path, err := exec.LookPath("ffprobe")
 	if err == nil {
+		log.Debug().Str("op", "youtube/initial").Msgf("ffprobe found in PATH: %s", path)
 		return path, nil
 	}
 	execDir, err := os.Executable()
@@ -119,8 +135,10 @@ func ensureFFprobe() (string, error) {
 			ffprobePath += ".exe"
 		}
 		if _, err := os.Stat(ffprobePath); err == nil {
+			log.Debug().Str("op", "youtube/initial").Msgf("ffprobe found in executable directory: %s", ffprobePath)
 			return ffprobePath, nil
 		}
 	}
+	log.Error().Str("op", "youtube/initial").Msg("ffprobe not found in PATH or executable directory. Please install it.")
 	return "", fmt.Errorf("ffprobe not found in PATH, please install manually")
 }

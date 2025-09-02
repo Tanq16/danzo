@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/downloaders/youtube"
 	"github.com/tanq16/danzo/internal/utils"
 )
@@ -27,6 +28,7 @@ func (d *YTMusicDownloader) ValidateJob(job *utils.DanzoJob) error {
 			return fmt.Errorf("music ID required for %s", client)
 		}
 	}
+	log.Info().Str("op", "youtube-music/initial").Msgf("job validated for %s", job.URL)
 	return nil
 }
 
@@ -36,11 +38,14 @@ func (d *YTMusicDownloader) BuildJob(job *utils.DanzoJob) error {
 		return fmt.Errorf("error ensuring yt-dlp: %v", err)
 	}
 	job.Metadata["ytdlpPath"] = ytdlpPath
+	log.Debug().Str("op", "youtube-music/initial").Msgf("Using yt-dlp at: %s", ytdlpPath)
+
 	ffmpegPath, err := ensureFFmpeg()
 	if err != nil {
 		return fmt.Errorf("error ensuring ffmpeg: %v", err)
 	}
 	job.Metadata["ffmpegPath"] = ffmpegPath
+	log.Debug().Str("op", "youtube-music/initial").Msgf("Using ffmpeg at: %s", ffmpegPath)
 
 	if job.OutputPath == "" {
 		job.OutputPath = "%(title)s.m4a"
@@ -51,7 +56,9 @@ func (d *YTMusicDownloader) BuildJob(job *utils.DanzoJob) error {
 
 	if info, err := os.Stat(job.OutputPath); err == nil && !info.IsDir() {
 		job.OutputPath = utils.RenewOutputPath(job.OutputPath)
+		log.Debug().Str("op", "youtube-music/initial").Msgf("Output path renewed to %s", job.OutputPath)
 	}
+	log.Info().Str("op", "youtube-music/initial").Msgf("job built for %s", job.URL)
 	return nil
 }
 
@@ -60,5 +67,6 @@ func ensureFFmpeg() (string, error) {
 	if err == nil {
 		return path, nil
 	}
+	log.Error().Str("op", "youtube-music/initial").Msg("ffmpeg not found in PATH. Please install it.")
 	return "", fmt.Errorf("ffmpeg not found in PATH, please install manually")
 }

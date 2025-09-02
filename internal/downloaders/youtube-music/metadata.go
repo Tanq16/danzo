@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -70,23 +71,29 @@ func addMusicMetadata(inputPath, outputPath, musicClient, musicId string, stream
 func addAppleMetadata(inputPath, outputPath, musicId string, streamFunc func(string)) error {
 	client := utils.NewDanzoHTTPClient(httpConfig)
 	apiURL := fmt.Sprintf("https://itunes.apple.com/lookup?id=%s&entity=song", musicId)
+	log.Debug().Str("op", "youtube-music/metadata").Msgf("Fetching iTunes metadata from: %s", apiURL)
 	req, _ := http.NewRequest("GET", apiURL, nil)
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Error().Str("op", "youtube-music/metadata").Err(err).Msg("Error fetching iTunes metadata")
 		return fmt.Errorf("error fetching metadata: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		log.Error().Str("op", "youtube-music/metadata").Msgf("iTunes API request failed with status code %d", resp.StatusCode)
 		return fmt.Errorf("API request failed with status code %d", resp.StatusCode)
 	}
 	var itunesResp ITunesResponse
 	if err := json.NewDecoder(resp.Body).Decode(&itunesResp); err != nil {
+		log.Error().Str("op", "youtube-music/metadata").Err(err).Msg("Error parsing iTunes response")
 		return fmt.Errorf("error parsing response: %v", err)
 	}
 	if itunesResp.ResultCount == 0 || len(itunesResp.Results) == 0 {
+		log.Warn().Str("op", "youtube-music/metadata").Msgf("No results found for iTunes ID: %s", musicId)
 		return fmt.Errorf("no results found for iTunes ID: %s", musicId)
 	}
+	log.Debug().Str("op", "youtube-music/metadata").Msg("Successfully fetched and parsed iTunes metadata")
 
 	trackInfo := itunesResp.Results[0]
 	tempDir := filepath.Join(filepath.Dir(outputPath), ".danzo-temp")
@@ -102,6 +109,7 @@ func addAppleMetadata(inputPath, outputPath, musicId string, streamFunc func(str
 		artworkPath = filepath.Join(tempDir, fileMarker+".jpg")
 		err := downloadFile(highResArtwork, artworkPath, client)
 		if err != nil {
+			log.Warn().Str("op", "youtube-music/metadata").Err(err).Msg("Failed to download artwork")
 			artworkPath = ""
 		}
 	}
@@ -111,20 +119,25 @@ func addAppleMetadata(inputPath, outputPath, musicId string, streamFunc func(str
 func addDeezerMetadata(inputPath, outputPath, musicId string, streamFunc func(string)) error {
 	client := utils.NewDanzoHTTPClient(httpConfig)
 	apiURL := fmt.Sprintf("https://api.deezer.com/track/%s", musicId)
+	log.Debug().Str("op", "youtube-music/metadata").Msgf("Fetching Deezer metadata from: %s", apiURL)
 	req, _ := http.NewRequest("GET", apiURL, nil)
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Error().Str("op", "youtube-music/metadata").Err(err).Msg("Error fetching Deezer metadata")
 		return fmt.Errorf("error fetching metadata: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		log.Error().Str("op", "youtube-music/metadata").Msgf("Deezer API request failed with status code %d", resp.StatusCode)
 		return fmt.Errorf("API request failed with status code %d", resp.StatusCode)
 	}
 	var deezerResp DeezerResponse
 	if err := json.NewDecoder(resp.Body).Decode(&deezerResp); err != nil {
+		log.Error().Str("op", "youtube-music/metadata").Err(err).Msg("Error parsing Deezer response")
 		return fmt.Errorf("error parsing response: %v", err)
 	}
+	log.Debug().Str("op", "youtube-music/metadata").Msg("Successfully fetched and parsed Deezer metadata")
 	tempDir := filepath.Join(filepath.Dir(outputPath), ".danzo-temp")
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		return fmt.Errorf("error creating temp directory: %v", err)
@@ -137,6 +150,7 @@ func addDeezerMetadata(inputPath, outputPath, musicId string, streamFunc func(st
 		artworkPath = filepath.Join(tempDir, fileMarker+".jpg")
 		err := downloadFile(deezerResp.Album.Cover, artworkPath, client)
 		if err != nil {
+			log.Warn().Str("op", "youtube-music/metadata").Err(err).Msg("Failed to download artwork")
 			artworkPath = ""
 		}
 	}
@@ -205,13 +219,16 @@ func applyMetadataWithFFmpeg(inputPath, outputPath string, trackInfo struct {
 	args = append(args, "-id3v2_version", "3", "-y", outputPath)
 
 	cmd := exec.Command("ffmpeg", args...)
+	log.Debug().Str("op", "youtube-music/metadata").Msgf("Applying metadata with ffmpeg: %s", cmd.String())
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		log.Error().Str("op", "youtube-music/metadata").Err(err).Msgf("FFmpeg error: %s", string(output))
 		return fmt.Errorf("FFmpeg error: %v\nOutput: %s", err, string(output))
 	}
 	if streamFunc != nil {
 		streamFunc("Metadata applied successfully")
 	}
+	log.Info().Str("op", "youtube-music/metadata").Msgf("Metadata successfully applied to %s", outputPath)
 	return nil
 }
 
@@ -257,13 +274,16 @@ func applyDeezerMetadataWithFFmpeg(inputPath, outputPath string, deezerResp Deez
 	args = append(args, "-id3v2_version", "3", "-y", outputPath)
 
 	cmd := exec.Command("ffmpeg", args...)
+	log.Debug().Str("op", "youtube-music/metadata").Msgf("Applying metadata with ffmpeg: %s", cmd.String())
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		log.Error().Str("op", "youtube-music/metadata").Err(err).Msgf("FFmpeg error: %s", string(output))
 		return fmt.Errorf("FFmpeg error: %v\nOutput: %s", err, string(output))
 	}
 	if streamFunc != nil {
 		streamFunc("Metadata applied successfully")
 	}
+	log.Info().Str("op", "youtube-music/metadata").Msgf("Metadata successfully applied to %s", outputPath)
 	return nil
 }
 

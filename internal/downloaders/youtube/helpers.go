@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -32,6 +33,7 @@ func downloadYtdlp() (string, error) {
 
 	tempDir := ".danzo-temp"
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		log.Error().Str("op", "youtube/helpers").Err(err).Msg("Error creating temp directory")
 		return "", fmt.Errorf("error creating temp directory: %v", err)
 	}
 	downloadURL := fmt.Sprintf("https://github.com/yt-dlp/yt-dlp/releases/latest/download/%s", filename)
@@ -39,18 +41,24 @@ func downloadYtdlp() (string, error) {
 	if goos == "windows" {
 		filePath += ".exe"
 	}
+
+	log.Info().Str("op", "youtube/helpers").Msgf("Downloading yt-dlp from %s to %s", downloadURL, filePath)
 	if err := downloadFile(downloadURL, filePath); err != nil {
+		log.Error().Str("op", "youtube/helpers").Err(err).Msg("Failed to download yt-dlp")
 		return "", err
 	}
 	if goos != "windows" {
 		if err := os.Chmod(filePath, 0755); err != nil {
+			log.Error().Str("op", "youtube/helpers").Err(err).Msg("Failed to set permissions for yt-dlp")
 			return "", fmt.Errorf("error setting permissions: %v", err)
 		}
 	}
+	log.Info().Str("op", "youtube/helpers").Msg("yt-dlp downloaded successfully")
 	return filePath, nil
 }
 
 func downloadFile(url, filepath string) error {
+	log.Debug().Str("op", "youtube/helpers").Msgf("Downloading file from %s to %s", url, filepath)
 	client := utils.NewDanzoHTTPClient(utils.HTTPClientConfig{})
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
