@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -30,6 +31,7 @@ func (d *HTTPDownloader) ValidateJob(job *utils.DanzoJob) error {
 	if err != nil {
 		return fmt.Errorf("error creating request: %v", err)
 	}
+	log.Debug().Str("op", "http/initial").Msgf("Sending HEAD request to %s", job.URL)
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("error checking URL: %v", err)
@@ -37,6 +39,7 @@ func (d *HTTPDownloader) ValidateJob(job *utils.DanzoJob) error {
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusMovedPermanently || resp.StatusCode == http.StatusFound {
 		if location := resp.Header.Get("Location"); location != "" {
+			log.Debug().Str("op", "http/initial").Msgf("URL redirected to %s", location)
 			job.URL = location
 		}
 	} else if resp.StatusCode == http.StatusNotFound {
@@ -44,6 +47,7 @@ func (d *HTTPDownloader) ValidateJob(job *utils.DanzoJob) error {
 	} else if resp.StatusCode >= 400 {
 		return fmt.Errorf("server returned error: %d", resp.StatusCode)
 	}
+	log.Info().Str("op", "http/initial").Msgf("job validated for %s", job.URL)
 	return nil
 }
 
@@ -54,6 +58,7 @@ func (d *HTTPDownloader) BuildJob(job *utils.DanzoJob) error {
 	if err != nil && err != utils.ErrRangeRequestsNotSupported {
 		return fmt.Errorf("error getting file info: %v", err)
 	}
+	log.Debug().Str("op", "http/initial").Msgf("File info retrieved: size=%d, name=%s, rangeSupported=%v", fileSize, fileName, err != utils.ErrRangeRequestsNotSupported)
 
 	if job.OutputPath == "" && fileName != "" {
 		job.OutputPath = fileName
@@ -71,9 +76,11 @@ func (d *HTTPDownloader) BuildJob(job *utils.DanzoJob) error {
 			return fmt.Errorf("file already exists with same size")
 		}
 		job.OutputPath = utils.RenewOutputPath(job.OutputPath)
+		log.Debug().Str("op", "http/initial").Msgf("Output path renewed to %s", job.OutputPath)
 	}
 	job.Metadata["fileSize"] = fileSize
 	job.Metadata["rangeSupported"] = err != utils.ErrRangeRequestsNotSupported
+	log.Info().Str("op", "http/initial").Msgf("job built for %s", job.URL)
 	return nil
 }
 
@@ -123,11 +130,13 @@ func (d *HTTPDownloader) Download(job *utils.DanzoJob) error {
 
 	var err error
 	if !rangeSupported || job.Connections == 1 {
+		log.Debug().Str("op", "http/initial").Msg("Using simple downloader (range not supported or 1 connection)")
 		err = PerformSimpleDownload(job.URL, job.OutputPath, client, progressCh)
 	} else if fileSize/int64(job.Connections) < 2*utils.DefaultBufferSize {
-		// Chunk size would be too small, use simple download
+		log.Debug().Str("op", "http/initial").Msg("Using simple downloader (chunk size too small)")
 		err = PerformSimpleDownload(job.URL, job.OutputPath, client, progressCh)
 	} else {
+		log.Debug().Str("op", "http/initial").Msg("Using multi-chunk downloader")
 		config := utils.HTTPDownloadConfig{
 			URL:              job.URL,
 			OutputPath:       job.OutputPath,

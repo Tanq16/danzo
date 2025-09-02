@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -20,8 +21,10 @@ func (d *S3Downloader) Download(job *utils.DanzoJob) error {
 		return fmt.Errorf("error creating S3 client: %v", err)
 	}
 	if fileType == "folder" {
+		log.Info().Str("op", "s3/download").Msgf("Starting folder download for s3://%s/%s", bucket, key)
 		return d.downloadFolder(job, bucket, key, s3Client)
 	} else {
+		log.Info().Str("op", "s3/download").Msgf("Starting file download for s3://%s/%s", bucket, key)
 		return d.downloadFile(job, bucket, key, s3Client)
 	}
 }
@@ -50,6 +53,7 @@ func (d *S3Downloader) downloadFolder(job *utils.DanzoJob, bucket, prefix string
 	if len(objects) == 0 {
 		return fmt.Errorf("no objects found in s3://%s/%s", bucket, prefix)
 	}
+	log.Debug().Str("op", "s3/download").Msgf("Found %d objects to download in folder", len(objects))
 	var totalSize int64
 	for _, obj := range objects {
 		totalSize += obj.Size
@@ -64,6 +68,7 @@ func (d *S3Downloader) downloadFolder(job *utils.DanzoJob, bucket, prefix string
 	}
 	close(jobCh)
 	numWorkers := min(job.Connections, len(objects))
+	log.Debug().Str("op", "s3/download").Msgf("Using %d parallel workers for folder download", numWorkers)
 
 	var wg sync.WaitGroup
 	for range numWorkers {

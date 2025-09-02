@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -16,6 +17,7 @@ func (d *S3Downloader) ValidateJob(job *utils.DanzoJob) error {
 	}
 	job.Metadata["bucket"] = bucket
 	job.Metadata["key"] = key
+	log.Info().Str("op", "s3/initial").Msgf("job validated for s3://%s/%s", bucket, key)
 	return nil
 }
 
@@ -35,6 +37,7 @@ func (d *S3Downloader) BuildJob(job *utils.DanzoJob) error {
 	}
 	job.Metadata["fileType"] = fileType
 	job.Metadata["size"] = size
+	log.Debug().Str("op", "s3/initial").Msgf("Determined object type: %s, size: %d", fileType, size)
 
 	if job.OutputPath == "" {
 		if fileType == "folder" {
@@ -58,6 +61,7 @@ func (d *S3Downloader) BuildJob(job *utils.DanzoJob) error {
 			job.OutputPath = utils.RenewOutputPath(job.OutputPath)
 		}
 	}
+	log.Info().Str("op", "s3/initial").Msgf("job built for s3://%s/%s", bucket, key)
 	return nil
 }
 

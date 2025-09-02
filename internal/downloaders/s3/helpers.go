@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -23,6 +24,7 @@ type s3Object struct {
 }
 
 func getS3Client(profile string) (*S3Client, error) {
+	log.Debug().Str("op", "s3/helpers").Msgf("Loading AWS config with profile: %s", profile)
 	cfg, err := config.LoadDefaultConfig(context.Background(),
 		config.WithSharedConfigProfile(profile),
 		config.WithRetryMode("adaptive"),
@@ -38,6 +40,7 @@ func getS3Client(profile string) (*S3Client, error) {
 
 func getS3ObjectInfo(bucket, key string, client *S3Client) (string, int64, error) {
 	// Try HEAD request first
+	log.Debug().Str("op", "s3/helpers").Msgf("Checking if s3://%s/%s is a file", bucket, key)
 	headObj, err := client.client.HeadObject(context.Background(), &s3.HeadObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
@@ -47,9 +50,11 @@ func getS3ObjectInfo(bucket, key string, client *S3Client) (string, int64, error
 		if headObj.ContentLength != nil {
 			size = *headObj.ContentLength
 		}
+		log.Debug().Str("op", "s3/helpers").Msgf("Object is a file with size %d", size)
 		return "file", size, nil
 	}
 	// Check if it's a folder by listing with prefix
+	log.Debug().Str("op", "s3/helpers").Msgf("Checking if s3://%s/%s is a folder", bucket, key)
 	result, err := client.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
 		Bucket:  aws.String(bucket),
 		Prefix:  aws.String(key),
@@ -59,12 +64,14 @@ func getS3ObjectInfo(bucket, key string, client *S3Client) (string, int64, error
 		return "", 0, fmt.Errorf("error accessing S3 object: %v", err)
 	}
 	if len(result.Contents) > 0 || len(result.CommonPrefixes) > 0 {
+		log.Debug().Str("op", "s3/helpers").Msg("Object is a folder")
 		return "folder", -1, nil
 	}
 	return "", 0, fmt.Errorf("S3 object not found")
 }
 
 func listS3Objects(bucket, prefix string, client *S3Client) ([]s3Object, error) {
+	log.Debug().Str("op", "s3/helpers").Msgf("Listing objects in s3://%s with prefix %s", bucket, prefix)
 	var objects []s3Object
 	paginator := s3.NewListObjectsV2Paginator(client.client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(bucket),
@@ -92,6 +99,7 @@ func listS3Objects(bucket, prefix string, client *S3Client) ([]s3Object, error) 
 }
 
 func performS3Download(bucket, key, outputPath string, client *S3Client, progressCh chan<- int64) error {
+	log.Debug().Str("op", "s3/helpers").Msgf("Downloading s3://%s/%s to %s", bucket, key, outputPath)
 	result, err := client.client.GetObject(context.Background(), &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
