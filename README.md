@@ -207,7 +207,7 @@ danzo clean "./path/for/download.zip"
 danzo clean
 ```
 
-> ⚡︎ Failed chunks are automatically retried up to 5 times before failing the entire file. Additionally, Danzo automatically runs a clean for a download event once it is successful.
+> ✦ Failed chunks are automatically retried up to 5 times before failing the entire file. Additionally, Danzo automatically runs a clean for a download event once it is successful.
 
 </details>
 
@@ -234,7 +234,7 @@ Downloading a file from a Drive URL requires authentication, which Danzo support
   - Danzo will exchange this for an authentication token and save it to `.danzo-token.json`.
   - If you re-attempt the use of these credentials, Danzo will reuse the token from current directory if it exists, refresh it if possible, and fallback to reauthentication.
 
-> ⚡︎ The API Key method only works on files that are either publicly shared or shared with your user. It cannot be used to download private files that you own. So for your own files, use the OAuth device code method.
+> ✦ The API Key method only works on files that are either publicly shared or shared with your user. It cannot be used to download private files that you own. So for your own files, use the OAuth device code method.
 
 Danzo can be used in this manner to download Google Drive files:
 
