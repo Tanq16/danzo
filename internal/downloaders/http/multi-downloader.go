@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -24,6 +25,7 @@ func PerformMultiDownload(config utils.HTTPDownloadConfig, client *utils.DanzoHT
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		return fmt.Errorf("error creating temp directory: %v", err)
 	}
+	log.Debug().Str("op", "http/multi-downloader").Msgf("Temporary directory created at %s", tempDir)
 
 	// Setup chunks
 	mutex := &sync.Mutex{}
@@ -47,6 +49,7 @@ func PerformMultiDownload(config utils.HTTPDownloadConfig, client *utils.DanzoHT
 		}
 		currentPosition = endByte + 1
 	}
+	log.Debug().Str("op", "http/multi-downloader").Msgf("Created %d chunks for download", len(job.Chunks))
 
 	// Start connection goroutines
 	var wg sync.WaitGroup
@@ -56,6 +59,7 @@ func PerformMultiDownload(config utils.HTTPDownloadConfig, client *utils.DanzoHT
 	}
 
 	// Wait for all downloads to complete
+	log.Debug().Str("op", "http/multi-downloader").Msg("Waiting for all chunks to download")
 	wg.Wait()
 	close(progressCh)
 	allCompleted := true
@@ -71,10 +75,12 @@ func PerformMultiDownload(config utils.HTTPDownloadConfig, client *utils.DanzoHT
 	}
 
 	// Assemble the file
+	log.Info().Str("op", "http/multi-downloader").Msg("All chunks downloaded, assembling file")
 	err := assembleFile(job)
 	if err != nil {
 		return fmt.Errorf("error assembling file: %v", err)
 	}
+	log.Info().Str("op", "http/multi-downloader").Msg("File assembled successfully")
 	return nil
 }
 
@@ -98,9 +104,6 @@ func assembleFile(job utils.HTTPDownloadJob) error {
 		}
 		return idI < idJ
 	})
-	// for _, file := range tempFiles {
-	// 	chunkID, _ := extractChunkID(file)
-	// }
 	destFile, err := os.Create(job.Config.OutputPath)
 	if err != nil {
 		return err
@@ -132,8 +135,10 @@ func assembleFile(job utils.HTTPDownloadJob) error {
 	if totalWritten != job.FileSize {
 		return fmt.Errorf("error: total written bytes (%d) doesn't match expected file size (%d)", totalWritten, job.FileSize)
 	}
+	log.Debug().Str("op", "http/multi-downloader").Msgf("Successfully wrote %d bytes to %s", totalWritten, job.Config.OutputPath)
 
 	// Cleanup temporary files
+	log.Debug().Str("op", "http/multi-downloader").Msg("Cleaning up temporary chunk files")
 	for _, tempFilePath := range tempFiles {
 		os.Remove(tempFilePath)
 	}

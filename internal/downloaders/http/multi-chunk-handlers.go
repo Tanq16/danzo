@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -22,6 +23,7 @@ func chunkedDownload(job *utils.HTTPDownloadJob, chunk *utils.HTTPDownloadChunk,
 	if fileInfo, err := os.Stat(tempFileName); err == nil {
 		resumeOffset = fileInfo.Size()
 		if resumeOffset == expectedSize {
+			log.Debug().Str("op", "http/multi-chunk-handlers").Msgf("Chunk %d already completed", chunk.ID)
 			mutex.Lock()
 			job.TempFiles = append(job.TempFiles, tempFileName)
 			mutex.Unlock()
@@ -30,6 +32,7 @@ func chunkedDownload(job *utils.HTTPDownloadJob, chunk *utils.HTTPDownloadChunk,
 			progressCh <- resumeOffset
 			return
 		} else if resumeOffset > 0 && resumeOffset < expectedSize {
+			log.Debug().Str("op", "http/multi-chunk-handlers").Msgf("Resuming chunk %d from %d bytes", chunk.ID, resumeOffset)
 		} else if chunk.Downloaded > 0 {
 			os.Remove(tempFileName)
 			resumeOffset = 0
@@ -38,6 +41,7 @@ func chunkedDownload(job *utils.HTTPDownloadJob, chunk *utils.HTTPDownloadChunk,
 	maxRetries := 5
 	for retry := range maxRetries {
 		if retry > 0 {
+			log.Warn().Str("op", "http/multi-chunk-handlers").Msgf("Retrying chunk %d (attempt %d/%d)", chunk.ID, retry+1, maxRetries)
 			time.Sleep(time.Duration(retry+1) * 500 * time.Millisecond) // Backoff
 			if fileInfo, err := os.Stat(tempFileName); err == nil {
 				currentSize := fileInfo.Size()
@@ -50,15 +54,18 @@ func chunkedDownload(job *utils.HTTPDownloadJob, chunk *utils.HTTPDownloadChunk,
 			}
 		}
 		if err := downloadSingleChunk(job, chunk, client, tempFileName, progressCh, resumeOffset); err != nil {
+			log.Error().Str("op", "http/multi-chunk-handlers").Err(err).Msgf("Failed to download chunk %d", chunk.ID)
 			continue
 		}
 		// On success
+		log.Debug().Str("op", "http/multi-chunk-handlers").Msgf("Chunk %d download successful", chunk.ID)
 		mutex.Lock()
 		job.TempFiles = append(job.TempFiles, tempFileName)
 		mutex.Unlock()
 		chunk.Completed = true
 		return
 	}
+	log.Error().Str("op", "http/multi-chunk-handlers").Msgf("Chunk %d failed after %d retries", chunk.ID, maxRetries)
 }
 
 func downloadSingleChunk(job *utils.HTTPDownloadJob, chunk *utils.HTTPDownloadChunk, client *utils.DanzoHTTPClient, tempFileName string, progressCh chan<- int64, resumeOffset int64) error {

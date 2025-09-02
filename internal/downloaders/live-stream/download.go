@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -18,6 +19,7 @@ func (d *M3U8Downloader) Download(job *utils.DanzoJob) error {
 	}
 	defer os.RemoveAll(tempDir)
 	client := utils.NewDanzoHTTPClient(job.HTTPClientConfig)
+	log.Debug().Str("op", "live-stream/download").Msgf("Fetching manifest from %s", job.URL)
 	manifestContent, err := getM3U8Contents(job.URL, client)
 	if err != nil {
 		return fmt.Errorf("error fetching manifest: %v", err)
@@ -29,10 +31,12 @@ func (d *M3U8Downloader) Download(job *utils.DanzoJob) error {
 	if len(segmentURLs) == 0 {
 		return fmt.Errorf("no segments found in manifest")
 	}
+	log.Info().Str("op", "live-stream/download").Msgf("Found %d segments to download", len(segmentURLs))
 
 	totalSize, segmentSizes, err := calculateTotalSize(segmentURLs, job.Connections, client)
 	if err != nil {
 		// Fallback to estimate
+		log.Warn().Str("op", "live-stream/download").Msgf("Could not calculate total size accurately: %v. Using estimate.", err)
 		totalSize = int64(len(segmentURLs)) * 1024 * 1024 // 1MB per segment estimate
 		segmentSizes = make([]int64, len(segmentURLs))
 		for i := range segmentSizes {
@@ -41,14 +45,18 @@ func (d *M3U8Downloader) Download(job *utils.DanzoJob) error {
 	}
 	job.Metadata["totalSize"] = totalSize
 	job.Metadata["segmentSizes"] = segmentSizes
+	log.Debug().Str("op", "live-stream/download").Msgf("Total estimated size: %s", utils.FormatBytes(uint64(totalSize)))
 
+	log.Info().Str("op", "live-stream/download").Msg("Starting parallel download of segments")
 	segmentFiles, err := downloadSegmentsParallel(segmentURLs, tempDir, job.Connections, client, job.ProgressFunc, totalSize)
 	if err != nil {
 		return fmt.Errorf("error downloading segments: %v", err)
 	}
+	log.Info().Str("op", "live-stream/download").Msg("All segments downloaded, merging with ffmpeg")
 	if err := mergeSegments(segmentFiles, job.OutputPath); err != nil {
 		return fmt.Errorf("error merging segments: %v", err)
 	}
+	log.Info().Str("op", "live-stream/download").Msg("Segments merged successfully")
 	return nil
 }
 
@@ -122,6 +130,7 @@ func mergeSegments(segmentFiles []string, outputPath string) error {
 		"-y",
 		outputPath,
 	)
+	log.Debug().Str("op", "live-stream/download").Msgf("Executing ffmpeg command: %s", cmd.String())
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("ffmpeg error: %v\nOutput: %s", err, string(output))

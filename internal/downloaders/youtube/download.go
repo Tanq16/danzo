@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -25,6 +26,7 @@ func (d *YouTubeDownloader) Download(job *utils.DanzoJob) error {
 		job.URL,
 	}
 	cmd := exec.Command(ytdlpPath, args...)
+	log.Debug().Str("op", "youtube/download").Msgf("Executing yt-dlp command: %s", cmd.String())
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -43,6 +45,7 @@ func (d *YouTubeDownloader) Download(job *utils.DanzoJob) error {
 	if err := cmd.Wait(); err != nil {
 		return fmt.Errorf("yt-dlp failed: %v", err)
 	}
+	log.Info().Str("op", "youtube/download").Msgf("yt-dlp download completed for %s", job.URL)
 	return nil
 }
 

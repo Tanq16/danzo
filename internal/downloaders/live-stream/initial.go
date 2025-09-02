@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -20,6 +21,7 @@ func (d *M3U8Downloader) ValidateJob(job *utils.DanzoJob) error {
 	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
 		return fmt.Errorf("unsupported scheme: %s", parsedURL.Scheme)
 	}
+	log.Info().Str("op", "live-stream/initial").Msgf("job validated for %s", job.URL)
 	return nil
 }
 
@@ -32,5 +34,6 @@ func (d *M3U8Downloader) BuildJob(job *utils.DanzoJob) error {
 	}
 	tempDir := filepath.Join(filepath.Dir(job.OutputPath), ".danzo-temp", "m3u8_"+time.Now().Format("20060102150405"))
 	job.Metadata["tempDir"] = tempDir
+	log.Info().Str("op", "live-stream/initial").Msgf("job built for %s", job.URL)
 	return nil
 }

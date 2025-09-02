@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rs/zerolog/log"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -30,6 +31,7 @@ func getM3U8Contents(manifestURL string, client *utils.DanzoHTTPClient) (string,
 	if err != nil {
 		return "", fmt.Errorf("error reading manifest content: %v", err)
 	}
+	log.Debug().Str("op", "live-stream/helpers").Msgf("Successfully read manifest from %s", manifestURL)
 	return string(content), nil
 }
 
@@ -70,6 +72,7 @@ func processM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClie
 
 	// For master playlist, fetch first playlist (highest quality)
 	if isMasterPlaylist && len(masterPlaylistURLs) > 0 {
+		log.Debug().Str("op", "live-stream/helpers").Msgf("Detected master playlist, fetching sub-playlist: %s", masterPlaylistURLs[0])
 		subContent, err := getM3U8Contents(masterPlaylistURLs[0], client)
 		if err != nil {
 			return nil, fmt.Errorf("error fetching sub-playlist: %v", err)
@@ -105,6 +108,7 @@ func calculateTotalSize(segmentURLs []string, numWorkers int, client *utils.Danz
 		jobCh <- sizeJob{index: i, url: url}
 	}
 	close(jobCh)
+	log.Debug().Str("op", "live-stream/helpers").Msg("Calculating total size of all segments")
 	var wg sync.WaitGroup
 	for range numWorkers {
 		wg.Add(1)
