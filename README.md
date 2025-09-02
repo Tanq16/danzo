@@ -15,6 +15,23 @@
 
 This section gives a quick peek at the capabilities and the extremely simple command structure. For detailed descriptions, see [Usage](#usage).
 
+The primary downloaders and their supported aliases are as follows:
+
+| Command | Aliases (Shorthands) | Description |
+| --- | --- | --- |
+| `http` | - | Multi-chunked or linear downloads for general HTTP(S) sources |
+| `batch` | - | Multi-threaded, multi-downloader operation given a yaml config |
+| `live-stream` | `hls`, `m3u8`, `livestream`, `stream` | Download a live stream format video (playlist.m3u8 files) with multi-threading |
+| `youtube` | `yt` | Download YouTube videos using `yt-dlp` |
+| `youtube-music` | `ytm`, `yt-music` | Download audio from YouTube with iTunes/Deezer metadata using `yt-dlp` and `ffmpeg` |
+| `git-clone` | `gitclone`, `gitc`, `git`, `clone` | Clone a git repository with SSH/token authentication |
+| `github-release` | `ghrelease`, `ghr` | Download a platform-correct release asset for a GitHub repo |
+| `google-drive` | `gdrive`, `gd`, `drive` | Download file/folder from Google drive with API key or OAuth flow authentication |
+| `s3` | - | Multi-threaded download for object, directory, or full AWS S3 bucket |
+| `clean` | - | Clear local cache for interrupted/incomplete downloads |
+
+Following are examples to get started with various flags:
+
 - HTTP(S) downloads
   ```bash
   danzo http https://example.com/internet-file.zip -o local.zip # (in lieu of `wget`)
@@ -30,18 +47,18 @@ This section gives a quick peek at the capabilities and the extremely simple com
   danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # (default is <=1080p, <=60fps quality)
   danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format 1080p # (download in 1080p)
   # allows customization with `best60`, `decent`, `1080p60`, and more (see Usage)
-  danzo ytmusic "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # (download standard `.m4a` audio)
-  danzo ytmusic "https://youtu.be/JJpFTUP6fIo" --apple 1800533191 # (add music metadata from itunes)
-  danzo ytmusic "https://youtu.be/JJpFTUP6fIo" --deezer 3271607031 # (add music metadata from deezer)
+  danzo ytm "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # (download standard `.m4a` audio)
+  danzo ytm "https://youtu.be/JJpFTUP6fIo" --apple 1800533191 # (add music metadata from itunes)
+  danzo ytm "https://youtu.be/JJpFTUP6fIo" --deezer 3271607031 # (add music metadata from deezer)
   ```
 - Download file from Google Drive
   ```bash
-  danzo gdrive "https://drive.google.com/file/d/abc123/view" --api-key your_key # (static Key only for publicly shared files)
-  danzo gdrive "https://drive.google.com/file/d/abc123/view" --creds service-acc-key.json # (OAuth device code flow for private files)
+  danzo gd "https://drive.google.com/file/d/abc123/view" --api-key your_key # (static Key only for publicly shared files)
+  danzo gd "https://drive.google.com/file/d/abc123/view" --creds service-acc-key.json # (OAuth device code flow for private files)
   ```
 - Download streamed output from an m3u8-manifest
   ```bash
-  danzo m3u8 "https://example.com/manifest.m3u8" -o video.mp4
+  danzo hls "https://example.com/manifest.m3u8" -o video.mp4
   ```
 - Download an S3 object or folder
   ```bash
@@ -50,15 +67,15 @@ This section gives a quick peek at the capabilities and the extremely simple com
   ```
 - Download GitHub release asset
   ```bash
-  danzo ghrelease "username/repo" # (auto-selects release according to OS and arch)
-  danzo ghrelease "username/repo" --manual # (choose interactively)
+  danzo ghr "username/repo" # (auto-selects release according to OS and arch)
+  danzo ghr "username/repo" --manual # (choose asset interactively)
   ```
 - Clone a git repository
   ```bash
-  danzo gitclone "gitlab.com/username/repo" # (supports `github.com/`, `bitbucket.org/`, and `git.com/`)
-  danzo gitclone "github.com/username/repo" --depth 1 # (clone with --depth=1)
-  danzo gitclone "github.com/tanq16/private" --token $(cat /secrets/ghtoken) # (use a PAT; auto-manages for different providers)
-  danzo gitclone "github.com/tanq16/private" --ssh "/secrets/gh-ssh.key" # (use an SSH key to authenticate)
+  danzo git "gitlab.com/username/repo" # (supports `github.com/`, `bitbucket.org/`, and `git.com/`)
+  danzo git "github.com/username/repo" --depth 1 # (clone with --depth=1)
+  danzo git "github.com/tanq16/private" --token $(cat /secrets/ghtoken) # (use a PAT; auto-manages for different providers)
+  danzo git "github.com/tanq16/private" --ssh "/secrets/gh-ssh.key" # (use an SSH key to authenticate)
   ```
 
 ## Installation
@@ -107,7 +124,7 @@ Danzo supports these global options:
 --header, -H         Custom headers (repeatable)
 --workers, -w        Number of parallel workers (default: 1)
 --connections, -c    Connections per download (default: 8)
---log                Enable debug logging (WORK IN PROGRESS)
+--debug              Enable debug logging at info or debug level (default: disabled, i.e., uses TUI)
 ```
 
 Using a download directly won't always yield the best result, so to optimize according to file types, use multiple threads (read through the next couple sections to learn more).
@@ -123,6 +140,9 @@ Follow these links to quickly jump to the relevant provider:
 - [Git Repository Cloning](#git-repository-cloning)
 
 ### HTTP(S) Downloads
+
+<details>
+<summary>Unfold to read</summary>
 
 The output filename will be inferred from the URL and Danzo will use 8 connection threads and 1 worker by default. You can also specify an output filename manually like:
 
@@ -196,7 +216,12 @@ danzo clean
 > [!TIP]
 > Failed chunks are automatically retried up to 5 times before failing the entire file. Additionally, Danzo automatically runs a clean for a download event once it is successful.
 
+</details>
+
 ### Google Drive Downloads
+
+<details>
+<summary>Unfold to read</summary>
 
 Downloading a file from a Drive URL requires authentication, which Danzo supports in 2 ways:
 
@@ -237,7 +262,12 @@ danzo gdrive "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link" --c
 > [!NOTE]
 > Users who have never logged into GCP may be required to create a new GCP Project. This is normal and doesn't cost anything.
 
+</details>
+
 ### YouTube Downloads
+
+<details>
+<summary>Unfold to read</summary>
 
 Danzo supports downloading videos and audio from YouTube by using [yt-dlp](https://github.com/yt-dlp/yt-dlp) as a dependency. Some files and merge operations may also require `ffmpeg` and `ffprobe`. If not present, Danzo will make a temporary download of the appropriate `yt-dlp` binary. However, it is recommended to have `yt-dlp`, `ffmpeg`, and `ffprobe` pre-installed.
 
@@ -277,7 +307,12 @@ danzo ytmusic "https://youtu.be/JJpFTUP6fIo" --apple "1800533191"
 danzo ytmusic "https://youtu.be/JJpFTUP6fIo" --deezer "3271607031"
 ```
 
+</details>
+
 ### M3U8 Stream Downloads
+
+<details>
+<summary>Unfold to read</summary>
 
 Danzo supports downloading streamed content from M3U8 manifests. This is commonly used for video streaming services, live broadcasts, and VOD content.
 
@@ -293,7 +328,12 @@ danzo m3u8 "https://example.com/path/to/playlist.m3u8" -o video.mp4
 danzo m3u8 "https://example.com/video/master.m3u8"
 ```
 
+</details>
+
 ### AWS S3 Downloads
+
+<details>
+<summary>Unfold to read</summary>
 
 There are 2 ways of downloading objects from S3:
 
@@ -321,7 +361,12 @@ AWS session profiles are used to allow for flexibility and ease of access. As a 
 > [!NOTE]
 > For S3 downloads, the `connections` flag determines how many objects will be downloaded in parallel if downloading a folder.
 
+</details>
+
 ### GitHub Release Downloads
+
+<details>
+<summary>Unfold to read</summary>
 
 It is often a task to download GitHub project releases because it requires figuring out the exact name of the asset file based on the OS and architecture of the machine. Danzo simplifies this process and only requires you to provide the owner and the project name. It uses that to automatically identify the correct latest release for its host's architecture and OS.
 
@@ -338,7 +383,12 @@ If the user selection process needs to be manually kicked off, use Danzo like so
 danzo ghrelease "owner/repo" --manual
 ```
 
+</details>
+
 ### Git Repository Cloning
+
+<details>
+<summary>Unfold to read</summary>
 
 Danzo can clone repositores sourced by various providers. While this is not particularly an expensive operation to run using just `git clone`, it serves to provide ease of setup when setting up a remote server with a large number of files as downloads and clones.
 
@@ -378,6 +428,8 @@ danzo gitclone github.com/tanq16/private --ssh "/secrets/gh-ssh.key"
 > [!NOTE]
 > Repository cloning is another download provider that does not use `-c` or number of connections. Number of workers, `-w`, is still applicable as usual in batch (YAML config) mode.
 
+</details>
+
 ## Contributing
 
 Danzo uses issues for everything. Open an issue and I will add an appropriate tag automatically for any of these situations:
@@ -397,9 +449,5 @@ Danzo draws inspiration from the following projects:
 
 - [ytmdl](https://github.com/deepjyoti30/ytmdl)
 - [aria2](https://github.com/aria2/aria2)
-
-The following contributors helped improve Danzo:
-
-- [Whispard](https://github.com/Whispard) - [PR #8](https://github.com/Tanq16/danzo/pull/8) (support for custom HTTP headers)
 
 Lastly, Danzo uses several Go packages referenced within `go.mod` that allow Danzo to be amazing.
