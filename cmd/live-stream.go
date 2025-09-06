@@ -9,9 +9,10 @@ import (
 
 func newM3U8Cmd() *cobra.Command {
 	var outputPath string
+	var extract string
 
 	cmd := &cobra.Command{
-		Use:     "live-stream [URL] [--output OUTPUT_PATH]",
+		Use:     "live-stream [URL] [--output OUTPUT_PATH] [--extract EXTRACTOR]",
 		Short:   "Download HLS/M3U8 live streams",
 		Aliases: []string{"hls", "m3u8", "livestream", "stream"},
 		Args:    cobra.ExactArgs(1),
@@ -25,6 +26,9 @@ func newM3U8Cmd() *cobra.Command {
 				HTTPClientConfig: globalHTTPConfig,
 				Metadata:         make(map[string]any),
 			}
+			if extract != "" {
+				job.Metadata["extract"] = extract
+			}
 			jobs := []utils.DanzoJob{job}
 			log.Debug().Str("op", "cmd/live-stream").Msgf("Starting scheduler with %d jobs", len(jobs))
 			scheduler.Run(jobs, workers)
@@ -32,5 +36,6 @@ func newM3U8Cmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "Output file path (default: stream_[timestamp].mp4)")
+	cmd.Flags().StringVarP(&extract, "extract", "e", "", "Site-specific extractor to use (e.g., rumble)")
 	return cmd
 }

@@ -14,18 +14,28 @@ import (
 type M3U8Downloader struct{}
 
 func (d *M3U8Downloader) ValidateJob(job *utils.DanzoJob) error {
-	parsedURL, err := url.Parse(job.URL)
-	if err != nil {
-		return fmt.Errorf("invalid URL: %v", err)
-	}
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return fmt.Errorf("unsupported scheme: %s", parsedURL.Scheme)
+	// Validation happens after chunklist URL extraction (if)
+	if _, ok := job.Metadata["extract"]; !ok {
+		parsedURL, err := url.Parse(job.URL)
+		if err != nil {
+			return fmt.Errorf("invalid URL: %v", err)
+		}
+		if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+			return fmt.Errorf("unsupported scheme: %s", parsedURL.Scheme)
+		}
 	}
 	log.Info().Str("op", "live-stream/initial").Msgf("job validated for %s", job.URL)
 	return nil
 }
 
 func (d *M3U8Downloader) BuildJob(job *utils.DanzoJob) error {
+	if extractor, ok := job.Metadata["extract"].(string); ok && extractor != "" {
+		log.Info().Str("op", "live-stream/initial").Msgf("Using extractor: %s", extractor)
+		if err := runExtractor(job); err != nil {
+			return fmt.Errorf("extractor failed: %v", err)
+		}
+		log.Info().Str("op", "live-stream/initial").Msgf("URL extracted: %s", job.URL)
+	}
 	if job.OutputPath == "" {
 		job.OutputPath = fmt.Sprintf("stream_%s.mp4", time.Now().Format("2006-01-02_15-04"))
 	}
