@@ -56,6 +56,8 @@ Following are examples to get started with various flags:
 - Download streamed output from an m3u8-manifest
   ```bash
   danzo hls "https://example.com/manifest.m3u8" -o video.mp4
+  danzo hls "https://rumble.com/v893ud-something.html" -o video.mp4 -e rumble # use rumble extractor
+  # extractors are meant to automatically extract m3u8 URLs instead of needing it directly
   ```
 - Download an S3 object or folder
   ```bash
