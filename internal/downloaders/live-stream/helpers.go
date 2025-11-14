@@ -14,6 +14,11 @@ import (
 	"github.com/tanq16/danzo/internal/utils"
 )
 
+type M3U8Info struct {
+	SegmentURLs []string
+	InitSegment string
+}
+
 func getM3U8Contents(manifestURL string, client *utils.DanzoHTTPClient) (string, error) {
 	req, err := http.NewRequest("GET", manifestURL, nil)
 	if err != nil {
@@ -35,7 +40,7 @@ func getM3U8Contents(manifestURL string, client *utils.DanzoHTTPClient) (string,
 	return string(content), nil
 }
 
-func processM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient) ([]string, error) {
+func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient) (*M3U8Info, error) {
 	baseURL, err := url.Parse(manifestURL)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing manifest URL: %v", err)
@@ -44,10 +49,28 @@ func processM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClie
 	var segmentURLs []string
 	var masterPlaylistURLs []string
 	var isMasterPlaylist bool
-
+	var initSegment string
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" || (strings.HasPrefix(line, "#") && !strings.Contains(line, "#EXT-X-STREAM-INF")) {
+		if line == "" {
+			continue
+		}
+		// Check for init segment (fMP4)
+		if strings.HasPrefix(line, "#EXT-X-MAP:") {
+			if idx := strings.Index(line, `URI="`); idx != -1 {
+				uriStart := idx + 5
+				if uriEnd := strings.Index(line[uriStart:], `"`); uriEnd != -1 {
+					uri := line[uriStart : uriStart+uriEnd]
+					initSegment, err = resolveURL(baseURL, uri)
+					if err != nil {
+						return nil, fmt.Errorf("error resolving init segment URL: %v", err)
+					}
+					log.Debug().Str("op", "live-stream/helpers").Msgf("Found init segment: %s", initSegment)
+				}
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "#") && !strings.Contains(line, "#EXT-X-STREAM-INF") {
 			continue
 		}
 		if strings.Contains(line, "#EXT-X-STREAM-INF") {
@@ -77,9 +100,12 @@ func processM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClie
 		if err != nil {
 			return nil, fmt.Errorf("error fetching sub-playlist: %v", err)
 		}
-		return processM3U8Content(subContent, masterPlaylistURLs[0], client)
+		return parseM3U8Content(subContent, masterPlaylistURLs[0], client)
 	}
-	return segmentURLs, nil
+	return &M3U8Info{
+		SegmentURLs: segmentURLs,
+		InitSegment: initSegment,
+	}, nil
 }
 
 func resolveURL(baseURL *url.URL, urlStr string) (string, error) {
