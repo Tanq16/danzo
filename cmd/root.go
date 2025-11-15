@@ -22,7 +22,7 @@ var (
 	headers       []string
 	workers       int
 	connections   int
-	debugFlag     string
+	debugFlag     bool
 )
 
 // Global HTTP client config that will be passed to subcommands
@@ -54,17 +54,10 @@ func setupLogs() {
 	}
 	log.Logger = zerolog.New(output).With().Timestamp().Logger()
 	zerolog.SetGlobalLevel(zerolog.Disabled)
-	switch debugFlag {
-	case "debug":
+	if debugFlag {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 		utils.GlobalDebugFlag = true
-	case "info":
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-		utils.GlobalDebugFlag = true
-	case "disabled":
-		zerolog.SetGlobalLevel(zerolog.Disabled)
-		utils.GlobalDebugFlag = false
-	default:
+	} else {
 		zerolog.SetGlobalLevel(zerolog.Disabled)
 		utils.GlobalDebugFlag = false
 	}
@@ -79,7 +72,7 @@ func Execute() {
 
 func init() {
 	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
-	rootCmd.PersistentFlags().StringVar(&debugFlag, "debug", "disabled", "Enable logging for debug, info or disabled (TUI mode) level")
+	rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Enable debug logging")
 	cobra.OnInitialize(setupLogs)
 
 	// Global flags
