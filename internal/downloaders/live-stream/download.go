@@ -83,8 +83,16 @@ func downloadAndMergeSingleStream(m3u8Info *M3U8Info, job *utils.DanzoJob, tempD
 		log.Debug().Str("op", "live-stream/download").Msg("Detected fMP4 format segments")
 	}
 
+	var totalDownloaded int64
+	wrappedProgressFunc := func(incrementalSize, _ int64) {
+		newTotal := atomic.AddInt64(&totalDownloaded, incrementalSize)
+		if job.ProgressFunc != nil {
+			job.ProgressFunc(newTotal, totalSize)
+		}
+	}
+
 	log.Info().Str("op", "live-stream/download").Msg("Starting parallel download of segments")
-	segmentFiles, err := downloadSegmentsParallel(segmentURLs, tempDir, job.Connections, client, job.ProgressFunc, totalSize, isFMP4)
+	segmentFiles, err := downloadSegmentsParallel(segmentURLs, tempDir, job.Connections, client, wrappedProgressFunc, totalSize, isFMP4)
 	if err != nil {
 		return fmt.Errorf("error downloading segments: %v", err)
 	}
@@ -286,6 +294,7 @@ func mergeTSSegments(segmentFiles []string, outputPath string) error {
 		"ffmpeg",
 		"-f", "concat",
 		"-safe", "0",
+		"-fflags", "+genpts",
 		"-i", tempListFile,
 		"-c", "copy",
 		"-y",
@@ -368,6 +377,7 @@ func mergeVideoAndAudio(videoPath, audioPath, outputPath string) error {
 		"-map", "0:v:0",
 		"-map", "1:a:0",
 		"-shortest",
+		"-movflags", "+faststart",
 		"-y",
 		outputPath,
 	)
