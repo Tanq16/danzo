@@ -126,8 +126,8 @@ func downloadAndMergeSeparateStreams(m3u8Info *M3U8Info, job *utils.DanzoJob, te
 	isAudioFMP4 := detectFMP4Format(job.URL, audioSegmentURLs)
 
 	var totalDownloaded int64
-	wrappedProgressFunc := func(downloaded, _ int64) {
-		newTotal := atomic.AddInt64(&totalDownloaded, downloaded)
+	wrappedProgressFunc := func(incrementalDownloaded, _ int64) {
+		newTotal := atomic.AddInt64(&totalDownloaded, incrementalDownloaded)
 		if job.ProgressFunc != nil {
 			job.ProgressFunc(newTotal, totalSize)
 		}
@@ -211,7 +211,6 @@ func detectFMP4Format(manifestURL string, segmentURLs []string) bool {
 func downloadSegmentsParallel(segmentURLs []string, outputDir string, numWorkers int, client *utils.DanzoHTTPClient, progressFunc func(int64, int64), totalSize int64, isFMP4 bool) ([]string, error) {
 	var downloadedFiles []string
 	var mu sync.Mutex
-	var totalDownloaded int64
 	var downloadErr error
 	type segmentJob struct {
 		index int
@@ -247,9 +246,8 @@ func downloadSegmentsParallel(segmentURLs []string, outputDir string, numWorkers
 				mu.Lock()
 				downloadedFiles[job.index] = outputPath
 				mu.Unlock()
-				downloaded := atomic.AddInt64(&totalDownloaded, size)
 				if progressFunc != nil {
-					progressFunc(downloaded, totalSize)
+					progressFunc(size, totalSize)
 				}
 			}
 		}()
@@ -277,7 +275,11 @@ func mergeTSSegments(segmentFiles []string, outputPath string) error {
 	}
 	defer os.Remove(tempListFile)
 	for _, file := range segmentFiles {
-		fmt.Fprintf(f, "file '%s'\n", file)
+		absPath, err := filepath.Abs(file)
+		if err != nil {
+			absPath = file
+		}
+		fmt.Fprintf(f, "file '%s'\n", absPath)
 	}
 	f.Close()
 	cmd := exec.Command(
@@ -363,6 +365,9 @@ func mergeVideoAndAudio(videoPath, audioPath, outputPath string) error {
 		"-i", videoPath,
 		"-i", audioPath,
 		"-c", "copy",
+		"-map", "0:v:0",
+		"-map", "1:a:0",
+		"-shortest",
 		"-y",
 		outputPath,
 	)
