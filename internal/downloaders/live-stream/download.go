@@ -39,18 +39,36 @@ func (d *M3U8Downloader) Download(job *utils.DanzoJob) error {
 		downloadErr = fmt.Errorf("error processing manifest: %v", err)
 		return downloadErr
 	}
-	segmentURLs := m3u8Info.SegmentURLs
-	if len(segmentURLs) == 0 {
-		downloadErr = fmt.Errorf("no segments found in manifest")
+
+	if len(m3u8Info.VideoSegmentURLs) == 0 {
+		downloadErr = fmt.Errorf("no video segments found in manifest")
 		return downloadErr
 	}
-	log.Info().Str("op", "live-stream/download").Msgf("Found %d segments to download", len(segmentURLs))
 
+	if m3u8Info.HasSeparateAudio {
+		log.Info().Str("op", "live-stream/download").Msgf("Found %d video segments and %d audio segments", len(m3u8Info.VideoSegmentURLs), len(m3u8Info.AudioSegmentURLs))
+		if err := downloadAndMergeSeparateStreams(m3u8Info, job, tempDir, client); err != nil {
+			downloadErr = err
+			return downloadErr
+		}
+	} else {
+		log.Info().Str("op", "live-stream/download").Msgf("Found %d segments to download", len(m3u8Info.VideoSegmentURLs))
+		if err := downloadAndMergeSingleStream(m3u8Info, job, tempDir, client); err != nil {
+			downloadErr = err
+			return downloadErr
+		}
+	}
+
+	log.Info().Str("op", "live-stream/download").Msg("Download completed successfully")
+	return nil
+}
+
+func downloadAndMergeSingleStream(m3u8Info *M3U8Info, job *utils.DanzoJob, tempDir string, client *utils.DanzoHTTPClient) error {
+	segmentURLs := m3u8Info.VideoSegmentURLs
 	totalSize, segmentSizes, err := calculateTotalSize(segmentURLs, job.Connections, client)
 	if err != nil {
-		// Fallback to estimate
 		log.Warn().Str("op", "live-stream/download").Msgf("Could not calculate total size accurately: %v. Using estimate.", err)
-		totalSize = int64(len(segmentURLs)) * 1024 * 1024 // 1MB per segment estimate
+		totalSize = int64(len(segmentURLs)) * 1024 * 1024
 		segmentSizes = make([]int64, len(segmentURLs))
 		for i := range segmentSizes {
 			segmentSizes[i] = 1024 * 1024
@@ -60,7 +78,6 @@ func (d *M3U8Downloader) Download(job *utils.DanzoJob) error {
 	job.Metadata["segmentSizes"] = segmentSizes
 	log.Debug().Str("op", "live-stream/download").Msgf("Total estimated size: %s", utils.FormatBytes(uint64(totalSize)))
 
-	// Detect fMP4 format
 	isFMP4 := detectFMP4Format(job.URL, segmentURLs)
 	if isFMP4 {
 		log.Debug().Str("op", "live-stream/download").Msg("Detected fMP4 format segments")
@@ -69,16 +86,108 @@ func (d *M3U8Downloader) Download(job *utils.DanzoJob) error {
 	log.Info().Str("op", "live-stream/download").Msg("Starting parallel download of segments")
 	segmentFiles, err := downloadSegmentsParallel(segmentURLs, tempDir, job.Connections, client, job.ProgressFunc, totalSize, isFMP4)
 	if err != nil {
-		downloadErr = fmt.Errorf("error downloading segments: %v", err)
-		return downloadErr
+		return fmt.Errorf("error downloading segments: %v", err)
 	}
 	log.Info().Str("op", "live-stream/download").Msg("All segments downloaded, merging with ffmpeg")
-	if err := mergeSegments(segmentFiles, job.OutputPath, isFMP4, m3u8Info.InitSegment, tempDir, client); err != nil {
-		downloadErr = fmt.Errorf("error merging segments: %v", err)
-		return downloadErr
+	if err := mergeSegments(segmentFiles, job.OutputPath, isFMP4, m3u8Info.VideoInitSegment, tempDir, client); err != nil {
+		return fmt.Errorf("error merging segments: %v", err)
 	}
-	log.Info().Str("op", "live-stream/download").Msg("Segments merged successfully")
 	return nil
+}
+
+func downloadAndMergeSeparateStreams(m3u8Info *M3U8Info, job *utils.DanzoJob, tempDir string, client *utils.DanzoHTTPClient) error {
+	videoDir := filepath.Join(tempDir, "video")
+	audioDir := filepath.Join(tempDir, "audio")
+	if err := os.MkdirAll(videoDir, 0755); err != nil {
+		return fmt.Errorf("error creating video directory: %v", err)
+	}
+	if err := os.MkdirAll(audioDir, 0755); err != nil {
+		return fmt.Errorf("error creating audio directory: %v", err)
+	}
+
+	videoSegmentURLs := m3u8Info.VideoSegmentURLs
+	audioSegmentURLs := m3u8Info.AudioSegmentURLs
+
+	totalVideoSize, _, err := calculateTotalSize(videoSegmentURLs, job.Connections, client)
+	if err != nil {
+		log.Warn().Str("op", "live-stream/download").Msg("Could not calculate video size, using estimate")
+		totalVideoSize = int64(len(videoSegmentURLs)) * 1024 * 1024
+	}
+	totalAudioSize, _, err := calculateTotalSize(audioSegmentURLs, job.Connections, client)
+	if err != nil {
+		log.Warn().Str("op", "live-stream/download").Msg("Could not calculate audio size, using estimate")
+		totalAudioSize = int64(len(audioSegmentURLs)) * 512 * 1024
+	}
+	totalSize := totalVideoSize + totalAudioSize
+	log.Debug().Str("op", "live-stream/download").Msgf("Total estimated size: %s (video: %s, audio: %s)",
+		utils.FormatBytes(uint64(totalSize)), utils.FormatBytes(uint64(totalVideoSize)), utils.FormatBytes(uint64(totalAudioSize)))
+
+	isVideoFMP4 := detectFMP4Format(job.URL, videoSegmentURLs)
+	isAudioFMP4 := detectFMP4Format(job.URL, audioSegmentURLs)
+
+	var totalDownloaded int64
+	wrappedProgressFunc := func(downloaded, _ int64) {
+		newTotal := atomic.AddInt64(&totalDownloaded, downloaded)
+		if job.ProgressFunc != nil {
+			job.ProgressFunc(newTotal, totalSize)
+		}
+	}
+
+	log.Info().Str("op", "live-stream/download").Msg("Starting parallel download of video segments")
+	videoFiles, videoErr := downloadSegmentsParallel(videoSegmentURLs, videoDir, job.Connections, client, wrappedProgressFunc, totalVideoSize, isVideoFMP4)
+
+	log.Info().Str("op", "live-stream/download").Msg("Starting parallel download of audio segments")
+	audioFiles, audioErr := downloadSegmentsParallel(audioSegmentURLs, audioDir, job.Connections, client, wrappedProgressFunc, totalAudioSize, isAudioFMP4)
+
+	if videoErr != nil && audioErr != nil {
+		return fmt.Errorf("both video and audio downloads failed - video: %v, audio: %v", videoErr, audioErr)
+	}
+
+	tempVideoPath := filepath.Join(tempDir, "video_temp.mp4")
+	tempAudioPath := filepath.Join(tempDir, "audio_temp.m4a")
+
+	var finalErr error
+
+	if videoErr == nil {
+		log.Info().Str("op", "live-stream/download").Msg("Merging video segments")
+		if err := mergeSegments(videoFiles, tempVideoPath, isVideoFMP4, m3u8Info.VideoInitSegment, videoDir, client); err != nil {
+			return fmt.Errorf("error merging video segments: %v", err)
+		}
+	}
+
+	if audioErr == nil {
+		log.Info().Str("op", "live-stream/download").Msg("Merging audio segments")
+		if err := mergeSegments(audioFiles, tempAudioPath, isAudioFMP4, m3u8Info.AudioInitSegment, audioDir, client); err != nil {
+			if videoErr == nil {
+				if err := os.Rename(tempVideoPath, job.OutputPath); err != nil {
+					return fmt.Errorf("error saving video-only output: %v", err)
+				}
+				return fmt.Errorf("audio merge failed, saved video-only: %v", err)
+			}
+			return fmt.Errorf("error merging audio segments: %v", err)
+		}
+	}
+
+	if videoErr == nil && audioErr == nil {
+		log.Info().Str("op", "live-stream/download").Msg("Merging video and audio streams")
+		if err := mergeVideoAndAudio(tempVideoPath, tempAudioPath, job.OutputPath); err != nil {
+			return fmt.Errorf("error merging video and audio: %v", err)
+		}
+	} else if videoErr == nil && audioErr != nil {
+		log.Warn().Str("op", "live-stream/download").Msg("Audio download failed, saving video-only")
+		if err := os.Rename(tempVideoPath, job.OutputPath); err != nil {
+			return fmt.Errorf("error saving video-only output: %v", err)
+		}
+		finalErr = fmt.Errorf("audio download failed: %v", audioErr)
+	} else if audioErr == nil && videoErr != nil {
+		log.Warn().Str("op", "live-stream/download").Msg("Video download failed, saving audio-only")
+		if err := os.Rename(tempAudioPath, job.OutputPath); err != nil {
+			return fmt.Errorf("error saving audio-only output: %v", err)
+		}
+		finalErr = fmt.Errorf("video download failed: %v", videoErr)
+	}
+
+	return finalErr
 }
 
 func detectFMP4Format(manifestURL string, segmentURLs []string) bool {
@@ -242,6 +351,24 @@ func mergeFMP4Segments(segmentFiles []string, outputPath string, initSegment str
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Error().Str("op", "live-stream/download").Msgf("FFmpeg failed with error: %v", err)
+		log.Error().Str("op", "live-stream/download").Msgf("FFmpeg output:\n%s", string(output))
+		return fmt.Errorf("ffmpeg error: %v\nOutput: %s", err, string(output))
+	}
+	return nil
+}
+
+func mergeVideoAndAudio(videoPath, audioPath, outputPath string) error {
+	cmd := exec.Command(
+		"ffmpeg",
+		"-i", videoPath,
+		"-i", audioPath,
+		"-c", "copy",
+		"-y",
+		outputPath,
+	)
+	log.Debug().Str("op", "live-stream/download").Msgf("Executing ffmpeg command: %s", cmd.String())
+	output, err := cmd.CombinedOutput()
+	if err != nil {
 		log.Error().Str("op", "live-stream/download").Msgf("FFmpeg output:\n%s", string(output))
 		return fmt.Errorf("ffmpeg error: %v\nOutput: %s", err, string(output))
 	}

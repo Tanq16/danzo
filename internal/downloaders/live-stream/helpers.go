@@ -15,8 +15,11 @@ import (
 )
 
 type M3U8Info struct {
-	SegmentURLs []string
-	InitSegment string
+	VideoSegmentURLs []string
+	AudioSegmentURLs []string
+	VideoInitSegment string
+	AudioInitSegment string
+	HasSeparateAudio bool
 }
 
 func getM3U8Contents(manifestURL string, client *utils.DanzoHTTPClient) (string, error) {
@@ -48,8 +51,10 @@ func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	var segmentURLs []string
 	var masterPlaylistURLs []string
+	var audioPlaylistURLs []string
 	var isMasterPlaylist bool
 	var initSegment string
+
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -66,6 +71,21 @@ func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient
 						return nil, fmt.Errorf("error resolving init segment URL: %v", err)
 					}
 					log.Debug().Str("op", "live-stream/helpers").Msgf("Found init segment: %s", initSegment)
+				}
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "#EXT-X-MEDIA:") && strings.Contains(line, "TYPE=AUDIO") {
+			isMasterPlaylist = true
+			if idx := strings.Index(line, `URI="`); idx != -1 {
+				uriStart := idx + 5
+				if uriEnd := strings.Index(line[uriStart:], `"`); uriEnd != -1 {
+					uri := line[uriStart : uriStart+uriEnd]
+					audioURL, err := resolveURL(baseURL, uri)
+					if err != nil {
+						return nil, fmt.Errorf("error resolving audio URL: %v", err)
+					}
+					audioPlaylistURLs = append(audioPlaylistURLs, audioURL)
 				}
 			}
 			continue
@@ -93,18 +113,44 @@ func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient
 		return nil, fmt.Errorf("error scanning m3u8 content: %v", err)
 	}
 
-	// For master playlist, fetch first playlist (highest quality)
 	if isMasterPlaylist && len(masterPlaylistURLs) > 0 {
-		log.Debug().Str("op", "live-stream/helpers").Msgf("Detected master playlist, fetching sub-playlist: %s", masterPlaylistURLs[0])
-		subContent, err := getM3U8Contents(masterPlaylistURLs[0], client)
+		log.Debug().Str("op", "live-stream/helpers").Msgf("Detected master playlist with %d video variants and %d audio tracks", len(masterPlaylistURLs), len(audioPlaylistURLs))
+
+		videoContent, err := getM3U8Contents(masterPlaylistURLs[0], client)
 		if err != nil {
-			return nil, fmt.Errorf("error fetching sub-playlist: %v", err)
+			return nil, fmt.Errorf("error fetching video sub-playlist: %v", err)
 		}
-		return parseM3U8Content(subContent, masterPlaylistURLs[0], client)
+		videoInfo, err := parseM3U8Content(videoContent, masterPlaylistURLs[0], client)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing video sub-playlist: %v", err)
+		}
+
+		if len(audioPlaylistURLs) > 0 {
+			audioContent, err := getM3U8Contents(audioPlaylistURLs[0], client)
+			if err != nil {
+				return nil, fmt.Errorf("error fetching audio sub-playlist: %v", err)
+			}
+			audioInfo, err := parseM3U8Content(audioContent, audioPlaylistURLs[0], client)
+			if err != nil {
+				return nil, fmt.Errorf("error parsing audio sub-playlist: %v", err)
+			}
+
+			return &M3U8Info{
+				VideoSegmentURLs: videoInfo.VideoSegmentURLs,
+				AudioSegmentURLs: audioInfo.VideoSegmentURLs,
+				VideoInitSegment: videoInfo.VideoInitSegment,
+				AudioInitSegment: audioInfo.VideoInitSegment,
+				HasSeparateAudio: true,
+			}, nil
+		}
+
+		return videoInfo, nil
 	}
+
 	return &M3U8Info{
-		SegmentURLs: segmentURLs,
-		InitSegment: initSegment,
+		VideoSegmentURLs: segmentURLs,
+		VideoInitSegment: initSegment,
+		HasSeparateAudio: false,
 	}, nil
 }
 
