@@ -36,6 +36,7 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Build global HTTP config from flags
 		globalHTTPConfig = utils.HTTPClientConfig{
+			Jar:           nil,
 			ProxyURL:      proxyURL,
 			ProxyUsername: proxyUsername,
 			ProxyPassword: proxyPassword,

@@ -82,14 +82,17 @@ func (d *M3U8Downloader) Download(job *utils.DanzoJob) error {
 }
 
 func detectFMP4Format(manifestURL string, segmentURLs []string) bool {
-	if strings.Contains(manifestURL, "/fmp4/") || strings.Contains(manifestURL, "frag") {
+	if strings.Contains(manifestURL, "sf=fmp4") ||
+		strings.Contains(manifestURL, "/fmp4/") ||
+		strings.Contains(manifestURL, "frag") {
 		return true
 	}
 	if len(segmentURLs) > 0 {
 		firstSegment := segmentURLs[0]
 		if strings.Contains(firstSegment, "/fmp4/") ||
 			strings.Contains(firstSegment, ".m4s") ||
-			strings.Contains(firstSegment, "frag") {
+			strings.Contains(firstSegment, "frag") ||
+			strings.Contains(firstSegment, ".mp4") {
 			return true
 		}
 	}

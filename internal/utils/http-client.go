@@ -3,6 +3,7 @@ package utils
 import (
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"syscall"
 	"time"
@@ -11,6 +12,7 @@ import (
 )
 
 type HTTPClientConfig struct {
+	Jar            *cookiejar.Jar
 	Timeout        time.Duration
 	KATimeout      time.Duration
 	ProxyURL       string
@@ -76,6 +78,7 @@ func NewDanzoHTTPClient(cfg HTTPClientConfig) *DanzoHTTPClient {
 		client: &http.Client{
 			Timeout:   cfg.Timeout,
 			Transport: transport,
+			Jar:       cfg.Jar,
 		},
 		config: cfg,
 	}

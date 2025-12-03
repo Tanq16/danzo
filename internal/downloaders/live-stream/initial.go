@@ -29,13 +29,12 @@ func (d *M3U8Downloader) ValidateJob(job *utils.DanzoJob) error {
 }
 
 func (d *M3U8Downloader) BuildJob(job *utils.DanzoJob) error {
-	if extractor, ok := job.Metadata["extract"].(string); ok && extractor != "" {
-		log.Info().Str("op", "live-stream/initial").Msgf("Using extractor: %s", extractor)
-		if err := runExtractor(job); err != nil {
-			return fmt.Errorf("extractor failed: %v", err)
-		}
-		log.Info().Str("op", "live-stream/initial").Msgf("URL extracted: %s", job.URL)
+	extractor, _ := job.Metadata["extract"].(string)
+	log.Info().Str("op", "live-stream/initial").Msgf("Using extractor: %s", extractor)
+	if err := runExtractor(job); err != nil {
+		return fmt.Errorf("extractor failed: %v", err)
 	}
+	log.Info().Str("op", "live-stream/initial").Msgf("URL extracted: %s", job.URL)
 	if job.OutputPath == "" {
 		job.OutputPath = fmt.Sprintf("stream_%s.mp4", time.Now().Format("2006-01-02_15-04"))
 	}
