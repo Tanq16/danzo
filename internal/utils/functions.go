@@ -64,16 +64,14 @@ func FormatSpeed(bytes int64, elapsed float64) string {
 
 func CleanLocal() error {
 	tempDir := filepath.Join(filepath.Dir("."), ".danzo-temp")
-	files, err := os.ReadDir(tempDir)
+	_, err := os.Stat(tempDir)
+	if os.IsNotExist(err) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
-	for _, file := range files {
-		if err := os.Remove(filepath.Join(tempDir, file.Name())); err != nil {
-			return err
-		}
-	}
-	if err := os.Remove(tempDir); err != nil {
+	if err := os.RemoveAll(tempDir); err != nil {
 		return err
 	}
 	return nil
@@ -87,8 +85,21 @@ func CleanFunction(outputPath string) error {
 	}
 	partPrefix := filepath.Base(outputPath) + ".part"
 	for _, file := range files {
+		filePath := filepath.Join(tempDir, file.Name())
 		if strings.HasPrefix(file.Name(), partPrefix) {
-			if err := os.Remove(filepath.Join(tempDir, file.Name())); err != nil {
+			if file.IsDir() {
+				if err := os.RemoveAll(filePath); err != nil {
+					return err
+				}
+			} else {
+				if err := os.Remove(filePath); err != nil {
+					return err
+				}
+			}
+		}
+		// Also remove m3u8_* directories (from live-stream downloads)
+		if file.IsDir() && strings.HasPrefix(file.Name(), "m3u8_") {
+			if err := os.RemoveAll(filePath); err != nil {
 				return err
 			}
 		}

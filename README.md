@@ -18,7 +18,7 @@ The primary downloaders and their supported aliases are as follows:
 | --- | --- | --- |
 | `http` | - | Multi-chunked or linear downloads for general HTTP(S) sources |
 | `batch` | - | Multi-threaded, multi-downloader operation given a yaml config |
-| `live-stream` | `hls`, `m3u8`, `livestream`, `stream` | Download a live stream format video (playlist.m3u8 files) with multi-threading |
+| `live-stream` | `hls`, `m3u8`, `livestream`, `stream` | Download a live stream format video (playlist.m3u8 files) with multi-threading and extractor support for multiple sites |
 | `youtube` | `yt` | Download YouTube videos using `yt-dlp` |
 | `youtube-music` | `ytm`, `yt-music` | Download audio from YouTube with iTunes/Deezer metadata using `yt-dlp` and `ffmpeg` |
 | `git-clone` | `gitclone`, `gitc`, `git`, `clone` | Clone a git repository with SSH/token authentication |
@@ -58,6 +58,7 @@ Following are examples to get started with various flags:
   danzo hls "https://example.com/manifest.m3u8" -o video.mp4
   danzo hls "https://rumble.com/v893ud-something.html" -e rumble # rumble extractor
   danzo hls "https://www.dailymotion.com/video/a999aas" -e dailymotion # dailymotion extractor
+  danzo hls "https://vimeo.com/123456789" -e vimeo --vimeo-username user@example.com --vimeo-password pass123 # vimeo extractor, requires an account
   # extractors (-e) automatically extract m3u8 URLs from service URLs
   ```
 - Download an S3 object or folder
@@ -317,6 +318,20 @@ danzo m3u8 "https://example.com/path/to/playlist.m3u8" -o video.mp4
 # With default output name (stream_[timestamp].mp4)
 danzo m3u8 "https://example.com/video/master.m3u8"
 ```
+
+#### Extractors
+
+Danzo includes site-specific extractors that automatically extract M3U8 URLs from popular video hosting services. Extractors are automatically detected based on the URL, or can be explicitly specified using the `-e` or `--extract` flag. Examples:
+
+```bash
+danzo hls "https://rumble.com/v893ud-something.html" -e rumble
+danzo hls "https://www.dailymotion.com/video/a999aas" -e dailymotion
+danzo hls "https://dai.ly/a999aas" -e dailymotion
+danzo hls "https://vimeo.com/123456789" -e vimeo --vimeo-username user@example.com --vimeo-password yourpassword
+danzo hls "https://vimeo.com/123456789" -e vimeo --vimeo-username user@example.com --vimeo-password yourpassword --video-password videopass
+```
+
+> ⚠︎ The Vimeo extractor requires `--vimeo-username` and `--vimeo-password` flags to authenticate with your Vimeo account. This is necessary to access video metadata and HLS streams.
 
 </details>
 

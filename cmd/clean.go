@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"path/filepath"
-
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal/utils"
@@ -18,8 +16,8 @@ func newCleanCmd() *cobra.Command {
 				log.Debug().Str("op", "cmd/clean").Msgf("Cleaning local files in current directory")
 				utils.CleanLocal()
 			} else {
-				log.Debug().Str("op", "cmd/clean").Msgf("Cleaning local files in %s", filepath.Dir(args[0]))
-				utils.CleanFunction(filepath.Dir(args[0]))
+				log.Debug().Str("op", "cmd/clean").Msgf("Cleaning temp files for %s", args[0])
+				utils.CleanFunction(args[0])
 			}
 		},
 	}
