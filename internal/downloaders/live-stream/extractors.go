@@ -1,7 +1,6 @@
 package m3u8
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -54,10 +53,6 @@ type VimeoConfig struct {
 	} `json:"video"`
 }
 
-type vimeoViewerInfo struct {
-	XSRFT string `json:"xsrft"`
-}
-
 func runExtractor(job *utils.DanzoJob) error {
 	extractor, _ := job.Metadata["extract"].(string)
 	switch strings.ToLower(extractor) {
@@ -74,7 +69,23 @@ func runExtractor(job *utils.DanzoJob) error {
 
 func extractVimeoURL(job *utils.DanzoJob) error {
 	log.Debug().Str("op", "live-stream/extractor").Msgf("Extracting Vimeo URL from %s", job.URL)
-	// Regex to catch ID and optional Hash (for unlisted videos)
+	username, hasUsername := job.Metadata["vimeo-username"].(string)
+	password, hasPassword := job.Metadata["vimeo-password"].(string)
+	if !hasUsername || username == "" {
+		log.Error().Str("op", "live-stream/extractor").Msg("Vimeo username not provided (use --vimeo-username)")
+	} else {
+		log.Debug().Str("op", "live-stream/extractor").Msgf("Vimeo username found: %s", username)
+	}
+	if !hasPassword || password == "" {
+		log.Error().Str("op", "live-stream/extractor").Msg("Vimeo password not provided (use --vimeo-password)")
+	} else {
+		log.Debug().Str("op", "live-stream/extractor").Msg("Vimeo password found")
+	}
+
+	if !hasUsername || username == "" || !hasPassword || password == "" {
+		return fmt.Errorf("vimeo extractor requires --vimeo-username and --vimeo-password")
+	}
+
 	re := regexp.MustCompile(`vimeo\.com/(?:channels/[\w]+/|groups/[\w]+/videos/|video/|)(\d+)(?:/([a-zA-Z0-9]+))?`)
 	matches := re.FindStringSubmatch(job.URL)
 	if len(matches) < 2 {
@@ -99,157 +110,168 @@ func extractVimeoURL(job *utils.DanzoJob) error {
 	newVimeoHTTPConfig.Jar = jar
 	httpClient := utils.NewDanzoHTTPClient(newVimeoHTTPConfig)
 
-	if password, ok := job.Metadata["password"].(string); ok && password != "" {
-		log.Debug().Str("op", "live-stream/extractor").Msgf("Attempting password authentication for video %s", videoID)
-		if err := authenticateVimeoPassword(httpClient, videoPageURL, password); err != nil {
-			return err
+	if err := authenticateVimeoUser(httpClient, username, password); err != nil {
+		return err
+	}
+	log.Debug().Str("op", "live-stream/extractor").Msg("User authentication successful")
+	if videoPassword, ok := job.Metadata["password"].(string); ok && videoPassword != "" {
+		log.Debug().Str("op", "live-stream/extractor").Msgf("Submitting video password for video %s", videoID)
+		if err := submitVimeoVideoPassword(httpClient, videoPageURL, videoPassword); err != nil {
+			return fmt.Errorf("video password authentication failed: %v", err)
 		}
-		log.Debug().Str("op", "live-stream/extractor").Msg("Password authentication successful, cookies set")
+		log.Debug().Str("op", "live-stream/extractor").Msg("Video password submitted successfully")
 	}
 	job.HTTPClientConfig.Jar = jar
+	log.Debug().Str("op", "live-stream/extractor").Msg("Fetching video info from Vimeo API")
 
-	configURL := fmt.Sprintf("https://player.vimeo.com/video/%s/config", videoID)
+	var apiURL string
 	if hash != "" {
-		configURL += fmt.Sprintf("?h=%s", hash)
-	}
-	log.Debug().Str("op", "live-stream/extractor").Msgf("Fetching Vimeo config from %s", configURL)
-	req, err := http.NewRequest("GET", configURL, nil)
-	if err != nil {
-		return fmt.Errorf("error creating vimeo request: %v", err)
-	}
-
-	req.Header.Set("Referer", videoPageURL)
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("error fetching vimeo config: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == 403 {
-			return fmt.Errorf("vimeo video is password protected or restricted (403); did you provide the correct --password?")
-		}
-		return fmt.Errorf("vimeo config returned status %d", resp.StatusCode)
-	}
-
-	var config VimeoConfig
-	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
-		return fmt.Errorf("error decoding vimeo config: %v", err)
-	}
-	hlsData := config.Request.Files.Hls
-	if len(hlsData.Cdns) == 0 {
-		return fmt.Errorf("no HLS streams found in vimeo config (video might be processing or unavailable)")
-	}
-
-	var masterURL string
-	if defaultCDN, ok := hlsData.Cdns[hlsData.DefaultCdn]; ok {
-		masterURL = defaultCDN.URL
+		apiURL = fmt.Sprintf("https://api.vimeo.com/videos/%s:%s", videoID, hash)
 	} else {
-		for _, cdn := range hlsData.Cdns {
-			masterURL = cdn.URL
-			break
+		apiURL = fmt.Sprintf("https://api.vimeo.com/videos/%s", videoID)
+	}
+	apiReq, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return fmt.Errorf("error creating API request: %v", err)
+	}
+	viewerInfo, err := fetchVimeoViewerInfo(httpClient)
+	if err == nil {
+		if jwt, ok := viewerInfo["jwt"].(string); ok && jwt != "" {
+			apiReq.Header.Set("Authorization", fmt.Sprintf("jwt %s", jwt))
+			log.Debug().Str("op", "live-stream/extractor").Msg("Using JWT authentication for API")
 		}
 	}
-	if masterURL == "" {
-		return fmt.Errorf("extracted HLS URL is empty")
-	}
-	log.Info().Str("op", "live-stream/extractor").Msgf("Extracted Vimeo HLS URL")
-	job.URL = masterURL
 
+	apiReq.Header.Set("Accept", "application/json")
+	apiReq.Header.Set("Referer", videoPageURL)
+	apiResp, err := httpClient.Do(apiReq)
+	if err != nil {
+		return fmt.Errorf("error fetching video API: %v", err)
+	}
+	apiBody, _ := io.ReadAll(apiResp.Body)
+	apiResp.Body.Close()
+
+	if apiResp.StatusCode != 200 {
+		return fmt.Errorf("failed to fetch video API: status %d", apiResp.StatusCode)
+	}
+	var apiData map[string]interface{}
+	if err := json.Unmarshal(apiBody, &apiData); err != nil {
+		return fmt.Errorf("error decoding API response: %v", err)
+	}
+	var hlsURL string
+	if play, ok := apiData["play"].(map[string]interface{}); ok {
+		if hls, ok := play["hls"].(map[string]interface{}); ok {
+			if link, ok := hls["link"].(string); ok {
+				hlsURL = link
+			}
+		}
+	}
+
+	if hlsURL == "" {
+		return fmt.Errorf("no HLS stream found in API response")
+	}
+	log.Info().Str("op", "live-stream/extractor").Msg("Extracted Vimeo HLS URL from API")
+	job.URL = hlsURL
 	if job.HTTPClientConfig.Headers == nil {
 		job.HTTPClientConfig.Headers = make(map[string]string)
 	}
 	job.HTTPClientConfig.Headers["Referer"] = videoPageURL
-	if job.OutputPath == "" && config.Video.Title != "" {
-		safeTitle := regexp.MustCompile(`[^a-zA-Z0-9\-\.]`).ReplaceAllString(config.Video.Title, "_")
-		job.OutputPath = safeTitle + ".mp4"
+
+	if job.OutputPath == "" {
+		if name, ok := apiData["name"].(string); ok && name != "" {
+			safeTitle := regexp.MustCompile(`[^a-zA-Z0-9\-\.]`).ReplaceAllString(name, "_")
+			job.OutputPath = safeTitle + ".mp4"
+		}
 	}
 	return nil
 }
 
-func authenticateVimeoPassword(httpClient *utils.DanzoHTTPClient, videoPageURL, password string) error {
-	if err := warmVimeoSession(httpClient, videoPageURL); err != nil {
-		log.Debug().Str("op", "live-stream/extractor").Msgf("Failed to warm Vimeo session: %v", err)
-	}
+func authenticateVimeoUser(httpClient *utils.DanzoHTTPClient, username, password string) error {
 	token, err := fetchVimeoXsrfToken(httpClient)
 	if err != nil {
-		log.Error().Str("op", "live-stream/extractor").Msgf("Failed to fetch Vimeo viewer token: %v", err)
-		return fmt.Errorf("failed to fetch Vimeo auth token: %v", err)
+		log.Error().Str("op", "live-stream/extractor").Msgf("Failed to fetch Vimeo XSRF token: %v", err)
+		return fmt.Errorf("failed to fetch Vimeo XSRF token: %v", err)
 	}
-	if err := submitVimeoPassword(httpClient, videoPageURL, password, token); err != nil {
-		log.Error().Str("op", "live-stream/extractor").Msgf("Vimeo password submission failed: %v", err)
-		return err
+	formData := fmt.Sprintf("action=login&email=%s&password=%s&service=vimeo&token=%s",
+		username, password, token)
+	req, err := http.NewRequest("POST", "https://vimeo.com/log_in", strings.NewReader(formData))
+	if err != nil {
+		return fmt.Errorf("error creating login request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Referer", "https://vimeo.com/log_in")
+	req.Header.Set("Origin", "https://vimeo.com")
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("login request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("user authentication failed with status: %d (check credentials)", resp.StatusCode)
 	}
 	return nil
 }
 
-func warmVimeoSession(httpClient *utils.DanzoHTTPClient, videoPageURL string) error {
-	req, err := http.NewRequest("GET", videoPageURL, nil)
+func submitVimeoVideoPassword(httpClient *utils.DanzoHTTPClient, videoPageURL, password string) error {
+	viewerInfo, err := fetchVimeoViewerInfo(httpClient)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to fetch viewer info: %v", err)
 	}
-	req.Header.Set("Referer", videoPageURL)
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return err
+	token, ok := viewerInfo["xsrft"].(string)
+	if !ok || token == "" {
+		return fmt.Errorf("no XSRF token available")
 	}
-	defer resp.Body.Close()
-	return nil
-}
 
-func fetchVimeoXsrfToken(httpClient *utils.DanzoHTTPClient) (string, error) {
-	req, err := http.NewRequest("GET", "https://vimeo.com/_next/viewer", nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Accept", "application/json")
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("vimeo viewer endpoint returned status %d", resp.StatusCode)
-	}
-	var viewer vimeoViewerInfo
-	if err := json.NewDecoder(resp.Body).Decode(&viewer); err != nil {
-		return "", fmt.Errorf("failed to decode viewer info: %v", err)
-	}
-	if viewer.XSRFT == "" {
-		return "", fmt.Errorf("viewer token missing in response")
-	}
-	return viewer.XSRFT, nil
-}
-
-func submitVimeoPassword(httpClient *utils.DanzoHTTPClient, videoPageURL, password, token string) error {
-	payload := map[string]string{
-		"password": password,
-		"token":    token,
-	}
-	jsonPayload, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("error creating password payload: %v", err)
-	}
+	formData := fmt.Sprintf("password=%s&token=%s", password, token)
 	authURL := strings.TrimSuffix(videoPageURL, "/") + "/password"
-	req, err := http.NewRequest("POST", authURL, bytes.NewBuffer(jsonPayload))
+	req, err := http.NewRequest("POST", authURL, strings.NewReader(formData))
 	if err != nil {
-		return fmt.Errorf("error creating auth request: %v", err)
+		return fmt.Errorf("error creating password request: %v", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Referer", videoPageURL)
 	req.Header.Set("Origin", "https://vimeo.com")
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("password auth request failed: %v", err)
+		return fmt.Errorf("password request failed: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusTeapot {
-		return fmt.Errorf("vimeo password authentication failed: incorrect password (418)")
-	}
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("password authentication failed with status: %d (check your password)", resp.StatusCode)
+		return fmt.Errorf("password authentication failed with status: %d", resp.StatusCode)
 	}
 	return nil
+}
+
+func fetchVimeoViewerInfo(httpClient *utils.DanzoHTTPClient) (map[string]interface{}, error) {
+	req, err := http.NewRequest("GET", "https://vimeo.com/_next/viewer", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("vimeo viewer endpoint returned status %d", resp.StatusCode)
+	}
+	var viewer map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&viewer); err != nil {
+		return nil, fmt.Errorf("failed to decode viewer info: %v", err)
+	}
+	return viewer, nil
+}
+
+func fetchVimeoXsrfToken(httpClient *utils.DanzoHTTPClient) (string, error) {
+	viewer, err := fetchVimeoViewerInfo(httpClient)
+	if err != nil {
+		return "", err
+	}
+	if token, ok := viewer["xsrft"].(string); ok && token != "" {
+		return token, nil
+	}
+	return "", fmt.Errorf("viewer token missing in response")
 }
 
 func extractRumbleURL(job *utils.DanzoJob) error {

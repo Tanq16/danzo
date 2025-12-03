@@ -31,7 +31,7 @@ func newM3U8Cmd() *cobra.Command {
 				HTTPClientConfig: globalHTTPConfig,
 				Metadata:         make(map[string]any),
 			}
-			if extract != "" {
+			if extract == "" {
 				if strings.Contains(job.URL, "vimeo.com") {
 					extract = "vimeo"
 				} else if strings.Contains(job.URL, "dailymotion.com") || strings.Contains(job.URL, "dai.ly") {
@@ -39,14 +39,16 @@ func newM3U8Cmd() *cobra.Command {
 				} else if strings.Contains(job.URL, "rumble.com") {
 					extract = "rumble"
 				}
+			}
+			if extract != "" {
 				job.Metadata["extract"] = extract
 			}
-			if videoPassword != "" || (vimeoUsername != "" && vimeoPassword != "") {
+			if videoPassword != "" {
 				job.Metadata["password"] = videoPassword
-				if vimeoUsername != "" && vimeoPassword != "" {
-					job.Metadata["vimeo-username"] = vimeoUsername
-					job.Metadata["vimeo-password"] = vimeoPassword
-				}
+			}
+			if vimeoUsername != "" && vimeoPassword != "" {
+				job.Metadata["vimeo-username"] = vimeoUsername
+				job.Metadata["vimeo-password"] = vimeoPassword
 			}
 			jobs := []utils.DanzoJob{job}
 			log.Debug().Str("op", "cmd/live-stream").Msgf("Starting scheduler with %d jobs", len(jobs))
