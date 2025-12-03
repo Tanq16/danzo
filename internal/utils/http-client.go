@@ -40,6 +40,10 @@ func NewDanzoHTTPClient(cfg HTTPClientConfig) *DanzoHTTPClient {
 	if cfg.KATimeout == 0 {
 		cfg.KATimeout = 60 * time.Second
 	}
+	if cfg.Jar == nil {
+		jar, _ := cookiejar.New(nil)
+		cfg.Jar = jar
+	}
 	transport := &http.Transport{
 		IdleConnTimeout:     cfg.KATimeout,
 		MaxIdleConns:        100,
