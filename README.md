@@ -58,7 +58,6 @@ Following are examples to get started with various flags:
   danzo hls "https://example.com/manifest.m3u8" -o video.mp4
   danzo hls "https://rumble.com/v893ud-something.html" -e rumble # rumble extractor
   danzo hls "https://www.dailymotion.com/video/a999aas" -e dailymotion # dailymotion extractor
-  danzo hls "https://vimeo.com/123456789" -e vimeo --vimeo-username user@example.com --vimeo-password pass123 # vimeo extractor, requires an account
   # extractors (-e) automatically extract m3u8 URLs from service URLs
   ```
 - Download an S3 object or folder
@@ -327,11 +326,7 @@ Danzo includes site-specific extractors that automatically extract M3U8 URLs fro
 danzo hls "https://rumble.com/v893ud-something.html" -e rumble
 danzo hls "https://www.dailymotion.com/video/a999aas" -e dailymotion
 danzo hls "https://dai.ly/a999aas" -e dailymotion
-danzo hls "https://vimeo.com/123456789" -e vimeo --vimeo-username user@example.com --vimeo-password yourpassword
-danzo hls "https://vimeo.com/123456789" -e vimeo --vimeo-username user@example.com --vimeo-password yourpassword --video-password videopass
 ```
-
-> ⚠︎ The Vimeo extractor requires `--vimeo-username` and `--vimeo-password` flags to authenticate with your Vimeo account. This is necessary to access video metadata and HLS streams.
 
 </details>
 

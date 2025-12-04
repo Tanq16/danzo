@@ -13,8 +13,6 @@ func newM3U8Cmd() *cobra.Command {
 	var outputPath string
 	var extract string
 	var videoPassword string
-	var vimeoUsername string
-	var vimeoPassword string
 
 	cmd := &cobra.Command{
 		Use:     "live-stream [URL] [--output OUTPUT_PATH] [--extract EXTRACTOR] [--password PASSWORD]",
@@ -32,9 +30,7 @@ func newM3U8Cmd() *cobra.Command {
 				Metadata:         make(map[string]any),
 			}
 			if extract == "" {
-				if strings.Contains(job.URL, "vimeo.com") {
-					extract = "vimeo"
-				} else if strings.Contains(job.URL, "dailymotion.com") || strings.Contains(job.URL, "dai.ly") {
+				if strings.Contains(job.URL, "dailymotion.com") || strings.Contains(job.URL, "dai.ly") {
 					extract = "dailymotion"
 				} else if strings.Contains(job.URL, "rumble.com") {
 					extract = "rumble"
@@ -46,10 +42,6 @@ func newM3U8Cmd() *cobra.Command {
 			if videoPassword != "" {
 				job.Metadata["password"] = videoPassword
 			}
-			if vimeoUsername != "" && vimeoPassword != "" {
-				job.Metadata["vimeo-username"] = vimeoUsername
-				job.Metadata["vimeo-password"] = vimeoPassword
-			}
 			jobs := []utils.DanzoJob{job}
 			log.Debug().Str("op", "cmd/live-stream").Msgf("Starting scheduler with %d jobs", len(jobs))
 			scheduler.Run(jobs, workers)
@@ -57,9 +49,7 @@ func newM3U8Cmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&outputPath, "output", "o", "", "Output file path (default: stream_[timestamp].mp4)")
-	cmd.Flags().StringVarP(&extract, "extract", "e", "", "Site-specific extractor to use (e.g., rumble, dailymotion, vimeo)")
+	cmd.Flags().StringVarP(&extract, "extract", "e", "", "Site-specific extractor to use (e.g., rumble, dailymotion)")
 	cmd.Flags().StringVar(&videoPassword, "video-password", "", "Password for protected videos")
-	cmd.Flags().StringVar(&vimeoUsername, "vimeo-username", "", "Username for Vimeo authentication")
-	cmd.Flags().StringVar(&vimeoPassword, "vimeo-password", "", "Password for Vimeo authentication")
 	return cmd
 }
