@@ -161,8 +161,27 @@ func extractVimeoURL(job *utils.DanzoJob) error {
 	var hlsURL string
 	if play, ok := apiData["play"].(map[string]interface{}); ok {
 		if hls, ok := play["hls"].(map[string]interface{}); ok {
-			if link, ok := hls["link"].(string); ok {
-				hlsURL = link
+			if cdns, ok := hls["cdns"].(map[string]interface{}); ok {
+				for cdnName, cdnData := range cdns {
+					if cdn, ok := cdnData.(map[string]interface{}); ok {
+						if link, ok := cdn["url"].(string); ok {
+							if strings.Contains(link, "/sep/video/") {
+								hlsURL = link
+								log.Debug().Str("op", "live-stream/extractor").Msgf("Found separated stream from CDN: %s", cdnName)
+								break
+							}
+							if hlsURL == "" {
+								hlsURL = link
+								log.Debug().Str("op", "live-stream/extractor").Msgf("Found HLS stream from CDN: %s", cdnName)
+							}
+						}
+					}
+				}
+			}
+			if hlsURL == "" {
+				if link, ok := hls["link"].(string); ok {
+					hlsURL = link
+				}
 			}
 		}
 	}

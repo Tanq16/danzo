@@ -43,6 +43,11 @@ func getM3U8Contents(manifestURL string, client *utils.DanzoHTTPClient) (string,
 	return string(content), nil
 }
 
+type audioTrack struct {
+	url     string
+	quality int
+}
+
 func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient) (*M3U8Info, error) {
 	baseURL, err := url.Parse(manifestURL)
 	if err != nil {
@@ -51,16 +56,17 @@ func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	var segmentURLs []string
 	var masterPlaylistURLs []string
-	var audioPlaylistURLs []string
+	var masterPlaylistBandwidths []int
+	var audioTracks []audioTrack
 	var isMasterPlaylist bool
 	var initSegment string
+	var currentBandwidth int
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
-		// Check for init segment (fMP4)
 		if strings.HasPrefix(line, "#EXT-X-MAP:") {
 			if idx := strings.Index(line, `URI="`); idx != -1 {
 				uriStart := idx + 5
@@ -77,16 +83,52 @@ func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient
 		}
 		if strings.HasPrefix(line, "#EXT-X-MEDIA:") && strings.Contains(line, "TYPE=AUDIO") {
 			isMasterPlaylist = true
+			log.Debug().Str("op", "live-stream/helpers").Msgf("Found audio media line: %s", line)
+			var audioURL string
 			if idx := strings.Index(line, `URI="`); idx != -1 {
 				uriStart := idx + 5
 				if uriEnd := strings.Index(line[uriStart:], `"`); uriEnd != -1 {
 					uri := line[uriStart : uriStart+uriEnd]
-					audioURL, err := resolveURL(baseURL, uri)
+					audioURL, err = resolveURL(baseURL, uri)
 					if err != nil {
 						return nil, fmt.Errorf("error resolving audio URL: %v", err)
 					}
-					audioPlaylistURLs = append(audioPlaylistURLs, audioURL)
 				}
+			}
+			quality := 0
+			groupID := ""
+			if idx := strings.Index(line, `GROUP-ID="`); idx != -1 {
+				groupStart := idx + 10
+				if groupEnd := strings.Index(line[groupStart:], `"`); groupEnd != -1 {
+					groupID = strings.ToLower(line[groupStart : groupStart+groupEnd])
+					log.Debug().Str("op", "live-stream/helpers").Msgf("Found GROUP-ID: %s", groupID)
+					if strings.Contains(groupID, "high") {
+						quality = 3
+					} else if strings.Contains(groupID, "medium") {
+						quality = 2
+					} else if strings.Contains(groupID, "low") {
+						quality = 1
+					}
+				}
+			}
+			if quality == 0 {
+				if idx := strings.Index(line, `NAME="`); idx != -1 {
+					nameStart := idx + 6
+					if nameEnd := strings.Index(line[nameStart:], `"`); nameEnd != -1 {
+						name := strings.ToLower(line[nameStart : nameStart+nameEnd])
+						log.Debug().Str("op", "live-stream/helpers").Msgf("Found NAME: %s", name)
+						if strings.Contains(name, "high") {
+							quality = 3
+						} else if strings.Contains(name, "medium") {
+							quality = 2
+						} else if strings.Contains(name, "low") {
+							quality = 1
+						}
+					}
+				}
+			}
+			if audioURL != "" {
+				audioTracks = append(audioTracks, audioTrack{url: audioURL, quality: quality})
 			}
 			continue
 		}
@@ -95,6 +137,17 @@ func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient
 		}
 		if strings.Contains(line, "#EXT-X-STREAM-INF") {
 			isMasterPlaylist = true
+			currentBandwidth = 0
+			if idx := strings.Index(line, "BANDWIDTH="); idx != -1 {
+				bandwidthStart := idx + 10
+				bandwidthEnd := bandwidthStart
+				for bandwidthEnd < len(line) && line[bandwidthEnd] >= '0' && line[bandwidthEnd] <= '9' {
+					bandwidthEnd++
+				}
+				if bandwidthEnd > bandwidthStart {
+					fmt.Sscanf(line[bandwidthStart:bandwidthEnd], "%d", &currentBandwidth)
+				}
+			}
 			continue
 		}
 		if !strings.HasPrefix(line, "#") {
@@ -104,6 +157,8 @@ func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient
 			}
 			if isMasterPlaylist {
 				masterPlaylistURLs = append(masterPlaylistURLs, segmentURL)
+				masterPlaylistBandwidths = append(masterPlaylistBandwidths, currentBandwidth)
+				currentBandwidth = 0
 			} else {
 				segmentURLs = append(segmentURLs, segmentURL)
 			}
@@ -114,23 +169,41 @@ func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient
 	}
 
 	if isMasterPlaylist && len(masterPlaylistURLs) > 0 {
-		log.Debug().Str("op", "live-stream/helpers").Msgf("Detected master playlist with %d video variants and %d audio tracks", len(masterPlaylistURLs), len(audioPlaylistURLs))
+		bestVariantIdx := 0
+		maxBandwidth := 0
+		for i, bandwidth := range masterPlaylistBandwidths {
+			if bandwidth > maxBandwidth {
+				maxBandwidth = bandwidth
+				bestVariantIdx = i
+			}
+		}
+		log.Debug().Str("op", "live-stream/helpers").Msgf("Detected master playlist with %d video variants and %d audio tracks, selecting variant with bandwidth %d", len(masterPlaylistURLs), len(audioTracks), maxBandwidth)
 
-		videoContent, err := getM3U8Contents(masterPlaylistURLs[0], client)
+		videoContent, err := getM3U8Contents(masterPlaylistURLs[bestVariantIdx], client)
 		if err != nil {
 			return nil, fmt.Errorf("error fetching video sub-playlist: %v", err)
 		}
-		videoInfo, err := parseM3U8Content(videoContent, masterPlaylistURLs[0], client)
+		videoInfo, err := parseM3U8Content(videoContent, masterPlaylistURLs[bestVariantIdx], client)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing video sub-playlist: %v", err)
 		}
 
-		if len(audioPlaylistURLs) > 0 {
-			audioContent, err := getM3U8Contents(audioPlaylistURLs[0], client)
+		if len(audioTracks) > 0 {
+			bestAudioIdx := 0
+			maxQuality := 0
+			for i, track := range audioTracks {
+				log.Debug().Str("op", "live-stream/helpers").Msgf("Audio track %d: url=%s, quality=%d", i, track.url, track.quality)
+				if track.quality > maxQuality {
+					maxQuality = track.quality
+					bestAudioIdx = i
+				}
+			}
+			log.Debug().Str("op", "live-stream/helpers").Msgf("Selected audio track %d with quality %d", bestAudioIdx, maxQuality)
+			audioContent, err := getM3U8Contents(audioTracks[bestAudioIdx].url, client)
 			if err != nil {
 				return nil, fmt.Errorf("error fetching audio sub-playlist: %v", err)
 			}
-			audioInfo, err := parseM3U8Content(audioContent, audioPlaylistURLs[0], client)
+			audioInfo, err := parseM3U8Content(audioContent, audioTracks[bestAudioIdx].url, client)
 			if err != nil {
 				return nil, fmt.Errorf("error parsing audio sub-playlist: %v", err)
 			}
