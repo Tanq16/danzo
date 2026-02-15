@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 
 	"github.com/rs/zerolog/log"
-	"github.com/tanq16/danzo/internal/output"
 	"github.com/tanq16/danzo/internal/utils"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -60,9 +59,9 @@ func getOAuthToken(config *oauth2.Config, tokenFile string) (*oauth2.Token, erro
 	}
 	log.Debug().Str("op", "google-drive/auth").Msgf("no existing token retrieved, get new one with OAuth flow")
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	output.PrintDetail("\nVisit this URL to get the authorization code:\n")
+	utils.PrintInfo("Visit this URL to get the authorization code:")
 	fmt.Printf("%s\n", authURL)
-	output.PrintDetail("\nAfter authorizing, enter the authorization code:")
+	utils.PrintInfo("After authorizing, enter the authorization code:")
 	var authCode string
 	if _, err := fmt.Scan(&authCode); err != nil {
 		return nil, fmt.Errorf("unable to read authorization code: %v", err)

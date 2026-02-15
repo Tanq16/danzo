@@ -97,7 +97,4 @@ func registerCommands() {
 	rootCmd.AddCommand(newGitCloneCmd())
 	rootCmd.AddCommand(newGHReleaseCmd())
 	rootCmd.AddCommand(newGDriveCmd())
-	rootCmd.AddCommand(newYouTubeCmd())
-	rootCmd.AddCommand(newYTMusicCmd())
-	rootCmd.AddCommand(newBatchCmd())
 }
