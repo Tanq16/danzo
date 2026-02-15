@@ -31,9 +31,9 @@ func PrintSuccess(msg string) {
 	}
 }
 
-func PrintError(msg string) {
-	if GlobalDebugFlag {
-		log.Error().Msg(msg)
+func PrintError(msg string, err error) {
+	if GlobalDebugFlag && err != nil {
+		log.Error().Err(err).Msg(msg)
 	} else {
 		fmt.Println(errorStyle.Render("✗ " + msg))
 	}
@@ -48,9 +48,9 @@ func PrintFatal(msg string, err error) {
 	os.Exit(1)
 }
 
-func PrintWarn(msg string) {
-	if GlobalDebugFlag {
-		log.Warn().Msg(msg)
+func PrintWarn(msg string, err error) {
+	if GlobalDebugFlag && err != nil {
+		log.Warn().Err(err).Msg(msg)
 	} else {
 		fmt.Println(warnStyle.Render("! " + msg))
 	}

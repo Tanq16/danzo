@@ -1,9 +1,14 @@
 package cmd
 
 import (
-	"github.com/rs/zerolog/log"
+	"context"
+	"os"
+	"os/signal"
+
 	"github.com/spf13/cobra"
-	"github.com/tanq16/danzo/internal/scheduler"
+	"github.com/tanq16/danzo/internal/display"
+	"github.com/tanq16/danzo/internal/highway"
+	gitclonejob "github.com/tanq16/danzo/internal/jobs/git-clone"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -19,26 +24,25 @@ func newGitCloneCmd() *cobra.Command {
 		Aliases: []string{"gitclone", "gitc", "git", "clone"},
 		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			job := utils.DanzoJob{
-				JobType:          "git-clone",
-				URL:              args[0],
-				OutputPath:       outputPath,
-				ProgressType:     "stream",
-				HTTPClientConfig: globalHTTPConfig,
-				Metadata:         make(map[string]any),
+			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+			defer cancel()
+
+			hw := highway.New(workers, ".danzo-resume-state.json")
+			hw.RegisterType("git-clone", gitclonejob.Unmarshal)
+
+			disp := display.New(display.DefaultConfig())
+
+			job := gitclonejob.New(args[0], outputPath, depth, token, sshKey)
+			disp.RegisterJob(job.ID())
+			hw.Submit(job)
+
+			disp.Start(hw.Progress())
+			err := hw.Run(ctx)
+			disp.Stop()
+
+			if err != nil {
+				utils.PrintFatal("Clone failed", err)
 			}
-			if depth > 0 {
-				job.Metadata["depth"] = depth
-			}
-			if token != "" {
-				job.Metadata["token"] = token
-			}
-			if sshKey != "" {
-				job.Metadata["sshKey"] = sshKey
-			}
-			jobs := []utils.DanzoJob{job}
-			log.Debug().Str("op", "cmd/git-clone").Msgf("Starting scheduler with %d jobs", len(jobs))
-			scheduler.Run(jobs, workers)
 		},
 	}
 

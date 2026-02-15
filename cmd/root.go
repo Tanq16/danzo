@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"time"
 
@@ -11,10 +10,9 @@ import (
 	"github.com/tanq16/danzo/internal/utils"
 )
 
-var DanzoVersion = "dev"
+var AppVersion = "dev-build"
 
 var (
-	// Global flags
 	proxyURL      string
 	proxyUsername string
 	proxyPassword string
@@ -25,16 +23,14 @@ var (
 	debugFlag     bool
 )
 
-// Global HTTP client config that will be passed to subcommands
 var globalHTTPConfig utils.HTTPClientConfig
 
 var rootCmd = &cobra.Command{
 	Use:               "danzo",
 	Short:             "Danzo is a swiss-army knife CLI download manager",
-	Version:           DanzoVersion,
-	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+	Version:           AppVersion,
+	CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Build global HTTP config from flags
 		globalHTTPConfig = utils.HTTPClientConfig{
 			Jar:           nil,
 			ProxyURL:      proxyURL,
@@ -51,7 +47,7 @@ func setupLogs() {
 	output := zerolog.ConsoleWriter{
 		Out:        os.Stdout,
 		TimeFormat: time.DateTime,
-		NoColor:    false, // Enable color output
+		NoColor:    false,
 	}
 	log.Logger = zerolog.New(output).With().Timestamp().Logger()
 	zerolog.SetGlobalLevel(zerolog.Disabled)
@@ -66,7 +62,6 @@ func setupLogs() {
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -76,7 +71,6 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&debugFlag, "debug", false, "Enable debug logging")
 	cobra.OnInitialize(setupLogs)
 
-	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&proxyURL, "proxy", "p", "", "HTTP/HTTPS proxy URL")
 	rootCmd.PersistentFlags().StringVar(&proxyUsername, "proxy-username", "", "Proxy username")
 	rootCmd.PersistentFlags().StringVar(&proxyPassword, "proxy-password", "", "Proxy password")
@@ -85,11 +79,6 @@ func init() {
 	rootCmd.PersistentFlags().IntVarP(&workers, "workers", "w", 1, "Number of parallel workers")
 	rootCmd.PersistentFlags().IntVarP(&connections, "connections", "c", 8, "Number of connections per download")
 
-	registerCommands()
-	fmt.Println()
-}
-
-func registerCommands() {
 	rootCmd.AddCommand(newCleanCmd())
 	rootCmd.AddCommand(newHTTPCmd())
 	rootCmd.AddCommand(newM3U8Cmd())
@@ -97,4 +86,5 @@ func registerCommands() {
 	rootCmd.AddCommand(newGitCloneCmd())
 	rootCmd.AddCommand(newGHReleaseCmd())
 	rootCmd.AddCommand(newGDriveCmd())
+	rootCmd.AddCommand(newResumeCmd())
 }

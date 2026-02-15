@@ -1,7 +1,8 @@
 package cmd
 
 import (
-	"github.com/rs/zerolog/log"
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/tanq16/danzo/internal/utils"
 )
@@ -9,15 +10,22 @@ import (
 func newCleanCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "clean [path]",
-		Short: "Clean up temporary files",
+		Short: "Clean up temporary and state files",
 		Args:  cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			os.Remove(".danzo-resume-state.json")
 			if len(args) == 0 {
-				log.Debug().Str("op", "cmd/clean").Msgf("Cleaning local files in current directory")
-				utils.CleanLocal()
+				if err := utils.CleanLocal(); err != nil {
+					utils.PrintError("Failed to clean local files", err)
+				} else {
+					utils.PrintSuccess("Cleaned temporary files")
+				}
 			} else {
-				log.Debug().Str("op", "cmd/clean").Msgf("Cleaning temp files for %s", args[0])
-				utils.CleanFunction(args[0])
+				if err := utils.CleanFunction(args[0]); err != nil {
+					utils.PrintError("Failed to clean files", err)
+				} else {
+					utils.PrintSuccess("Cleaned temporary files for " + args[0])
+				}
 			}
 		},
 	}

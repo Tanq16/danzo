@@ -3,65 +3,14 @@ package utils
 import (
 	"errors"
 	"regexp"
-	"time"
 )
 
-type Downloader interface {
-	Download(job *DanzoJob) error
-	BuildJob(job *DanzoJob) error
-	ValidateJob(job *DanzoJob) error
-}
-
-// A single download job for Danzo
-type DanzoJob struct {
-	ID               string
-	JobType          string
-	OutputPath       string
-	ProgressType     string
-	ProgressFunc     func(downloaded, total int64)
-	StreamFunc       func(line string)
-	URL              string
-	Connections      int
-	Metadata         map[string]any
-	HTTPClientConfig HTTPClientConfig
-	PauseFunc        func() // Request pause for output
-	ResumeFunc       func() // Request resume for output
-}
-
-type HTTPDownloadConfig struct {
-	URL              string
-	OutputPath       string
-	Connections      int
-	HTTPClientConfig HTTPClientConfig
-}
-
-type HTTPDownloadChunk struct {
-	ID         int
-	StartByte  int64
-	EndByte    int64
-	Downloaded int64
-	Completed  bool
-	Retries    int
-	LastError  error
-	StartTime  time.Time
-	FinishTime time.Time
-}
-
-type HTTPDownloadJob struct {
-	Config    HTTPDownloadConfig
-	FileSize  int64
-	Chunks    []HTTPDownloadChunk
-	StartTime time.Time
-	TempFiles []string
-}
-
-const DefaultBufferSize = 1024 * 1024 * 8 // 8MB buffer
+const DefaultBufferSize = 1024 * 1024 * 8
 const LogFile = ".danzo.log"
 
 var ErrRangeRequestsNotSupported = errors.New("range requests are not supported")
 var ChunkIDRegex = regexp.MustCompile(`\.part(\d+)$`)
 
-// Local-only User-Agent list
 var userAgents = []string{
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
 	"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
