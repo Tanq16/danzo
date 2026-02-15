@@ -1,7 +1,7 @@
 <div align="center">
   <img src=".github/assets/logo.svg" alt="Danzo Logo" width="300">
 
-  <a href="https://github.com/tanq16/danzo/actions/workflows/binary.yml"><img alt="Build" src="https://github.com/tanq16/danzo/actions/workflows/binary.yml/badge.svg"></a> <a href="https://github.com/Tanq16/danzo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/danzo"></a><br><br>
+  <a href="https://github.com/tanq16/danzo/actions/workflows/release.yml"><img alt="Release" src="https://github.com/tanq16/danzo/actions/workflows/release.yml/badge.svg"></a> <a href="https://github.com/Tanq16/danzo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/danzo"></a><br><br>
   <p>A cross-platform and cross-architecture all-in-one CLI download utility designed for multi-threaded downloads, unique progress tracking, and an intuitive command structure.</p><p>Just like Danzo collected powers through multiple "sources" ;) in Naruto, this tool uses multiple connections to supercharge downloads.</p><br>
   <a href="#quickstart">Quickstart</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#contributing">Contributing</a> &bull; <a href="#acknowledgements">Acknowledgements</a><br>
 </div>
@@ -17,10 +17,7 @@ The primary downloaders and their supported aliases are as follows:
 | Command | Aliases (Shorthands) | Description |
 | --- | --- | --- |
 | `http` | - | Multi-chunked or linear downloads for general HTTP(S) sources |
-| `batch` | - | Multi-threaded, multi-downloader operation given a yaml config |
 | `live-stream` | `hls`, `m3u8`, `livestream`, `stream` | Download a live stream format video (playlist.m3u8 files) with multi-threading and extractor support for multiple sites |
-| `youtube` | `yt` | Download YouTube videos using `yt-dlp` |
-| `youtube-music` | `ytm`, `yt-music` | Download audio from YouTube with iTunes/Deezer metadata using `yt-dlp` and `ffmpeg` |
 | `git-clone` | `gitclone`, `gitc`, `git`, `clone` | Clone a git repository with SSH/token authentication |
 | `github-release` | `ghrelease`, `ghr` | Download a platform-correct release asset for a GitHub repo |
 | `google-drive` | `gdrive`, `gd`, `drive` | Download file/folder from Google drive with API key or OAuth flow authentication |
@@ -34,19 +31,6 @@ Following are examples to get started with various flags:
   danzo http https://example.com/internet-file.zip -o local.zip # (in lieu of `wget`)
   danzo http https://example.com/file.zip -H "Authorization: Basic dW46cHc=" # (custom headers like in curl)
   danzo http https://example.com/largefile.zip -c 40 # (fast, multi-threaded, multi-chunked with 40 threads)
-  ```
-- Batch download from config (multiple workers)
-  ```bash
-  danzo batch downloads.yaml -w 4 -c 16 # (4 workers with 16 threads each; see Usage for YAML syntax)
-  ```
-- YouTube video download (uses `yt-dlp`, `ffmpeg`, `ffprobe`)
-  ```bash
-  danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # (default is <=1080p, <=60fps quality)
-  danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format 1080p # (download in 1080p)
-  # allows customization with `best60`, `decent`, `1080p60`, and more (see Usage)
-  danzo ytm "https://www.youtube.com/watch?v=dQw4w9WgXcQ" # (download standard `.m4a` audio)
-  danzo ytm "https://youtu.be/JJpFTUP6fIo" --apple 1800533191 # (add music metadata from itunes)
-  danzo ytm "https://youtu.be/JJpFTUP6fIo" --deezer 3271607031 # (add music metadata from deezer)
   ```
 - Download file from Google Drive
   ```bash
@@ -133,7 +117,6 @@ Follow these links to quickly jump to the relevant provider:
 
 - [HTTP(S) Downloads](#https-downloads)
 - [Google Drive Downloads](#google-drive-downloads)
-- [Youtube Downloads](#youtube-downloads)
 - [M3U8 Stream Downloads](#m3u8-stream-downloads)
 - [AWS S3 Downloads](#aws-s3-downloads)
 - [GitHub Release Downloads](#github-release-downloads)
@@ -165,34 +148,6 @@ danzo "https://example.com/largefile.zip" -c 16
 > Therefore, you need to find a balance where the number of connections maximize your network throughput without putting extra strain on disk IO. This effect is especially observable in HDDs.
 
 Lastly, if a URL does not use byte-range requests (i.e., server doesn't support partial content downloads), Danzo automatically switches to a simple, single-threaded, direct download.
-
-#### Batch Download Capability
-
-Danzo can be provided a YAML config to allow simultaneous downloads of several URLs. Each URL in turn will use multi-threaded connection mode by default to maximize throughput. The YAML file requires following format:
-
-```yaml
-http:
-  - link: https://example.com/file1.zip
-    op: downloads/file1.zip
-  - link: https://example.com/file2.zip
-
-youtube:
-  - link: https://youtube.com/watch?v=xxx
-    op: video.mp4
-
-s3:
-  - link: s3://bucket/file.zip
-```
-
-```bash
-danzo batch downloads.yaml
-```
-
-The number of files being downloaded in parallel can be configured as workers (default: 1) and the number of connections would be applied per worker. Define these parameters as follows:
-
-```bash
-danzo batch downloads.yaml -w 3 -c 16 # uses 3 works with 16 threads each
-```
 
 #### Resumable Downloads & Temporary Files
 
@@ -254,49 +209,6 @@ danzo gdrive "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link" --c
 > ⚠︎ Danzo does not perform multi-connection download for Google Drive files; instead it uses the simple download method. For Google Drive specifically, this does not present a significant loss in bandwidth. This is done because Google can throttle multiple connections after a while.
 
 > ✎ Users who have never logged into GCP may be required to create a new GCP Project. This is normal and doesn't cost anything.
-
-</details>
-
-### YouTube Downloads
-
-<details>
-<summary>Unfold to read</summary>
-
-Danzo supports downloading videos and audio from YouTube by using [yt-dlp](https://github.com/yt-dlp/yt-dlp) as a dependency. Some files and merge operations may also require `ffmpeg` and `ffprobe`. If not present, Danzo will make a temporary download of the appropriate `yt-dlp` binary. However, it is recommended to have `yt-dlp`, `ffmpeg`, and `ffprobe` pre-installed.
-
-To download a YouTube video:
-
-```bash
-# By default, Danzo will download the <=1080p and <=60fps quality.
-danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-```
-
-> ✎ In an effort to create a successful and simple integration, Danzo lets `yt-dlp` dictate the file extension for a given output. As such, the `-o` flag will not have an effect on the extension. Audio downloads will always have a `.m4a` download, while a video may have `.mp4`, or `.webm`.
-
-A download type can be appended to the URL to control Danzo's behavior. These defaults were chosen based on heuristics and observed popularity.
-
-```bash
-# Download 1080p MP4
-danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format "1080p"
-
-# Download 720p MP4
-danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format "720p"
-
-# Download decent quality (≤1080p)
-danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format "decent"
-
-# Download audio only (m4a)
-danzo yt "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --format "audio"
-```
-
-> ✎ YouTube downloads require `yt-dlp` to be installed on your system. If it's not found, Danzo will automatically download and use a compatible version. Additionally, since the STDOUT and STDERR are directly streamed from `yt-dlp` to `danzo`, YouTube videos are not tracked for progress the way HTTP downloads are. When downloading a single YouTube URL, the output from `yt-dlp` will be streamed to the user's STDOUT. But if the URL is part of a batch file, then the output is hidden and the progress appears stalled until finished.
-
-Danzo also supports downloading music from YouTube and automatically add metadata from the Deezer or the iTunes API, when the appropriate ID is provided. Example:
-
-```bash
-danzo ytmusic "https://youtu.be/JJpFTUP6fIo" --apple "1800533191"
-danzo ytmusic "https://youtu.be/JJpFTUP6fIo" --deezer "3271607031"
-```
 
 </details>
 
@@ -422,7 +334,7 @@ danzo gitclone "github.com/tanq16/private" --token $(cat /secrets/ghtoken)
 danzo gitclone github.com/tanq16/private --ssh "/secrets/gh-ssh.key"
 ```
 
-> ✎ Repository cloning is another download provider that does not use `-c` or number of connections. Number of workers, `-w`, is still applicable as usual in batch (YAML config) mode.
+> ✎ Repository cloning is another download provider that does not use `-c` or number of connections.
 
 </details>
 
@@ -436,14 +348,8 @@ Danzo uses issues for everything. Open an issue and I will add an appropriate ta
 
 ## Acknowledgements
 
-Danzo uses the following third-party tools as partial dependencies:
+Danzo uses `ffmpeg` for merging M3U8 stream segments.
 
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp)
-- [ffmpeg](https://github.com/FFmpeg/FFmpeg) (and `ffprobe`)
-
-Danzo draws inspiration from the following projects:
-
-- [ytmdl](https://github.com/deepjyoti30/ytmdl)
-- [aria2](https://github.com/aria2/aria2)
+Danzo draws inspiration from [aria2](https://github.com/aria2/aria2).
 
 Lastly, Danzo uses several Go packages referenced within `go.mod` that allow Danzo to be amazing.

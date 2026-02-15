@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-var GlobalDebugFlag bool
-
 type Downloader interface {
 	Download(job *DanzoJob) error
 	BuildJob(job *DanzoJob) error

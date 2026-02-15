@@ -1,43 +1,91 @@
-name: Custom Notifications
+name: Notifications
+
 on:
-  schedule:
-    - cron: '00 17 * * 6' # 5:00 pm UTC every saturday
   issues:
     types: [opened, edited, deleted, closed]
+
   issue_comment:
     types: [created]
+
   workflow_run:
-    workflows: ["Build Binary"]
+    workflows: ["Release"]
     types: [completed]
+
   pull_request_target:
     types: [opened, closed, edited, review_requested]
 
 jobs:
-  issue-comment-notification:
+  issue-notification:
     if: github.event_name == 'issues' || github.event_name == 'issue_comment'
     runs-on: ubuntu-latest
     steps:
       - name: Notify on Issue or Comment
         if: github.actor != 'Tanq16'
         run: |
-          curl -H "Content-Type: application/json" -X POST \
-          -d "{\"content\": \"*New issue/comment from **${{ github.actor }}***\n${{ github.event.issue.html_url }}\"}" ${{ secrets.DISCORD_WEBHOOK }}
+          if [ "${{ github.event_name }}" = "issues" ]; then
+            ACTION="${{ github.event.action }}"
+            TITLE="${{ github.event.issue.title }}"
+            URL="${{ github.event.issue.html_url }}"
+            MESSAGE="Issue ${ACTION}: **${TITLE}**\n${URL}"
+          else
+            URL="${{ github.event.issue.html_url }}"
+            MESSAGE="New comment on issue\n${URL}"
+          fi
 
-  build-status-notification:
+          curl -H "Content-Type: application/json" -X POST \
+            -d "{\"content\": \"*${{ github.repository }}*\n${MESSAGE}\nBy: **${{ github.actor }}**\"}" \
+            ${{ secrets.DISCORD_WEBHOOK }}
+
+  build-notification:
     if: github.event_name == 'workflow_run'
     runs-on: ubuntu-latest
     steps:
       - name: Notify on Build Status
         run: |
-          curl -H "Content-Type: application/json" -X POST \
-          -d "{\"content\": \"*Workflow run for **${{ github.repository }}***\n${{ github.event.workflow_run.name }} - ${{ github.event.workflow_run.conclusion }}\"}" ${{ secrets.DISCORD_WEBHOOK }}
+          WORKFLOW="${{ github.event.workflow_run.name }}"
+          CONCLUSION="${{ github.event.workflow_run.conclusion }}"
+          URL="${{ github.event.workflow_run.html_url }}"
 
-  pull-request-notification:
+          if [ "$CONCLUSION" = "success" ]; then
+            EMOJI="✅"
+          else
+            EMOJI="❌"
+          fi
+
+          curl -H "Content-Type: application/json" -X POST \
+            -d "{\"content\": \"${EMOJI} *${{ github.repository }}*\n**${WORKFLOW}** - ${CONCLUSION}\n${URL}\"}" \
+            ${{ secrets.DISCORD_WEBHOOK }}
+
+  pr-notification:
     if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     steps:
-      - name: Notify on PR related activities
+      - name: Notify on PR Activity
         if: github.actor != 'Tanq16'
         run: |
+          ACTION="${{ github.event.action }}"
+          TITLE="${{ github.event.pull_request.title }}"
+          URL="${{ github.event.pull_request.html_url }}"
+
+          case "$ACTION" in
+            opened)
+              MESSAGE="🆕 New PR: **${TITLE}**"
+              ;;
+            closed)
+              if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
+                MESSAGE="🎉 PR merged: **${TITLE}**"
+              else
+                MESSAGE="🚫 PR closed: **${TITLE}**"
+              fi
+              ;;
+            review_requested)
+              MESSAGE="👀 Review requested: **${TITLE}**"
+              ;;
+            *)
+              MESSAGE="PR ${ACTION}: **${TITLE}**"
+              ;;
+          esac
+
           curl -H "Content-Type: application/json" -X POST \
-          -d "{\"content\": \"*New PR activity from **${{ github.actor }}***\n${{ github.event.pull_request.html_url }}\"}" ${{ secrets.DISCORD_WEBHOOK }}
+            -d "{\"content\": \"*${{ github.repository }}*\n${MESSAGE}\n${URL}\nBy: **${{ github.actor }}**\"}" \
+            ${{ secrets.DISCORD_WEBHOOK }}

@@ -1,5 +1,36 @@
+# Binaries
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
 danzo
+danzo-*
+
+# Build artifacts
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+*.test
+coverage.out
+
+# Environment
+.env
+.env.local
+
+# Danzo-specific
 download.yaml
 .danzo-temp
 .danzo-token.json
+.danzo-resume-state.json
 danzo-gdrive.json
