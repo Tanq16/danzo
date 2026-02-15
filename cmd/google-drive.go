@@ -1,9 +1,14 @@
 package cmd
 
 import (
-	"github.com/rs/zerolog/log"
+	"context"
+	"os"
+	"os/signal"
+
 	"github.com/spf13/cobra"
-	"github.com/tanq16/danzo/internal/scheduler"
+	"github.com/tanq16/danzo/internal/display"
+	"github.com/tanq16/danzo/internal/highway"
+	gdrivejob "github.com/tanq16/danzo/internal/jobs/google-drive"
 	"github.com/tanq16/danzo/internal/utils"
 )
 
@@ -18,24 +23,27 @@ func newGDriveCmd() *cobra.Command {
 		Aliases: []string{"gdrive", "gd", "drive"},
 		Args:    cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			job := utils.DanzoJob{
-				JobType:          "google-drive",
-				URL:              args[0],
-				OutputPath:       outputPath,
-				Connections:      connections,
-				ProgressType:     "progress",
-				HTTPClientConfig: globalHTTPConfig,
-				Metadata:         make(map[string]any),
+			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+			defer cancel()
+
+			hw := highway.New(workers, ".danzo-resume-state.json")
+			hw.RegisterType("google-drive", gdrivejob.Unmarshal)
+
+			disp := display.New(display.DefaultConfig())
+
+			job := gdrivejob.New(args[0], outputPath, apiKey, credentialsFile, globalHTTPConfig)
+			job.PauseDisplay = disp.Pause
+			job.ResumeDisplay = disp.Resume
+			disp.RegisterJob(job.ID())
+			hw.Submit(job)
+
+			disp.Start(hw.Progress())
+			err := hw.Run(ctx)
+			disp.Stop()
+
+			if err != nil {
+				utils.PrintFatal("Download failed", err)
 			}
-			if apiKey != "" {
-				job.Metadata["apiKey"] = apiKey
-			}
-			if credentialsFile != "" {
-				job.Metadata["credentialsFile"] = credentialsFile
-			}
-			jobs := []utils.DanzoJob{job}
-			log.Debug().Str("op", "cmd/google-drive").Msgf("Starting scheduler with %d jobs", len(jobs))
-			scheduler.Run(jobs, workers)
 		},
 	}
 

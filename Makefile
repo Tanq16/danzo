@@ -1,17 +1,23 @@
-.PHONY: help clean build-local build build-all test version release
+.PHONY: help clean build build-for build-all test version
 
+# =============================================================================
+# Variables
+# =============================================================================
 APP_NAME := danzo
+
 VERSION ?= dev-build
-GO_OS ?= $(shell go env GOOS)
-GO_ARCH ?= $(shell go env GOARCH)
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
 
 CYAN := \033[0;36m
 GREEN := \033[0;32m
-YELLOW := \033[0;33m
 NC := \033[0m
 
-help:
-	@echo "$(CYAN)$(APP_NAME) - Available targets:$(NC)"
+# =============================================================================
+# Help
+# =============================================================================
+help: ## Show this help
+	@echo "$(CYAN)Available targets:$(NC)"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2}'
 
 .DEFAULT_GOAL := help
@@ -20,27 +26,30 @@ clean: ## Remove built binaries
 	@rm -f $(APP_NAME) $(APP_NAME)-*
 	@echo "$(GREEN)Cleaned$(NC)"
 
-build-local: ## Build for current platform
+# =============================================================================
+# Build
+# =============================================================================
+build: ## Build binary for current platform
 	@go build -ldflags="-s -w -X 'github.com/tanq16/danzo/cmd.AppVersion=$(VERSION)'" -o $(APP_NAME) .
 	@echo "$(GREEN)Built: ./$(APP_NAME)$(NC)"
 
-build: ## Build for specified GO_OS/GO_ARCH
-	@CGO_ENABLED=0 GOOS=$(GO_OS) GOARCH=$(GO_ARCH) go build \
-		-ldflags="-s -w -X 'github.com/tanq16/danzo/cmd.AppVersion=$(VERSION)'" \
-		-o $(APP_NAME)-$(GO_OS)-$(GO_ARCH) .
-	@echo "$(GREEN)Built: ./$(APP_NAME)-$(GO_OS)-$(GO_ARCH)$(NC)"
+build-for: ## Build binary for specified GOOS/GOARCH
+	@CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags="-s -w -X 'github.com/tanq16/danzo/cmd.AppVersion=$(VERSION)'" -o $(APP_NAME)-$(GOOS)-$(GOARCH) .
+	@echo "$(GREEN)Built: ./$(APP_NAME)-$(GOOS)-$(GOARCH)$(NC)"
 
-build-all: ## Build all platforms
-	@$(MAKE) build GO_OS=linux GO_ARCH=amd64 VERSION=$(VERSION)
-	@$(MAKE) build GO_OS=linux GO_ARCH=arm64 VERSION=$(VERSION)
-	@$(MAKE) build GO_OS=darwin GO_ARCH=amd64 VERSION=$(VERSION)
-	@$(MAKE) build GO_OS=darwin GO_ARCH=arm64 VERSION=$(VERSION)
-	@$(MAKE) build GO_OS=windows GO_ARCH=amd64 VERSION=$(VERSION)
+build-all: ## Build all platform binaries
+	@$(MAKE) build-for GOOS=linux GOARCH=amd64
+	@$(MAKE) build-for GOOS=linux GOARCH=arm64
+	@$(MAKE) build-for GOOS=darwin GOARCH=amd64
+	@$(MAKE) build-for GOOS=darwin GOARCH=arm64
 
 test: ## Run tests
 	@go test -v -race -cover ./...
 
-version: ## Calculate next version
+# =============================================================================
+# Version
+# =============================================================================
+version: ## Calculate next version from commit message
 	@LATEST_TAG=$$(git tag --sort=-v:refname | head -n1 || echo "0.0.0"); \
 	LATEST_TAG=$${LATEST_TAG#v}; \
 	MAJOR=$$(echo "$$LATEST_TAG" | cut -d. -f1); \
