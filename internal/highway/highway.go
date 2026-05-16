@@ -2,6 +2,7 @@ package highway
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
@@ -22,6 +23,7 @@ type Highway struct {
 	mu        sync.Mutex
 	pending   []Job
 	completed map[string]bool
+	failures  []error
 	progress  chan Progress
 }
 
@@ -104,6 +106,13 @@ func (h *Highway) Run(ctx context.Context) error {
 	select {
 	case <-done:
 		close(h.progress)
+		if ctx.Err() != nil {
+			return h.saveState()
+		}
+		if err := h.failureError(); err != nil {
+			h.deleteState()
+			return err
+		}
 		h.deleteState()
 		return nil
 	case <-ctx.Done():
@@ -123,7 +132,10 @@ func (h *Highway) executeJob(ctx context.Context, job Job) {
 			Error:  err,
 			ErrMsg: err.Error(),
 		}
-		h.markFailed(job.ID())
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			return
+		}
+		h.markFailed(job.ID(), err)
 	} else {
 		h.markCompleted(job.ID())
 	}
@@ -141,8 +153,15 @@ func (h *Highway) markCompleted(id string) {
 	h.completed[id] = true
 }
 
-func (h *Highway) markFailed(id string) {
+func (h *Highway) markFailed(id string, err error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.completed[id] = true
+	h.failures = append(h.failures, err)
+}
+
+func (h *Highway) failureError() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return errors.Join(h.failures...)
 }

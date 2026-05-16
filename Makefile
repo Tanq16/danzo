@@ -1,4 +1,4 @@
-.PHONY: help clean build build-for build-all test version
+.PHONY: help clean build build-for build-all version
 
 # =============================================================================
 # Variables
@@ -42,9 +42,7 @@ build-all: ## Build all platform binaries
 	@$(MAKE) build-for GOOS=linux GOARCH=arm64
 	@$(MAKE) build-for GOOS=darwin GOARCH=amd64
 	@$(MAKE) build-for GOOS=darwin GOARCH=arm64
-
-test: ## Run tests
-	@go test -v -race -cover ./...
+	@$(MAKE) build-for GOOS=windows GOARCH=amd64
 
 # =============================================================================
 # Version

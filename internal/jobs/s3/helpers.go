@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
 )
 
 type S3Client struct {
@@ -22,8 +22,8 @@ type s3Object struct {
 	Size int64
 }
 
-func getS3Client(profile string) (*S3Client, error) {
-	cfg, err := config.LoadDefaultConfig(context.Background(),
+func getS3Client(ctx context.Context, profile string) (*S3Client, error) {
+	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithSharedConfigProfile(profile),
 		config.WithRetryMode("adaptive"),
 	)
@@ -36,8 +36,8 @@ func getS3Client(profile string) (*S3Client, error) {
 	}, nil
 }
 
-func getS3ObjectInfo(bucket, key string, client *S3Client) (string, int64, error) {
-	headObj, err := client.client.HeadObject(context.Background(), &s3.HeadObjectInput{
+func getS3ObjectInfo(ctx context.Context, bucket, key string, client *S3Client) (string, int64, error) {
+	headObj, err := client.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
@@ -48,7 +48,7 @@ func getS3ObjectInfo(bucket, key string, client *S3Client) (string, int64, error
 		}
 		return "file", size, nil
 	}
-	result, err := client.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
+	result, err := client.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket:  aws.String(bucket),
 		Prefix:  aws.String(key),
 		MaxKeys: aws.Int32(1),
@@ -62,14 +62,14 @@ func getS3ObjectInfo(bucket, key string, client *S3Client) (string, int64, error
 	return "", 0, fmt.Errorf("S3 object not found")
 }
 
-func listS3Objects(bucket, prefix string, client *S3Client) ([]s3Object, error) {
+func listS3Objects(ctx context.Context, bucket, prefix string, client *S3Client) ([]s3Object, error) {
 	var objects []s3Object
 	paginator := s3.NewListObjectsV2Paginator(client.client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(bucket),
 		Prefix: aws.String(prefix),
 	})
 	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(context.Background())
+		page, err := paginator.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("error listing objects: %v", err)
 		}
@@ -88,8 +88,8 @@ func listS3Objects(bucket, prefix string, client *S3Client) ([]s3Object, error) 
 	return objects, nil
 }
 
-func performS3Download(bucket, key, outputPath string, client *S3Client, progressCh chan<- int64) error {
-	result, err := client.client.GetObject(context.Background(), &s3.GetObjectInput{
+func performS3Download(ctx context.Context, bucket, key, outputPath string, client *S3Client, progressCh chan<- int64) error {
+	result, err := client.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
@@ -105,6 +105,11 @@ func performS3Download(bucket, key, outputPath string, client *S3Client, progres
 
 	buffer := make([]byte, utils.DefaultBufferSize)
 	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		n, err := result.Body.Read(buffer)
 		if n > 0 {
 			_, writeErr := file.Write(buffer[:n])

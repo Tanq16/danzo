@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	danzohttp "github.com/tanq16/danzo/internal/jobs/http"
 	"github.com/tanq16/danzo/internal/highway"
-	"github.com/tanq16/danzo/internal/utils"
+	danzohttp "github.com/tanq16/danzo/internal/jobs/http"
+	"github.com/tanq16/danzo/utils"
 )
 
 type GDriveJob struct {
@@ -78,7 +78,7 @@ func (j *GDriveJob) Run(ctx context.Context, progress chan<- highway.Progress) e
 		if j.PauseDisplay != nil {
 			j.PauseDisplay()
 		}
-		token, err = getAccessTokenFromCredentials(j.CredentialsFile)
+		token, err = getAccessTokenFromCredentials(ctx, j.CredentialsFile)
 		if j.ResumeDisplay != nil {
 			j.ResumeDisplay()
 		}
@@ -88,7 +88,7 @@ func (j *GDriveJob) Run(ctx context.Context, progress chan<- highway.Progress) e
 	}
 
 	client := utils.NewDanzoHTTPClient(j.HTTPConfig)
-	metadata, _, err := getFileMetadata(j.URL, client, token)
+	metadata, _, err := getFileMetadata(ctx, j.URL, client, token)
 	if err != nil {
 		return fmt.Errorf("error getting metadata: %v", err)
 	}
@@ -100,7 +100,7 @@ func (j *GDriveJob) Run(ctx context.Context, progress chan<- highway.Progress) e
 	var folderFiles []map[string]any
 
 	if isFolder {
-		files, err := listFolderContents(fileID, token, client)
+		files, err := listFolderContents(ctx, fileID, token, client)
 		if err != nil {
 			return fmt.Errorf("error listing folder contents: %v", err)
 		}
@@ -138,9 +138,9 @@ func (j *GDriveJob) Run(ctx context.Context, progress chan<- highway.Progress) e
 	}
 
 	if isFolder {
-		err = j.downloadFolder(progress, token, client, totalSize, folderFiles)
+		err = j.downloadFolder(ctx, progress, token, client, totalSize, folderFiles)
 	} else {
-		err = j.downloadFile(progress, token, fileID, client, totalSize)
+		err = j.downloadFile(ctx, progress, token, fileID, client, totalSize)
 	}
 
 	if err != nil {
@@ -151,9 +151,14 @@ func (j *GDriveJob) Run(ctx context.Context, progress chan<- highway.Progress) e
 	return nil
 }
 
-func (j *GDriveJob) downloadFile(progress chan<- highway.Progress, token, fileID string, client *utils.DanzoHTTPClient, totalSize int64) error {
+func (j *GDriveJob) downloadFile(ctx context.Context, progress chan<- highway.Progress, token, fileID string, client *utils.DanzoHTTPClient, totalSize int64) error {
+	if err := os.MkdirAll(filepath.Dir(j.OutputPath), 0755); err != nil {
+		return fmt.Errorf("error creating output directory: %v", err)
+	}
 	progressCh := make(chan int64)
+	progressDone := make(chan struct{})
 	go func() {
+		defer close(progressDone)
 		var downloaded int64
 		for bytes := range progressCh {
 			downloaded += bytes
@@ -164,15 +169,22 @@ func (j *GDriveJob) downloadFile(progress chan<- highway.Progress, token, fileID
 			}
 		}
 	}()
-	return performGDriveDownload(j.OutputPath, j.HTTPConfig, token, fileID, client, progressCh)
+	err := performGDriveDownload(ctx, j.OutputPath, token, fileID, client, progressCh)
+	<-progressDone
+	return err
 }
 
-func (j *GDriveJob) downloadFolder(progress chan<- highway.Progress, token string, client *utils.DanzoHTTPClient, totalSize int64, files []map[string]any) error {
+func (j *GDriveJob) downloadFolder(ctx context.Context, progress chan<- highway.Progress, token string, client *utils.DanzoHTTPClient, totalSize int64, files []map[string]any) error {
 	if err := os.MkdirAll(j.OutputPath, 0755); err != nil {
 		return fmt.Errorf("error creating folder: %v", err)
 	}
 	var totalDownloaded int64
 	for _, file := range files {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		fID := file["id"].(string)
 		fileName := file["name"].(string)
 		fMimeType := file["mimeType"].(string)
@@ -181,7 +193,9 @@ func (j *GDriveJob) downloadFolder(progress chan<- highway.Progress, token strin
 		}
 		outputPath := filepath.Join(j.OutputPath, fileName)
 		progressCh := make(chan int64)
+		progressDone := make(chan struct{})
 		go func(ch <-chan int64) {
+			defer close(progressDone)
 			for bytes := range ch {
 				totalDownloaded += bytes
 				progress <- highway.Progress{
@@ -191,7 +205,8 @@ func (j *GDriveJob) downloadFolder(progress chan<- highway.Progress, token strin
 				}
 			}
 		}(progressCh)
-		err := performGDriveDownload(outputPath, j.HTTPConfig, token, fID, client, progressCh)
+		err := performGDriveDownload(ctx, outputPath, token, fID, client, progressCh)
+		<-progressDone
 		if err != nil {
 			return fmt.Errorf("error downloading %s: %v", fileName, err)
 		}
@@ -223,11 +238,7 @@ func Unmarshal(data []byte) (highway.Job, error) {
 	}), nil
 }
 
-func performGDriveDownload(outputPath string, httpConfig utils.HTTPClientConfig, token, fileID string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
-	outputDir := filepath.Dir(outputPath)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("error creating output directory: %v", err)
-	}
+func performGDriveDownload(ctx context.Context, outputPath string, token, fileID string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
 	isOAuth := !strings.HasPrefix(token, "AIza")
 	var downloadURL string
 	if isOAuth {
@@ -236,5 +247,5 @@ func performGDriveDownload(outputPath string, httpConfig utils.HTTPClientConfig,
 	} else {
 		downloadURL = fmt.Sprintf("%s/%s?alt=media&key=%s", driveAPIURL, fileID, token)
 	}
-	return danzohttp.PerformSimpleDownload(downloadURL, outputPath, client, progressCh)
+	return danzohttp.PerformSimpleDownload(ctx, downloadURL, outputPath, client, progressCh)
 }

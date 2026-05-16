@@ -1,6 +1,7 @@
 package danzohttp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,11 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
 )
 
-func chunkedDownload(job *HTTPDownloadJob, chunk *HTTPDownloadChunk, client *utils.DanzoHTTPClient, wg *sync.WaitGroup, progressCh chan<- int64, mutex *sync.Mutex) {
-	defer wg.Done()
+func chunkedDownload(ctx context.Context, job *HTTPDownloadJob, chunk *HTTPDownloadChunk, client *utils.DanzoHTTPClient, progressCh chan<- int64, mutex *sync.Mutex) error {
 	tempDir := filepath.Join(filepath.Dir(job.Config.OutputPath), ".danzo-temp")
 	tempFileName := filepath.Join(tempDir, fmt.Sprintf("%s.part%d", filepath.Base(job.Config.OutputPath), chunk.ID))
 	expectedSize := chunk.EndByte - chunk.StartByte + 1
@@ -28,7 +28,7 @@ func chunkedDownload(job *HTTPDownloadJob, chunk *HTTPDownloadChunk, client *uti
 			chunk.Downloaded = resumeOffset
 			chunk.Completed = true
 			progressCh <- resumeOffset
-			return
+			return nil
 		} else if resumeOffset > 0 && resumeOffset < expectedSize {
 			// resume partial chunk
 		} else if chunk.Downloaded > 0 {
@@ -50,18 +50,22 @@ func chunkedDownload(job *HTTPDownloadJob, chunk *HTTPDownloadChunk, client *uti
 				}
 			}
 		}
-		if err := downloadSingleChunk(job, chunk, client, tempFileName, progressCh, resumeOffset); err != nil {
+		if err := downloadSingleChunk(ctx, job, chunk, client, tempFileName, progressCh, resumeOffset); err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			continue
 		}
 		mutex.Lock()
 		job.TempFiles = append(job.TempFiles, tempFileName)
 		mutex.Unlock()
 		chunk.Completed = true
-		return
+		return nil
 	}
+	return fmt.Errorf("chunk %d failed after %d retries", chunk.ID, maxRetries)
 }
 
-func downloadSingleChunk(job *HTTPDownloadJob, chunk *HTTPDownloadChunk, client *utils.DanzoHTTPClient, tempFileName string, progressCh chan<- int64, resumeOffset int64) error {
+func downloadSingleChunk(ctx context.Context, job *HTTPDownloadJob, chunk *HTTPDownloadChunk, client *utils.DanzoHTTPClient, tempFileName string, progressCh chan<- int64, resumeOffset int64) error {
 	flag := os.O_WRONLY | os.O_CREATE
 	if resumeOffset > 0 {
 		flag |= os.O_APPEND
@@ -76,7 +80,7 @@ func downloadSingleChunk(job *HTTPDownloadJob, chunk *HTTPDownloadChunk, client 
 
 	startByte := chunk.StartByte + resumeOffset
 	rangeHeader := fmt.Sprintf("bytes=%d-%d", startByte, chunk.EndByte)
-	req, err := http.NewRequest("GET", job.Config.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", job.Config.URL, nil)
 	if err != nil {
 		return err
 	}
@@ -103,6 +107,11 @@ func downloadSingleChunk(job *HTTPDownloadJob, chunk *HTTPDownloadChunk, client 
 	buffer := make([]byte, utils.DefaultBufferSize)
 	newBytes := int64(0)
 	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		bytesRead, err := resp.Body.Read(buffer)
 		if bytesRead > 0 {
 			_, writeErr := tempFile.Write(buffer[:bytesRead])

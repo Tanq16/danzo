@@ -3,7 +3,7 @@ package highway
 type ProgressType int
 
 const (
-	ProgressTypeProgress  ProgressType = iota
+	ProgressTypeProgress ProgressType = iota
 	ProgressTypeSubStatus
 )
 

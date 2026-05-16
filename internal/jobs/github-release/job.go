@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	danzohttp "github.com/tanq16/danzo/internal/jobs/http"
 	"github.com/tanq16/danzo/internal/highway"
-	"github.com/tanq16/danzo/internal/utils"
+	danzohttp "github.com/tanq16/danzo/internal/jobs/http"
+	"github.com/tanq16/danzo/utils"
 )
 
 type GHReleaseJob struct {
@@ -56,7 +56,7 @@ func (j *GHReleaseJob) Run(ctx context.Context, progress chan<- highway.Progress
 	}
 
 	client := utils.NewDanzoHTTPClient(j.HTTPConfig)
-	assets, tagName, err := getGitHubReleaseAssets(owner, repo, client)
+	assets, tagName, err := getGitHubReleaseAssets(ctx, owner, repo, client)
 	if err != nil {
 		return fmt.Errorf("error fetching release info: %v", err)
 	}
@@ -127,7 +127,7 @@ func (j *GHReleaseJob) Run(ctx context.Context, progress chan<- highway.Progress
 		}
 	}()
 
-	dlErr := danzohttp.PerformSimpleDownload(downloadURL, j.OutputPath, client, bytesCh)
+	dlErr := danzohttp.PerformSimpleDownload(ctx, downloadURL, j.OutputPath, client, bytesCh)
 	<-bytesDone
 
 	if dlErr != nil {

@@ -6,22 +6,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/tanq16/danzo/internal/highway"
+	"github.com/tanq16/danzo/utils"
 )
 
 var (
-	colorBlue     = lipgloss.Color("#89b4fa")
-	colorGreen    = lipgloss.Color("#a6e3a1")
-	colorRed      = lipgloss.Color("#f38ba8")
-	colorMauve    = lipgloss.Color("#cba6f7")
-	colorSapphire = lipgloss.Color("#74c7ec")
-	colorText     = lipgloss.Color("#cdd6f4")
-	colorSubtext0 = lipgloss.Color("#a6adc8")
-	colorSubtext1 = lipgloss.Color("#bac2de")
-	colorOverlay0 = lipgloss.Color("#6c7086")
-	colorOverlay1 = lipgloss.Color("#7f849c")
-	colorSurface1 = lipgloss.Color("#45475a")
+	colorBlue     = lipgloss.ANSIColor(12)
+	colorGreen    = lipgloss.ANSIColor(10)
+	colorRed      = lipgloss.ANSIColor(9)
+	colorMauve    = lipgloss.ANSIColor(13)
+	colorSapphire = lipgloss.ANSIColor(14)
+	colorText     = lipgloss.ANSIColor(15)
+	colorSubtext0 = lipgloss.ANSIColor(7)
+	colorSubtext1 = lipgloss.ANSIColor(7)
+	colorOverlay0 = lipgloss.ANSIColor(8)
+	colorOverlay1 = lipgloss.ANSIColor(8)
+	colorSurface1 = lipgloss.ANSIColor(8)
 )
 
 type JobStatus int
@@ -148,6 +149,11 @@ func (d *Display) removeFromSlice(slice *[]string, id string) {
 }
 
 func (d *Display) Start(updates <-chan highway.Progress) {
+	if utils.GlobalForAIFlag {
+		d.startAI(updates)
+		return
+	}
+
 	go func() {
 		for update := range updates {
 			d.Update(update)
@@ -173,8 +179,42 @@ func (d *Display) Start(updates <-chan highway.Progress) {
 }
 
 func (d *Display) Stop() {
+	if utils.GlobalForAIFlag {
+		<-d.doneCh
+		d.renderFinal()
+		return
+	}
 	close(d.stopCh)
 	<-d.doneCh
+}
+
+func (d *Display) startAI(updates <-chan highway.Progress) {
+	go func() {
+		defer close(d.doneCh)
+		for update := range updates {
+			d.Update(update)
+			if update.Done {
+				if update.Error != nil {
+					fmt.Printf("[ERROR] %s: %s\n", update.JobID, update.ErrMsg)
+				} else {
+					fmt.Printf("[OK] %s: Done\n", update.JobID)
+				}
+				continue
+			}
+			if update.Type == highway.ProgressTypeProgress && update.Total > 0 {
+				percent := int(float64(update.Current) / float64(update.Total) * 100)
+				if update.Extra != "" {
+					fmt.Printf("[INFO] %s: %s %d%% %s\n", update.JobID, update.Message, percent, update.Extra)
+				} else {
+					fmt.Printf("[INFO] %s: %s %d%%\n", update.JobID, update.Message, percent)
+				}
+			} else if update.SubStatus != "" {
+				fmt.Printf("[INFO] %s: %s - %s\n", update.JobID, update.Message, update.SubStatus)
+			} else if update.Message != "" {
+				fmt.Printf("[INFO] %s: %s\n", update.JobID, update.Message)
+			}
+		}
+	}()
 }
 
 func (d *Display) Pause() {
@@ -224,6 +264,16 @@ func (d *Display) renderFinal() {
 	total := len(d.jobs)
 	completedCount := len(d.completed)
 	failedCount := len(d.failed)
+
+	if utils.GlobalForAIFlag {
+		if failedCount == 0 {
+			fmt.Printf("[OK] All %d jobs completed successfully\n", total)
+		} else {
+			fmt.Printf("[OK] %d completed\n", completedCount)
+			fmt.Printf("[ERROR] %d failed\n", failedCount)
+		}
+		return
+	}
 
 	successStyle := lipgloss.NewStyle().Foreground(colorGreen).Bold(true)
 	failStyle := lipgloss.NewStyle().Foreground(colorRed).Bold(true)

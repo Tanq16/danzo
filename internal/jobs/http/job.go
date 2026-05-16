@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/tanq16/danzo/internal/highway"
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
 )
 
 type HTTPDownloadConfig struct {
@@ -98,7 +98,7 @@ func (j *HTTPJob) Run(ctx context.Context, progress chan<- highway.Progress) err
 	}
 
 	client := utils.NewDanzoHTTPClient(j.HTTPConfig)
-	req, err := http.NewRequest("HEAD", j.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, "HEAD", j.URL, nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %v", err)
 	}
@@ -120,7 +120,7 @@ func (j *HTTPJob) Run(ctx context.Context, progress chan<- highway.Progress) err
 
 	j.HTTPConfig.HighThreadMode = j.Connections > 5
 	client = utils.NewDanzoHTTPClient(j.HTTPConfig)
-	fileSize, fileName, err := getFileInfo(j.URL, client)
+	fileSize, fileName, err := getFileInfo(ctx, j.URL, client)
 	rangeSupported := err != utils.ErrRangeRequestsNotSupported
 	if err != nil && err != utils.ErrRangeRequestsNotSupported {
 		return fmt.Errorf("error getting file info: %v", err)
@@ -187,9 +187,9 @@ func (j *HTTPJob) Run(ctx context.Context, progress chan<- highway.Progress) err
 
 	var dlErr error
 	if !rangeSupported || j.Connections == 1 {
-		dlErr = PerformSimpleDownload(j.URL, j.OutputPath, client, bytesCh)
+		dlErr = PerformSimpleDownload(ctx, j.URL, j.OutputPath, client, bytesCh)
 	} else if fileSize/int64(j.Connections) < 2*utils.DefaultBufferSize {
-		dlErr = PerformSimpleDownload(j.URL, j.OutputPath, client, bytesCh)
+		dlErr = PerformSimpleDownload(ctx, j.URL, j.OutputPath, client, bytesCh)
 	} else {
 		config := HTTPDownloadConfig{
 			URL:              j.URL,
@@ -197,7 +197,7 @@ func (j *HTTPJob) Run(ctx context.Context, progress chan<- highway.Progress) err
 			Connections:      j.Connections,
 			HTTPClientConfig: j.HTTPConfig,
 		}
-		dlErr = PerformMultiDownload(config, client, fileSize, bytesCh)
+		dlErr = PerformMultiDownload(ctx, config, client, fileSize, bytesCh)
 	}
 
 	<-bytesDone
@@ -233,8 +233,8 @@ func Unmarshal(data []byte) (highway.Job, error) {
 	}), nil
 }
 
-func getFileInfo(link string, client *utils.DanzoHTTPClient) (int64, string, error) {
-	req, err := http.NewRequest("HEAD", link, nil)
+func getFileInfo(ctx context.Context, link string, client *utils.DanzoHTTPClient) (int64, string, error) {
+	req, err := http.NewRequestWithContext(ctx, "HEAD", link, nil)
 	if err != nil {
 		return 0, "", err
 	}

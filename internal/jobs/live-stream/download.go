@@ -1,14 +1,15 @@
 package m3u8
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
+	"golang.org/x/sync/errgroup"
 )
 
 func detectFMP4Format(manifestURL string, segmentURLs []string) bool {
@@ -29,61 +30,38 @@ func detectFMP4Format(manifestURL string, segmentURLs []string) bool {
 	return false
 }
 
-func downloadSegmentsParallel(segmentURLs []string, outputDir string, numWorkers int, client *utils.DanzoHTTPClient, progressFunc func(int64, int64), totalSize int64, isFMP4 bool) ([]string, error) {
-	var downloadedFiles []string
-	var mu sync.Mutex
-	var downloadErr error
-	type segmentJob struct {
-		index int
-		url   string
-	}
-	jobCh := make(chan segmentJob, len(segmentURLs))
-	for i, url := range segmentURLs {
-		jobCh <- segmentJob{index: i, url: url}
-	}
-	close(jobCh)
-	downloadedFiles = make([]string, len(segmentURLs))
+func downloadSegmentsParallel(ctx context.Context, segmentURLs []string, outputDir string, numWorkers int, client *utils.DanzoHTTPClient, progressFunc func(int64, int64), totalSize int64, isFMP4 bool) ([]string, error) {
+	downloadedFiles := make([]string, len(segmentURLs))
 	ext := ".ts"
 	if isFMP4 {
 		ext = ".m4s"
 	}
 
-	var wg sync.WaitGroup
-	for range numWorkers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for job := range jobCh {
-				outputPath := filepath.Join(outputDir, fmt.Sprintf("segment_%04d%s", job.index, ext))
-				size, err := downloadSegment(job.url, outputPath, client)
-				if err != nil {
-					mu.Lock()
-					if downloadErr == nil {
-						downloadErr = fmt.Errorf("error downloading segment %d: %v", job.index, err)
-					}
-					mu.Unlock()
-					return
-				}
-				mu.Lock()
-				downloadedFiles[job.index] = outputPath
-				mu.Unlock()
-				if progressFunc != nil {
-					progressFunc(size, totalSize)
-				}
+	g, ctx := errgroup.WithContext(ctx)
+	if numWorkers < 1 {
+		numWorkers = 1
+	}
+	g.SetLimit(numWorkers)
+	for i, segmentURL := range segmentURLs {
+		g.Go(func() error {
+			outputPath := filepath.Join(outputDir, fmt.Sprintf("segment_%04d%s", i, ext))
+			size, err := downloadSegment(ctx, segmentURL, outputPath, client)
+			if err != nil {
+				return fmt.Errorf("error downloading segment %d: %v", i, err)
 			}
-		}()
+			downloadedFiles[i] = outputPath
+			if progressFunc != nil {
+				progressFunc(size, totalSize)
+			}
+			return nil
+		})
 	}
-
-	wg.Wait()
-	if downloadErr != nil {
-		return nil, downloadErr
-	}
-	return downloadedFiles, nil
+	return downloadedFiles, g.Wait()
 }
 
-func mergeSegments(segmentFiles []string, outputPath string, isFMP4 bool, initSegment string, tempDir string, client *utils.DanzoHTTPClient) error {
+func mergeSegments(ctx context.Context, segmentFiles []string, outputPath string, isFMP4 bool, initSegment string, tempDir string, client *utils.DanzoHTTPClient) error {
 	if isFMP4 {
-		return mergeFMP4Segments(segmentFiles, outputPath, initSegment, tempDir, client)
+		return mergeFMP4Segments(ctx, segmentFiles, outputPath, initSegment, tempDir, client)
 	}
 	return mergeTSSegments(segmentFiles, outputPath)
 }
@@ -119,7 +97,7 @@ func mergeTSSegments(segmentFiles []string, outputPath string) error {
 	return nil
 }
 
-func mergeFMP4Segments(segmentFiles []string, outputPath string, initSegment string, tempDir string, client *utils.DanzoHTTPClient) error {
+func mergeFMP4Segments(ctx context.Context, segmentFiles []string, outputPath string, initSegment string, tempDir string, client *utils.DanzoHTTPClient) error {
 	tempConcatFile := filepath.Join(filepath.Dir(outputPath), ".concat_temp.m4s")
 	defer os.Remove(tempConcatFile)
 	outFile, err := os.Create(tempConcatFile)
@@ -128,7 +106,7 @@ func mergeFMP4Segments(segmentFiles []string, outputPath string, initSegment str
 	}
 	if initSegment != "" {
 		initPath := filepath.Join(tempDir, "init.mp4")
-		_, err := downloadSegment(initSegment, initPath, client)
+		_, err := downloadSegment(ctx, initSegment, initPath, client)
 		if err != nil {
 			outFile.Close()
 			return fmt.Errorf("error downloading init segment: %v", err)

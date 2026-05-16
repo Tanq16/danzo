@@ -1,6 +1,7 @@
 package danzohttp
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -8,10 +9,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
 )
 
-func PerformSimpleDownload(url, outputPath string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
+func PerformSimpleDownload(ctx context.Context, url, outputPath string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
 	defer close(progressCh)
 	tempDir := filepath.Join(filepath.Dir(outputPath), ".danzo-temp")
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
@@ -25,7 +26,7 @@ func PerformSimpleDownload(url, outputPath string, client *utils.DanzoHTTPClient
 		if retry > 0 {
 			time.Sleep(time.Duration(retry+1) * 500 * time.Millisecond)
 		}
-		err := downloadAttempt(url, tempOutputPath, client, progressCh)
+		err := downloadAttempt(ctx, url, tempOutputPath, client, progressCh)
 		if err != nil {
 			lastErr = err
 			continue
@@ -38,7 +39,7 @@ func PerformSimpleDownload(url, outputPath string, client *utils.DanzoHTTPClient
 	return fmt.Errorf("download failed after %d retries: %w", maxRetries, lastErr)
 }
 
-func downloadAttempt(url, tempOutputPath string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
+func downloadAttempt(ctx context.Context, url, tempOutputPath string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
 	var resumeOffset int64 = 0
 	fileMode := os.O_CREATE | os.O_WRONLY
 	if fileInfo, err := os.Stat(tempOutputPath); err == nil {
@@ -54,7 +55,7 @@ func downloadAttempt(url, tempOutputPath string, client *utils.DanzoHTTPClient, 
 	}
 	defer outFile.Close()
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return fmt.Errorf("error creating GET request: %v", err)
 	}
@@ -85,6 +86,11 @@ func downloadAttempt(url, tempOutputPath string, client *utils.DanzoHTTPClient, 
 	}
 	buffer := make([]byte, utils.DefaultBufferSize)
 	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		bytesRead, readErr := resp.Body.Read(buffer)
 		if bytesRead > 0 {
 			_, writeErr := outFile.Write(buffer[:bytesRead])
