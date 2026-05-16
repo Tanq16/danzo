@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"sync"
 	"sync/atomic"
 
 	"github.com/tanq16/danzo/internal/highway"
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
+	"golang.org/x/sync/errgroup"
 )
 
 type S3Job struct {
@@ -51,12 +51,12 @@ func (j *S3Job) Run(ctx context.Context, progress chan<- highway.Progress) error
 		return err
 	}
 
-	s3Client, err := getS3Client(j.Profile)
+	s3Client, err := getS3Client(ctx, j.Profile)
 	if err != nil {
 		return fmt.Errorf("error creating S3 client: %v", err)
 	}
 
-	fileType, size, err := getS3ObjectInfo(bucket, key, s3Client)
+	fileType, size, err := getS3ObjectInfo(ctx, bucket, key, s3Client)
 	if err != nil {
 		return fmt.Errorf("error getting S3 object info: %v", err)
 	}
@@ -103,10 +103,11 @@ func (j *S3Job) Run(ctx context.Context, progress chan<- highway.Progress) error
 	return nil
 }
 
-func (j *S3Job) downloadFile(_ context.Context, progress chan<- highway.Progress, bucket, key string, size int64, s3Client *S3Client) error {
+func (j *S3Job) downloadFile(ctx context.Context, progress chan<- highway.Progress, bucket, key string, size int64, s3Client *S3Client) error {
 	progressCh := make(chan int64, 100)
-	defer close(progressCh)
+	progressDone := make(chan struct{})
 	go func() {
+		defer close(progressDone)
 		var totalDownloaded int64
 		for bytes := range progressCh {
 			totalDownloaded += bytes
@@ -117,11 +118,14 @@ func (j *S3Job) downloadFile(_ context.Context, progress chan<- highway.Progress
 			}
 		}
 	}()
-	return performS3Download(bucket, key, j.OutputPath, s3Client, progressCh)
+	err := performS3Download(ctx, bucket, key, j.OutputPath, s3Client, progressCh)
+	close(progressCh)
+	<-progressDone
+	return err
 }
 
-func (j *S3Job) downloadFolder(_ context.Context, progress chan<- highway.Progress, bucket, prefix string, s3Client *S3Client) error {
-	objects, err := listS3Objects(bucket, prefix, s3Client)
+func (j *S3Job) downloadFolder(ctx context.Context, progress chan<- highway.Progress, bucket, prefix string, s3Client *S3Client) error {
+	objects, err := listS3Objects(ctx, bucket, prefix, s3Client)
 	if err != nil {
 		return fmt.Errorf("error listing objects: %v", err)
 	}
@@ -134,59 +138,45 @@ func (j *S3Job) downloadFolder(_ context.Context, progress chan<- highway.Progre
 	}
 
 	var totalDownloaded int64
-	var mu sync.Mutex
-	var downloadErr error
-	jobCh := make(chan s3Object, len(objects))
-	for _, obj := range objects {
-		jobCh <- obj
-	}
-	close(jobCh)
 	numWorkers := min(j.Connections, len(objects))
-
-	var wg sync.WaitGroup
-	for range numWorkers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for obj := range jobCh {
-				relPath := strings.TrimPrefix(obj.Key, prefix)
-				relPath = strings.TrimPrefix(relPath, "/")
-				outputPath := filepath.Join(j.OutputPath, relPath)
-				if err := createDirectory(filepath.Dir(outputPath)); err != nil {
-					mu.Lock()
-					if downloadErr == nil {
-						downloadErr = fmt.Errorf("error creating directory: %v", err)
-					}
-					mu.Unlock()
-					return
-				}
-				progressCh := make(chan int64, 100)
-				go func(ch <-chan int64) {
-					for bytes := range ch {
-						downloaded := atomic.AddInt64(&totalDownloaded, bytes)
-						progress <- highway.Progress{
-							JobID: j.ID(), Type: highway.ProgressTypeProgress,
-							Message: "Downloading", Current: downloaded, Total: totalSize,
-							Extra: utils.FormatBytes(uint64(downloaded)) + "/" + utils.FormatBytes(uint64(totalSize)),
-						}
-					}
-				}(progressCh)
-
-				err := performS3Download(bucket, obj.Key, outputPath, s3Client, progressCh)
-				close(progressCh)
-				if err != nil {
-					mu.Lock()
-					if downloadErr == nil {
-						downloadErr = fmt.Errorf("error downloading %s: %v", obj.Key, err)
-					}
-					mu.Unlock()
-					return
-				}
-			}
-		}()
+	if numWorkers < 1 {
+		numWorkers = 1
 	}
-	wg.Wait()
-	return downloadErr
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(numWorkers)
+
+	for _, obj := range objects {
+		g.Go(func() error {
+			relPath := strings.TrimPrefix(obj.Key, prefix)
+			relPath = strings.TrimPrefix(relPath, "/")
+			outputPath := filepath.Join(j.OutputPath, relPath)
+			if err := createDirectory(filepath.Dir(outputPath)); err != nil {
+				return fmt.Errorf("error creating directory: %v", err)
+			}
+			progressCh := make(chan int64, 100)
+			progressDone := make(chan struct{})
+			go func() {
+				defer close(progressDone)
+				for bytes := range progressCh {
+					downloaded := atomic.AddInt64(&totalDownloaded, bytes)
+					progress <- highway.Progress{
+						JobID: j.ID(), Type: highway.ProgressTypeProgress,
+						Message: "Downloading", Current: downloaded, Total: totalSize,
+						Extra: utils.FormatBytes(uint64(downloaded)) + "/" + utils.FormatBytes(uint64(totalSize)),
+					}
+				}
+			}()
+
+			err := performS3Download(ctx, bucket, obj.Key, outputPath, s3Client, progressCh)
+			close(progressCh)
+			<-progressDone
+			if err != nil {
+				return fmt.Errorf("error downloading %s: %v", obj.Key, err)
+			}
+			return nil
+		})
+	}
+	return g.Wait()
 }
 
 func (j *S3Job) Marshal() ([]byte, error) {

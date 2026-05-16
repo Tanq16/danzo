@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-git/go-git/v5"
 	"github.com/tanq16/danzo/internal/highway"
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
 )
 
 type GitCloneJob struct {
@@ -88,7 +88,7 @@ func (j *GitCloneJob) Run(ctx context.Context, progress chan<- highway.Progress)
 		SubStatus: fmt.Sprintf("Cloning %s", cloneURL),
 	}
 
-	_, err = git.PlainClone(j.OutputPath, false, cloneOptions)
+	_, err = git.PlainCloneContext(ctx, j.OutputPath, false, cloneOptions)
 	if err != nil {
 		return fmt.Errorf("git clone failed: %v", err)
 	}

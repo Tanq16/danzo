@@ -20,7 +20,7 @@ type HTTPClientConfig struct {
 	ProxyPassword  string
 	UserAgent      string
 	Headers        map[string]string
-	HighThreadMode bool // advanced socket options for high concurrency
+	HighThreadMode bool
 }
 
 type HTTPDoer interface {
@@ -62,7 +62,7 @@ func NewDanzoHTTPClient(cfg HTTPClientConfig) *DanzoHTTPClient {
 				})
 			},
 		}).DialContext
-		log.Debug().Str("op", "utils/http-client").Msg("Using high thread mode")
+		log.Debug().Str("package", "utils").Msg("Using high thread mode")
 	}
 	if cfg.ProxyURL != "" {
 		proxyURL, err := url.Parse(cfg.ProxyURL)
@@ -74,7 +74,7 @@ func NewDanzoHTTPClient(cfg HTTPClientConfig) *DanzoHTTPClient {
 					proxyURL.User = url.User(cfg.ProxyUsername)
 				}
 			}
-			log.Debug().Str("op", "utils/http-client").Msgf("Using proxy: %s", proxyURL.String())
+			log.Debug().Str("package", "utils").Msgf("Using proxy: %s", proxyURL.String())
 			transport.Proxy = http.ProxyURL(proxyURL)
 		}
 	}
@@ -93,10 +93,10 @@ func (d *DanzoHTTPClient) SetHeader(key, value string) {
 }
 
 func (d *DanzoHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	if d.config.UserAgent != "" {
-		req.Header.Set("User-Agent", d.config.UserAgent)
-	} else if d.config.UserAgent == "randomize" {
+	if d.config.UserAgent == "randomize" {
 		req.Header.Set("User-Agent", GetRandomUserAgent())
+	} else if d.config.UserAgent != "" {
+		req.Header.Set("User-Agent", d.config.UserAgent)
 	} else {
 		req.Header.Set("User-Agent", "Danzo-CLI")
 	}

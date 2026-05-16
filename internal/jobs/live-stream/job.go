@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/tanq16/danzo/internal/highway"
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
 )
 
 type LiveStreamJob struct {
@@ -62,7 +62,7 @@ func (j *LiveStreamJob) Run(ctx context.Context, progress chan<- highway.Progres
 		}
 	}
 
-	if err := runExtractor(&j.URL, j.Extractor, j.HTTPConfig); err != nil {
+	if err := runExtractor(ctx, &j.URL, j.Extractor, j.HTTPConfig); err != nil {
 		return fmt.Errorf("extractor failed: %v", err)
 	}
 
@@ -75,11 +75,11 @@ func (j *LiveStreamJob) Run(ctx context.Context, progress chan<- highway.Progres
 	tempDir := filepath.Join(filepath.Dir(j.OutputPath), ".danzo-temp", "m3u8_"+time.Now().Format("20060102150405"))
 
 	client := utils.NewDanzoHTTPClient(j.HTTPConfig)
-	manifestContent, err := getM3U8Contents(j.URL, client)
+	manifestContent, err := getM3U8Contents(ctx, j.URL, client)
 	if err != nil {
 		return fmt.Errorf("error fetching manifest: %v", err)
 	}
-	m3u8Info, err := parseM3U8Content(manifestContent, j.URL, client)
+	m3u8Info, err := parseM3U8Content(ctx, manifestContent, j.URL, client)
 	if err != nil {
 		return fmt.Errorf("error processing manifest: %v", err)
 	}
@@ -112,9 +112,9 @@ func (j *LiveStreamJob) Run(ctx context.Context, progress chan<- highway.Progres
 	return nil
 }
 
-func (j *LiveStreamJob) downloadAndMergeSingleStream(_ context.Context, progress chan<- highway.Progress, m3u8Info *M3U8Info, tempDir string, client *utils.DanzoHTTPClient) error {
+func (j *LiveStreamJob) downloadAndMergeSingleStream(ctx context.Context, progress chan<- highway.Progress, m3u8Info *M3U8Info, tempDir string, client *utils.DanzoHTTPClient) error {
 	segmentURLs := m3u8Info.VideoSegmentURLs
-	totalSize, _, err := calculateTotalSize(segmentURLs, j.Connections, client)
+	totalSize, _, err := calculateTotalSize(ctx, segmentURLs, j.Connections, client)
 	if err != nil {
 		totalSize = int64(len(segmentURLs)) * 1024 * 1024
 	}
@@ -131,17 +131,17 @@ func (j *LiveStreamJob) downloadAndMergeSingleStream(_ context.Context, progress
 		}
 	}
 
-	segmentFiles, err := downloadSegmentsParallel(segmentURLs, tempDir, j.Connections, client, wrappedProgressFunc, totalSize, isFMP4)
+	segmentFiles, err := downloadSegmentsParallel(ctx, segmentURLs, tempDir, j.Connections, client, wrappedProgressFunc, totalSize, isFMP4)
 	if err != nil {
 		return fmt.Errorf("error downloading segments: %v", err)
 	}
-	if err := mergeSegments(segmentFiles, j.OutputPath, isFMP4, m3u8Info.VideoInitSegment, tempDir, client); err != nil {
+	if err := mergeSegments(ctx, segmentFiles, j.OutputPath, isFMP4, m3u8Info.VideoInitSegment, tempDir, client); err != nil {
 		return fmt.Errorf("error merging segments: %v", err)
 	}
 	return nil
 }
 
-func (j *LiveStreamJob) downloadAndMergeSeparateStreams(_ context.Context, progress chan<- highway.Progress, m3u8Info *M3U8Info, tempDir string, client *utils.DanzoHTTPClient) error {
+func (j *LiveStreamJob) downloadAndMergeSeparateStreams(ctx context.Context, progress chan<- highway.Progress, m3u8Info *M3U8Info, tempDir string, client *utils.DanzoHTTPClient) error {
 	videoDir := filepath.Join(tempDir, "video")
 	audioDir := filepath.Join(tempDir, "audio")
 	if err := os.MkdirAll(videoDir, 0755); err != nil {
@@ -154,11 +154,11 @@ func (j *LiveStreamJob) downloadAndMergeSeparateStreams(_ context.Context, progr
 	videoSegmentURLs := m3u8Info.VideoSegmentURLs
 	audioSegmentURLs := m3u8Info.AudioSegmentURLs
 
-	totalVideoSize, _, err := calculateTotalSize(videoSegmentURLs, j.Connections, client)
+	totalVideoSize, _, err := calculateTotalSize(ctx, videoSegmentURLs, j.Connections, client)
 	if err != nil {
 		totalVideoSize = int64(len(videoSegmentURLs)) * 1024 * 1024
 	}
-	totalAudioSize, _, err := calculateTotalSize(audioSegmentURLs, j.Connections, client)
+	totalAudioSize, _, err := calculateTotalSize(ctx, audioSegmentURLs, j.Connections, client)
 	if err != nil {
 		totalAudioSize = int64(len(audioSegmentURLs)) * 512 * 1024
 	}
@@ -177,8 +177,8 @@ func (j *LiveStreamJob) downloadAndMergeSeparateStreams(_ context.Context, progr
 		}
 	}
 
-	videoFiles, videoErr := downloadSegmentsParallel(videoSegmentURLs, videoDir, j.Connections, client, wrappedProgressFunc, totalVideoSize, isVideoFMP4)
-	audioFiles, audioErr := downloadSegmentsParallel(audioSegmentURLs, audioDir, j.Connections, client, wrappedProgressFunc, totalAudioSize, isAudioFMP4)
+	videoFiles, videoErr := downloadSegmentsParallel(ctx, videoSegmentURLs, videoDir, j.Connections, client, wrappedProgressFunc, totalVideoSize, isVideoFMP4)
+	audioFiles, audioErr := downloadSegmentsParallel(ctx, audioSegmentURLs, audioDir, j.Connections, client, wrappedProgressFunc, totalAudioSize, isAudioFMP4)
 
 	if videoErr != nil && audioErr != nil {
 		return fmt.Errorf("both video and audio downloads failed - video: %v, audio: %v", videoErr, audioErr)
@@ -190,13 +190,13 @@ func (j *LiveStreamJob) downloadAndMergeSeparateStreams(_ context.Context, progr
 	var finalErr error
 
 	if videoErr == nil {
-		if err := mergeSegments(videoFiles, tempVideoPath, isVideoFMP4, m3u8Info.VideoInitSegment, videoDir, client); err != nil {
+		if err := mergeSegments(ctx, videoFiles, tempVideoPath, isVideoFMP4, m3u8Info.VideoInitSegment, videoDir, client); err != nil {
 			return fmt.Errorf("error merging video segments: %v", err)
 		}
 	}
 
 	if audioErr == nil {
-		if err := mergeSegments(audioFiles, tempAudioPath, isAudioFMP4, m3u8Info.AudioInitSegment, audioDir, client); err != nil {
+		if err := mergeSegments(ctx, audioFiles, tempAudioPath, isAudioFMP4, m3u8Info.AudioInitSegment, audioDir, client); err != nil {
 			if videoErr == nil {
 				if err := os.Rename(tempVideoPath, j.OutputPath); err != nil {
 					return fmt.Errorf("error saving video-only output: %v", err)

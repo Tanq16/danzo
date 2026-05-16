@@ -1,14 +1,15 @@
 <div align="center">
   <img src=".github/assets/logo.svg" alt="Danzo Logo" width="300">
+  <h1>Danzo</h1>
 
-  <a href="https://github.com/tanq16/danzo/actions/workflows/release.yml"><img alt="Release" src="https://github.com/tanq16/danzo/actions/workflows/release.yml/badge.svg"></a> <a href="https://github.com/Tanq16/danzo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/danzo"></a><br><br>
+  <a href="https://github.com/tanq16/danzo/actions/workflows/release.yaml"><img alt="Release" src="https://github.com/tanq16/danzo/actions/workflows/release.yaml/badge.svg"></a> <a href="https://github.com/Tanq16/danzo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/danzo"></a><br><br>
   <p>A cross-platform and cross-architecture all-in-one CLI download utility designed for multi-threaded downloads, unique progress tracking, and an intuitive command structure.</p><p>Just like Danzo collected powers through multiple "sources" ;) in Naruto, this tool uses multiple connections to supercharge downloads.</p><br>
-  <a href="#quickstart">Quickstart</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#contributing">Contributing</a> &bull; <a href="#acknowledgements">Acknowledgements</a><br>
+  <a href="#capabilities">Capabilities</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a><br>
 </div>
 
 ---
 
-## Quickstart
+## Capabilities
 
 This section gives a quick peek at the capabilities and the extremely simple command structure. For detailed descriptions, see [Usage](#usage).
 
@@ -22,6 +23,7 @@ The primary downloaders and their supported aliases are as follows:
 | `github-release` | `ghrelease`, `ghr` | Download a platform-correct release asset for a GitHub repo |
 | `google-drive` | `gdrive`, `gd`, `drive` | Download file/folder from Google drive with API key or OAuth flow authentication |
 | `s3` | - | Multi-threaded download for object, directory, or full AWS S3 bucket |
+| `resume` | - | Resume downloads from saved interrupted job state |
 | `clean` | - | Clear local cache for interrupted/incomplete downloads |
 
 Following are examples to get started with various flags:
@@ -67,15 +69,21 @@ Following are examples to get started with various flags:
 ### Release Binary (Recommended)
 
 - Download the appropriate binary for your system from the [latest release](https://github.com/tanq16/danzo/releases/latest)
-- Unzip the file, make the binary executable (Linux/macOS) with `chmod +x danzo`, and run as
+- Rename it to `danzo` if desired, make the binary executable (Linux/macOS) with `chmod +x danzo`, and run as
 
 ```bash
 danzo http "https://example.com/largefile.zip"
 ```
 
+Interrupted multi-job runs can be resumed from saved state:
+
+```bash
+danzo resume
+```
+
 ### Using Go (Development Version)
 
-With `Go 1.24+` installed, run the following to install the binary to your GOBIN:
+With `Go 1.25+` installed, run the following to install the binary to your GOBIN:
 
 ```bash
 go install github.com/tanq16/danzo@latest
@@ -109,6 +117,7 @@ Danzo supports these global options:
 --workers, -w        Number of parallel workers (default: 1)
 --connections, -c    Connections per download (default: 8)
 --debug              Enable debug logging at info or debug level (default: disabled, i.e., uses TUI)
+--for-ai             Enable plain AI-agent-friendly output and piped input
 ```
 
 Using a download directly won't always yield the best result, so to optimize according to file types, use multiple threads (read through the next couple sections to learn more).
@@ -302,7 +311,7 @@ danzo ghrelease "owner/repo" --manual
 
 Danzo can clone repositores sourced by various providers. While this is not particularly an expensive operation to run using just `git clone`, it serves to provide ease of setup when setting up a remote server with a large number of files as downloads and clones.
 
-As such, given a situation where a server needs to be prepared for operation by cloning a set of 8 repositories, 5 different tool assets, and an S3 folder; it would be slow to write a script incorporating several tools to get the environment ready. Danzo would be the perfect fir for such a scenario due to its batch-download capability via a YAML configuration. It is primarily for this purpose that an operation as simple and atomic as `git clone` was replicated in Danzo.
+As such, given a situation where a server needs to be prepared for operation by cloning repositories alongside other downloaded assets, it would be slow to write a script incorporating several tools to get the environment ready. Danzo keeps those provider workflows available behind one command surface, which is primarily why an operation as simple and atomic as `git clone` was replicated here.
 
 > ⚠︎ While Danzo as a tool is focused on conducting very fast downloads, it is important to note that in some cases where a git repository may be more than 1.5-2 GB in size, Danzo may experience easily noticeable slowdowns compared to plain old `git clone`. This is expected and usually, it's recommended to enforce depth (continue reading) when cloning repositories that large.
 
@@ -337,6 +346,12 @@ danzo gitclone github.com/tanq16/private --ssh "/secrets/gh-ssh.key"
 > ✎ Repository cloning is another download provider that does not use `-c` or number of connections.
 
 </details>
+
+## Tips and Notes
+
+- Use `--for-ai` when invoking Danzo from scripts or AI agents that need stable plain-text output.
+- Use `--debug` when you need structured logs with underlying error details.
+- Use `danzo clean` to clear temporary partial download files and saved resume state.
 
 ## Contributing
 

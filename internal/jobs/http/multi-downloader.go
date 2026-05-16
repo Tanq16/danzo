@@ -1,6 +1,7 @@
 package danzohttp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,10 +12,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
+	"golang.org/x/sync/errgroup"
 )
 
-func PerformMultiDownload(config HTTPDownloadConfig, client *utils.DanzoHTTPClient, fileSize int64, progressCh chan<- int64) error {
+func PerformMultiDownload(ctx context.Context, config HTTPDownloadConfig, client *utils.DanzoHTTPClient, fileSize int64, progressCh chan<- int64) error {
 	job := HTTPDownloadJob{
 		Config:    config,
 		FileSize:  fileSize,
@@ -26,6 +28,9 @@ func PerformMultiDownload(config HTTPDownloadConfig, client *utils.DanzoHTTPClie
 	}
 
 	mutex := &sync.Mutex{}
+	if config.Connections < 1 {
+		config.Connections = 1
+	}
 	chunkSize := fileSize / int64(config.Connections)
 	var currentPosition int64 = 0
 	for i := range config.Connections {
@@ -47,14 +52,19 @@ func PerformMultiDownload(config HTTPDownloadConfig, client *utils.DanzoHTTPClie
 		currentPosition = endByte + 1
 	}
 
-	var wg sync.WaitGroup
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(config.Connections)
 	for i := range job.Chunks {
-		wg.Add(1)
-		go chunkedDownload(&job, &job.Chunks[i], client, &wg, progressCh, mutex)
+		g.Go(func() error {
+			return chunkedDownload(ctx, &job, &job.Chunks[i], client, progressCh, mutex)
+		})
 	}
 
-	wg.Wait()
+	err := g.Wait()
 	close(progressCh)
+	if err != nil {
+		return err
+	}
 	allCompleted := true
 	var incompleteChunks []int
 	for i, chunk := range job.Chunks {
@@ -67,8 +77,7 @@ func PerformMultiDownload(config HTTPDownloadConfig, client *utils.DanzoHTTPClie
 		return fmt.Errorf("download incomplete: %d chunks failed: %v", len(incompleteChunks), incompleteChunks)
 	}
 
-	err := assembleFile(job)
-	if err != nil {
+	if err := assembleFile(job); err != nil {
 		return fmt.Errorf("error assembling file: %v", err)
 	}
 	return nil

@@ -2,15 +2,17 @@ package m3u8
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
-	"sync"
+	"sync/atomic"
 
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
+	"golang.org/x/sync/errgroup"
 )
 
 type M3U8Info struct {
@@ -21,8 +23,8 @@ type M3U8Info struct {
 	HasSeparateAudio bool
 }
 
-func getM3U8Contents(manifestURL string, client *utils.DanzoHTTPClient) (string, error) {
-	req, err := http.NewRequest("GET", manifestURL, nil)
+func getM3U8Contents(ctx context.Context, manifestURL string, client *utils.DanzoHTTPClient) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", manifestURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("error creating request: %v", err)
 	}
@@ -46,7 +48,7 @@ type audioTrack struct {
 	quality int
 }
 
-func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient) (*M3U8Info, error) {
+func parseM3U8Content(ctx context.Context, content, manifestURL string, client *utils.DanzoHTTPClient) (*M3U8Info, error) {
 	baseURL, err := url.Parse(manifestURL)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing manifest URL: %v", err)
@@ -61,6 +63,11 @@ func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient
 	var currentBandwidth int
 
 	for scanner.Scan() {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
@@ -172,11 +179,11 @@ func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient
 			}
 		}
 
-		videoContent, err := getM3U8Contents(masterPlaylistURLs[bestVariantIdx], client)
+		videoContent, err := getM3U8Contents(ctx, masterPlaylistURLs[bestVariantIdx], client)
 		if err != nil {
 			return nil, fmt.Errorf("error fetching video sub-playlist: %v", err)
 		}
-		videoInfo, err := parseM3U8Content(videoContent, masterPlaylistURLs[bestVariantIdx], client)
+		videoInfo, err := parseM3U8Content(ctx, videoContent, masterPlaylistURLs[bestVariantIdx], client)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing video sub-playlist: %v", err)
 		}
@@ -190,11 +197,11 @@ func parseM3U8Content(content, manifestURL string, client *utils.DanzoHTTPClient
 					bestAudioIdx = i
 				}
 			}
-			audioContent, err := getM3U8Contents(audioTracks[bestAudioIdx].url, client)
+			audioContent, err := getM3U8Contents(ctx, audioTracks[bestAudioIdx].url, client)
 			if err != nil {
 				return nil, fmt.Errorf("error fetching audio sub-playlist: %v", err)
 			}
-			audioInfo, err := parseM3U8Content(audioContent, audioTracks[bestAudioIdx].url, client)
+			audioInfo, err := parseM3U8Content(ctx, audioContent, audioTracks[bestAudioIdx].url, client)
 			if err != nil {
 				return nil, fmt.Errorf("error parsing audio sub-playlist: %v", err)
 			}
@@ -230,51 +237,33 @@ func resolveURL(baseURL *url.URL, urlStr string) (string, error) {
 	return absURL.String(), nil
 }
 
-func calculateTotalSize(segmentURLs []string, numWorkers int, client *utils.DanzoHTTPClient) (int64, []int64, error) {
+func calculateTotalSize(ctx context.Context, segmentURLs []string, numWorkers int, client *utils.DanzoHTTPClient) (int64, []int64, error) {
 	segmentSizes := make([]int64, len(segmentURLs))
-	var totalSize int64
-	var mu sync.Mutex
-	var sizeErr error
-	type sizeJob struct {
-		index int
-		url   string
+	var totalSize atomic.Int64
+	g, ctx := errgroup.WithContext(ctx)
+	if numWorkers < 1 {
+		numWorkers = 1
 	}
-	jobCh := make(chan sizeJob, len(segmentURLs))
+	g.SetLimit(numWorkers)
 	for i, url := range segmentURLs {
-		jobCh <- sizeJob{index: i, url: url}
-	}
-	close(jobCh)
-	var wg sync.WaitGroup
-	for range numWorkers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for job := range jobCh {
-				size, err := getSize(job.url, client)
-				if err != nil {
-					mu.Lock()
-					if sizeErr == nil {
-						sizeErr = err
-					}
-					mu.Unlock()
-					continue
-				}
-				mu.Lock()
-				segmentSizes[job.index] = size
-				totalSize += size
-				mu.Unlock()
+		g.Go(func() error {
+			size, err := getSize(ctx, url, client)
+			if err != nil {
+				return err
 			}
-		}()
+			segmentSizes[i] = size
+			totalSize.Add(size)
+			return nil
+		})
 	}
-	wg.Wait()
-	if sizeErr != nil {
-		return 0, nil, sizeErr
+	if err := g.Wait(); err != nil {
+		return 0, nil, err
 	}
-	return totalSize, segmentSizes, nil
+	return totalSize.Load(), segmentSizes, nil
 }
 
-func getSize(url string, client *utils.DanzoHTTPClient) (int64, error) {
-	req, err := http.NewRequest("HEAD", url, nil)
+func getSize(ctx context.Context, url string, client *utils.DanzoHTTPClient) (int64, error) {
+	req, err := http.NewRequestWithContext(ctx, "HEAD", url, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -295,8 +284,8 @@ func getSize(url string, client *utils.DanzoHTTPClient) (int64, error) {
 	return size, nil
 }
 
-func downloadSegment(segmentURL, outputPath string, client *utils.DanzoHTTPClient) (int64, error) {
-	req, err := http.NewRequest("GET", segmentURL, nil)
+func downloadSegment(ctx context.Context, segmentURL, outputPath string, client *utils.DanzoHTTPClient) (int64, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", segmentURL, nil)
 	if err != nil {
 		return 0, fmt.Errorf("error creating request: %v", err)
 	}

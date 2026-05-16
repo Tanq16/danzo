@@ -34,3 +34,5 @@ download.yaml
 .danzo-token.json
 .danzo-resume-state.json
 danzo-gdrive.json
+
+.agents

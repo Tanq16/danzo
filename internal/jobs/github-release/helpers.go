@@ -1,17 +1,16 @@
 package ghrelease
 
 import (
-	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
 )
 
 var assetSelectMap = map[string][]string{
@@ -53,9 +52,9 @@ func parseGitHubURL(url string) (string, string, error) {
 	return "", "", fmt.Errorf("invalid GitHub repository format: %s", url)
 }
 
-func getGitHubReleaseAssets(owner, repo string, client *utils.DanzoHTTPClient) ([]map[string]any, string, error) {
+func getGitHubReleaseAssets(ctx context.Context, owner, repo string, client *utils.DanzoHTTPClient) ([]map[string]any, string, error) {
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
-	req, err := http.NewRequest("GET", apiURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("error creating API request: %v", err)
 	}
@@ -97,9 +96,7 @@ func promptGitHubAssetSelection(assets []map[string]any, tagName string) (string
 		size, _ := asset["size"].(float64)
 		fmt.Printf("%d. %s (%.2f MB)\n", i+1, name, float64(size)/1024/1024)
 	}
-	fmt.Print("\nEnter the number of the asset to download: ")
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
+	input, err := utils.PromptInput("Enter the number of the asset to download:", "")
 	if err != nil {
 		return "", 0, fmt.Errorf("error reading input: %v", err)
 	}
@@ -113,7 +110,9 @@ func promptGitHubAssetSelection(assets []map[string]any, tagName string) (string
 		return "", 0, fmt.Errorf("selection out of range")
 	}
 	linesUsed := len(assets) + 4
-	fmt.Printf("\033[%dA\033[J", linesUsed)
+	if !utils.GlobalDebugFlag && !utils.GlobalForAIFlag {
+		fmt.Printf("\033[%dA\033[J", linesUsed)
+	}
 
 	selectedAsset := assets[selection-1]
 	downloadURL, _ := selectedAsset["browser_download_url"].(string)

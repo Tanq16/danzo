@@ -59,7 +59,7 @@ func FormatSpeed(bytes int64, elapsed float64) string {
 	}
 	bps := float64(bytes) / elapsed
 	formatted := FormatBytes(uint64(bps))
-	return formatted[:len(formatted)-1] + "B/s" // Slice off "B" and add "B/s"
+	return formatted[:len(formatted)-1] + "B/s"
 }
 
 func CleanLocal() error {
@@ -91,13 +91,10 @@ func CleanFunction(outputPath string) error {
 				if err := os.RemoveAll(filePath); err != nil {
 					return err
 				}
-			} else {
-				if err := os.Remove(filePath); err != nil {
-					return err
-				}
+			} else if err := os.Remove(filePath); err != nil {
+				return err
 			}
 		}
-		// Also remove m3u8_* directories (from live-stream downloads)
 		if file.IsDir() && strings.HasPrefix(file.Name(), "m3u8_") {
 			if err := os.RemoveAll(filePath); err != nil {
 				return err

@@ -1,6 +1,7 @@
 package gdrive
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
 )
 
 var (
@@ -40,7 +41,7 @@ func extractFileID(rawURL string) (string, error) {
 	return "", fmt.Errorf("unable to extract file ID from URL: %s", rawURL)
 }
 
-func getFileMetadata(rawURL string, client *utils.DanzoHTTPClient, token string) (map[string]any, string, error) {
+func getFileMetadata(ctx context.Context, rawURL string, client *utils.DanzoHTTPClient, token string) (map[string]any, string, error) {
 	fileID, err := extractFileID(rawURL)
 	if err != nil {
 		return nil, "", fmt.Errorf("error extracting file ID: %v", err)
@@ -53,7 +54,7 @@ func getFileMetadata(rawURL string, client *utils.DanzoHTTPClient, token string)
 		metadataURL = fmt.Sprintf("%s/%s?fields=name,size,mimeType&key=%s", driveAPIURL, fileID, token)
 	}
 
-	req, err := http.NewRequest("GET", metadataURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", metadataURL, nil)
 	if err != nil {
 		return nil, "", fmt.Errorf("error creating metadata request: %v", err)
 	}
@@ -77,11 +78,16 @@ func getFileMetadata(rawURL string, client *utils.DanzoHTTPClient, token string)
 	return metadata, fileID, nil
 }
 
-func listFolderContents(folderID, token string, client *utils.DanzoHTTPClient) ([]map[string]any, error) {
+func listFolderContents(ctx context.Context, folderID, token string, client *utils.DanzoHTTPClient) ([]map[string]any, error) {
 	var files []map[string]any
 	pageToken := ""
 	isOAuth := !strings.HasPrefix(token, "AIza")
 	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
 		var reqURL string
 		if isOAuth {
 			reqURL = fmt.Sprintf("%s?q='%s'+in+parents&fields=nextPageToken,files(id,name,size,mimeType)&pageSize=1000",
@@ -96,7 +102,7 @@ func listFolderContents(folderID, token string, client *utils.DanzoHTTPClient) (
 				reqURL += "&pageToken=" + pageToken
 			}
 		}
-		req, err := http.NewRequest("GET", reqURL, nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
 		if err != nil {
 			return nil, err
 		}

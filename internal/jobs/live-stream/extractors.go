@@ -1,6 +1,7 @@
 package m3u8
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
 )
 
 type RumbleJSResponse struct {
@@ -33,23 +34,23 @@ type DailymotionMetadata struct {
 	} `json:"qualities"`
 }
 
-func runExtractor(urlPtr *string, extractor string, httpConfig utils.HTTPClientConfig) error {
+func runExtractor(ctx context.Context, urlPtr *string, extractor string, httpConfig utils.HTTPClientConfig) error {
 	switch strings.ToLower(extractor) {
 	case "rumble":
-		return extractRumbleURL(urlPtr, httpConfig)
+		return extractRumbleURL(ctx, urlPtr, httpConfig)
 	case "dailymotion":
-		return extractDailymotionURL(urlPtr, httpConfig)
+		return extractDailymotionURL(ctx, urlPtr, httpConfig)
 	default:
 		return nil
 	}
 }
 
-func extractRumbleURL(urlPtr *string, httpConfig utils.HTTPClientConfig) error {
-	videoID, err := getRumbleVideoID(*urlPtr)
+func extractRumbleURL(ctx context.Context, urlPtr *string, httpConfig utils.HTTPClientConfig) error {
+	videoID, err := getRumbleVideoID(ctx, *urlPtr, httpConfig)
 	if err != nil {
 		return err
 	}
-	m3u8URL, err := getRumbleM3U8FromVideoID(videoID, httpConfig)
+	m3u8URL, err := getRumbleM3U8FromVideoID(ctx, videoID, httpConfig)
 	if err != nil {
 		return err
 	}
@@ -57,16 +58,20 @@ func extractRumbleURL(urlPtr *string, httpConfig utils.HTTPClientConfig) error {
 	return nil
 }
 
-func getRumbleVideoID(pageURL string) (string, error) {
+func getRumbleVideoID(ctx context.Context, pageURL string, clientConfig utils.HTTPClientConfig) (string, error) {
 	jar, _ := cookiejar.New(nil)
-	client := &http.Client{Jar: jar}
-	req, err := http.NewRequest("GET", pageURL, nil)
+	newClientConfig := clientConfig
+	newClientConfig.Jar = jar
+	newClientConfig.Headers = make(map[string]string)
+	maps.Copy(newClientConfig.Headers, clientConfig.Headers)
+	newClientConfig.Headers["Connection"] = "keep-alive"
+	newClientConfig.Headers["Upgrade-Insecure-Requests"] = "1"
+	client := utils.NewDanzoHTTPClient(newClientConfig)
+	req, err := http.NewRequestWithContext(ctx, "GET", pageURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for rumble page: %w", err)
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36")
-	req.Header.Set("Connection", "keep-alive")
-	req.Header.Set("Upgrade-Insecure-Requests", "1")
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch rumble page: %w", err)
@@ -84,14 +89,14 @@ func getRumbleVideoID(pageURL string) (string, error) {
 	return "", fmt.Errorf("could not find rumble video ID in page source")
 }
 
-func getRumbleM3U8FromVideoID(videoID string, clientConfig utils.HTTPClientConfig) (string, error) {
+func getRumbleM3U8FromVideoID(ctx context.Context, videoID string, clientConfig utils.HTTPClientConfig) (string, error) {
 	jsonURL := fmt.Sprintf("https://rumble.com/embedJS/u3/?request=video&ver=2&v=%s", videoID)
 	newClientConfig := clientConfig
 	newClientConfig.Headers = make(map[string]string)
 	maps.Copy(newClientConfig.Headers, clientConfig.Headers)
 	newClientConfig.Headers["Referer"] = "https://rumble.com/"
 	client := utils.NewDanzoHTTPClient(newClientConfig)
-	req, err := http.NewRequest("GET", jsonURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", jsonURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for rumble json: %w", err)
 	}
@@ -113,12 +118,12 @@ func getRumbleM3U8FromVideoID(videoID string, clientConfig utils.HTTPClientConfi
 	return "", fmt.Errorf("could not find m3u8 url in rumble json response")
 }
 
-func extractDailymotionURL(urlPtr *string, httpConfig utils.HTTPClientConfig) error {
+func extractDailymotionURL(ctx context.Context, urlPtr *string, httpConfig utils.HTTPClientConfig) error {
 	videoID, err := getDailymotionVideoID(*urlPtr)
 	if err != nil {
 		return err
 	}
-	m3u8URL, err := getDailymotionM3U8FromVideoID(videoID, httpConfig)
+	m3u8URL, err := getDailymotionM3U8FromVideoID(ctx, videoID, httpConfig)
 	if err != nil {
 		return err
 	}
@@ -142,7 +147,7 @@ func getDailymotionVideoID(pageURL string) (string, error) {
 	return "", fmt.Errorf("could not extract Dailymotion video ID from URL: %s", pageURL)
 }
 
-func getDailymotionM3U8FromVideoID(videoID string, clientConfig utils.HTTPClientConfig) (string, error) {
+func getDailymotionM3U8FromVideoID(ctx context.Context, videoID string, clientConfig utils.HTTPClientConfig) (string, error) {
 	metadataURL := fmt.Sprintf("https://www.dailymotion.com/player/metadata/video/%s", videoID)
 	newClientConfig := clientConfig
 	newClientConfig.Headers = make(map[string]string)
@@ -150,7 +155,7 @@ func getDailymotionM3U8FromVideoID(videoID string, clientConfig utils.HTTPClient
 	newClientConfig.Headers["Referer"] = "https://www.dailymotion.com/"
 	newClientConfig.Headers["Origin"] = "https://www.dailymotion.com"
 	client := utils.NewDanzoHTTPClient(newClientConfig)
-	req, err := http.NewRequest("GET", metadataURL+"?app=com.dailymotion.neon", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", metadataURL+"?app=com.dailymotion.neon", nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for dailymotion metadata: %w", err)
 	}

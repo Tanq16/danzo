@@ -8,13 +8,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/tanq16/danzo/internal/utils"
+	"github.com/tanq16/danzo/utils"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/term"
 )
 
-func getAccessTokenFromCredentials(credentialsFile string) (string, error) {
+func getAccessTokenFromCredentials(ctx context.Context, credentialsFile string) (string, error) {
 	b, err := os.ReadFile(credentialsFile)
 	if err != nil {
 		return "", fmt.Errorf("unable to read credentials file: %v", err)
@@ -25,13 +25,13 @@ func getAccessTokenFromCredentials(credentialsFile string) (string, error) {
 	}
 
 	tokenFile := ".danzo-token.json"
-	token, err := getOAuthToken(config, tokenFile)
+	token, err := getOAuthToken(ctx, config, tokenFile)
 	if err != nil {
 		return "", fmt.Errorf("unable to get OAuth token: %v", err)
 	}
 	if !token.Valid() {
 		if token.RefreshToken != "" {
-			tokenSource := config.TokenSource(context.Background(), token)
+			tokenSource := config.TokenSource(ctx, token)
 			newToken, err := tokenSource.Token()
 			if err != nil {
 				return "", fmt.Errorf("unable to refresh token: %v", err)
@@ -45,27 +45,27 @@ func getAccessTokenFromCredentials(credentialsFile string) (string, error) {
 	return token.AccessToken, nil
 }
 
-func getOAuthToken(config *oauth2.Config, tokenFile string) (*oauth2.Token, error) {
+func getOAuthToken(ctx context.Context, config *oauth2.Config, tokenFile string) (*oauth2.Token, error) {
 	token, err := tokenFromFile(tokenFile)
 	if err == nil {
 		return token, nil
 	}
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 	utils.PrintInfo("Visit this URL to get the authorization code:")
-	fmt.Printf("%s\n", authURL)
+	utils.PrintGeneric(authURL)
 	utils.PrintInfo("After authorizing, enter the authorization code:")
-	var authCode string
-	if _, err := fmt.Scan(&authCode); err != nil {
+	authCode, err := utils.PromptInput("Authorization code:", "")
+	if err != nil {
 		return nil, fmt.Errorf("unable to read authorization code: %v", err)
 	}
-	token, err = config.Exchange(context.Background(), authCode)
+	token, err = config.Exchange(ctx, authCode)
 	if err != nil {
 		return nil, fmt.Errorf("unable to exchange auth code for token: %v", err)
 	}
 	saveToken(tokenFile, token)
 	clearLength := 6
 	clearLength += len(authURL)/getTerminalWidth() + 1
-	if !utils.GlobalDebugFlag {
+	if !utils.GlobalDebugFlag && !utils.GlobalForAIFlag {
 		fmt.Printf("\033[%dA\033[J", clearLength)
 	}
 	return token, nil
