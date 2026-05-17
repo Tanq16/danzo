@@ -95,4 +95,5 @@ func init() {
 	rootCmd.AddCommand(newGHReleaseCmd())
 	rootCmd.AddCommand(newGDriveCmd())
 	rootCmd.AddCommand(newResumeCmd())
+	rootCmd.AddCommand(newYtdlpCmd())
 }

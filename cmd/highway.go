@@ -8,6 +8,7 @@ import (
 	httpjob "github.com/tanq16/danzo/internal/jobs/http"
 	m3u8job "github.com/tanq16/danzo/internal/jobs/live-stream"
 	s3job "github.com/tanq16/danzo/internal/jobs/s3"
+	ytdlpjob "github.com/tanq16/danzo/internal/jobs/ytdlp"
 )
 
 const resumeStatePath = ".danzo-resume-state.json"
@@ -25,4 +26,5 @@ func registerJobTypes(hw *highway.Highway) {
 	hw.RegisterType("github-release", ghreleasejob.Unmarshal)
 	hw.RegisterType("google-drive", gdrivejob.Unmarshal)
 	hw.RegisterType("live-stream", m3u8job.Unmarshal)
+	hw.RegisterType("ytdlp", ytdlpjob.Unmarshal)
 }
