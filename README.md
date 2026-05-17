@@ -23,6 +23,7 @@ The primary downloaders and their supported aliases are as follows:
 | `github-release` | `ghrelease`, `ghr` | Download a platform-correct release asset for a GitHub repo |
 | `google-drive` | `gdrive`, `gd`, `drive` | Download file/folder from Google drive with API key or OAuth flow authentication |
 | `s3` | - | Multi-threaded download for object, directory, or full AWS S3 bucket |
+| `ytdlp` | `yt-dlp`, `youtube-dl`, `ytdl` | Wraps the `yt-dlp` binary for sites Danzo doesn't natively support (YouTube, etc.) |
 | `resume` | - | Resume downloads from saved interrupted job state |
 | `clean` | - | Clear local cache for interrupted/incomplete downloads |
 
@@ -62,6 +63,11 @@ Following are examples to get started with various flags:
   danzo git "github.com/username/repo" --depth 1 # (clone with --depth=1)
   danzo git "github.com/tanq16/private" --token $(cat /secrets/ghtoken) # (use a PAT; auto-manages for different providers)
   danzo git "github.com/tanq16/private" --ssh "/secrets/gh-ssh.key" # (use an SSH key to authenticate)
+  ```
+- Download via `yt-dlp` (for sites Danzo doesn't natively support, like YouTube)
+  ```bash
+  danzo ytdlp "https://www.youtube.com/watch?v=jNQXAC9IVRw" -o me-at-the-zoo.mp4
+  danzo ytdlp "https://vimeo.com/22439234" # (default yt-dlp output template)
   ```
 
 ## Installation
@@ -130,6 +136,7 @@ Follow these links to quickly jump to the relevant provider:
 - [AWS S3 Downloads](#aws-s3-downloads)
 - [GitHub Release Downloads](#github-release-downloads)
 - [Git Repository Cloning](#git-repository-cloning)
+- [yt-dlp Downloads](#yt-dlp-downloads)
 
 ### HTTP(S) Downloads
 
@@ -347,6 +354,33 @@ danzo gitclone github.com/tanq16/private --ssh "/secrets/gh-ssh.key"
 
 </details>
 
+### yt-dlp Downloads
+
+<details>
+<summary>Unfold to read</summary>
+
+For sites Danzo doesn't natively support (YouTube, Vimeo with audio, etc.), the `ytdlp` command wraps the `yt-dlp` binary and streams its progress into the Danzo TUI so it looks and behaves like every other Danzo job.
+
+> ✎ Requires `yt-dlp` to be installed and available on `PATH`. Some downloads (e.g., separate video + audio streams) additionally require `ffmpeg` for the final merge step.
+
+```bash
+danzo ytdlp "https://www.youtube.com/watch?v=jNQXAC9IVRw" -o me-at-the-zoo.mp4
+
+# Without -o, yt-dlp picks its own filename via its default output template.
+danzo ytdlp "https://vimeo.com/22439234"
+```
+
+The wrapper:
+
+- Streams `yt-dlp`'s structured `JSON_PROGRESS:` lines into the highway display so percent/byte counters move in real time.
+- Switches the bar into a "Merging" sub-status when `yt-dlp` reaches the `[Merger]`/`Merging formats` phase (the bar would otherwise be misleading during the ffmpeg merge).
+- Surfaces the failing `ERROR:` line from `yt-dlp`'s stderr in the failure message, so things like a bad URL produce the actual reason rather than a bare `exit status 1`.
+- If the chosen output path already exists, falls back to `name-(1).ext` (same behavior as `http` / `git-clone`).
+
+> ✎ This is intentionally a thin wrapper - any flags beyond `--output/-o` should be configured on the `yt-dlp` side (e.g., via its `--config-location`).
+
+</details>
+
 ## Tips and Notes
 
 - Use `--for-ai` when invoking Danzo from scripts or AI agents that need stable plain-text output.
@@ -364,6 +398,8 @@ Danzo uses issues for everything. Open an issue and I will add an appropriate ta
 ## Acknowledgements
 
 Danzo uses `ffmpeg` for merging M3U8 stream segments.
+
+Danzo wraps `yt-dlp` for sites it doesn't natively support.
 
 Danzo draws inspiration from [aria2](https://github.com/aria2/aria2).
 
