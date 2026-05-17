@@ -172,3 +172,145 @@ func main() {
 ```
 
 This acts as a standalone proof of concept for intercepting `yt-dlp` logs with high precision and translating them into an integration that can be consumed by the Danzo go routine architecture.
+
+### Multi-Phase Download Parsing (Highway Integration)
+
+When using `yt-dlp` to download complex formats like YouTube, the tool executes in distinct phases:
+1. Downloading the video stream (0-100%).
+2. Downloading the audio stream (0-100%).
+3. Merging (using ffmpeg) to produce the final output.
+
+Because the Danzo `highway` pattern renders a dynamic UI based on `Current` and `Total` properties, it natively supports tracking these sequential flows seamlessly. We can intercept these by analyzing `yt-dlp` strings alongside the JSON outputs.
+
+Here is an augmented example demonstrating how to map `yt-dlp`'s multi-phase progress properly to the `highway` data model:
+
+```go
+package main
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/tanq16/danzo/internal/display"
+	"github.com/tanq16/danzo/internal/highway"
+	"github.com/tanq16/danzo/utils"
+)
+
+type YTDLPProgress struct {
+	DownloadedBytes string `json:"downloaded_bytes"`
+	TotalBytes      string `json:"total_bytes"`
+	TotalBytesEst   string `json:"total_bytes_estimate"`
+	Status          string `json:"status"`
+}
+
+type YTDLPJob struct {
+	URL string
+	IDStr string
+}
+
+func (j *YTDLPJob) ID() string { return j.IDStr }
+func (j *YTDLPJob) Type() string { return "ytdlp" }
+func (j *YTDLPJob) Marshal() ([]byte, error) { return nil, nil }
+
+func (j *YTDLPJob) Run(ctx context.Context, prog chan<- highway.Progress) error {
+	cmd := exec.CommandContext(ctx, "yt-dlp", j.URL,
+		"--newline",
+		"--progress-template",
+		`JSON_PROGRESS: {"downloaded_bytes": "%(progress.downloaded_bytes)s", "total_bytes": "%(progress.total_bytes)s", "total_bytes_estimate": "%(progress.total_bytes_estimate)s", "status": "%(progress.status)s"}`,
+		"-o", "sample_output.%(ext)s")
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	scanner := bufio.NewScanner(stdout)
+	currentPhase := "Downloading"
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Intercept yt-dlp textual logs for phase changes
+		if strings.Contains(line, "[Merger]") || strings.Contains(line, "Merging formats") {
+			currentPhase = "Merging"
+			prog <- highway.Progress{
+				JobID:     j.IDStr,
+				Type:      highway.ProgressTypeSubStatus,
+				Message:   currentPhase,
+				SubStatus: "ffmpeg consolidating streams...",
+			}
+			continue
+		}
+
+		if strings.HasPrefix(line, "JSON_PROGRESS: ") {
+			jsonStr := strings.TrimPrefix(line, "JSON_PROGRESS: ")
+			var p YTDLPProgress
+			if err := json.Unmarshal([]byte(jsonStr), &p); err != nil {
+				continue
+			}
+
+			if currentPhase == "Merging" {
+				continue // Progress bars are misleading during ffmpeg merging
+			}
+
+			downBytes, _ := strconv.ParseInt(p.DownloadedBytes, 10, 64)
+			var totalBytes int64
+			if p.TotalBytes != "NA" {
+				totalBytes, _ = strconv.ParseInt(p.TotalBytes, 10, 64)
+			} else if p.TotalBytesEst != "NA" {
+				totalBytes, _ = strconv.ParseInt(p.TotalBytesEst, 10, 64)
+			}
+
+			// Natively handle sequential streams; if totalBytes changes significantly or downBytes resets,
+			// the highway automatically updates the UI dynamically.
+			if totalBytes > 0 {
+				prog <- highway.Progress{
+					JobID:   j.IDStr,
+					Type:    highway.ProgressTypeProgress,
+					Message: currentPhase,
+					Current: downBytes,
+					Total:   totalBytes,
+					Extra:   utils.FormatBytes(uint64(downBytes)) + "/" + utils.FormatBytes(uint64(totalBytes)),
+				}
+			}
+		}
+	}
+
+	err = cmd.Wait()
+	if err != nil {
+		prog <- highway.Progress{JobID: j.IDStr, Done: true, Error: err, ErrMsg: err.Error()}
+		return err
+	}
+
+	prog <- highway.Progress{JobID: j.IDStr, Done: true}
+	return nil
+}
+
+// NOTE: This represents how it integrates with highway.
+func exampleUsage() {
+    disp := display.New(display.DefaultConfig())
+	hw := highway.New(1, "")
+
+	job := &YTDLPJob{URL: "https://vimeo.com/22439234", IDStr: "vimeo-test"}
+	disp.RegisterJob(job.ID())
+	hw.Submit(job)
+
+	disp.Start(hw.Progress())
+	hw.Run(context.Background())
+	disp.Stop()
+}
+```
+
+In the UI, this cleanly handles everything from single files (standard tarballs), to dual-format downloads (video up to 100%, followed immediately by audio jumping from 0 to 100%), and handles the final merge step by collapsing the bar into a `SubStatus` label indicating ffmpeg's processing.
