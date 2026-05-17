@@ -82,3 +82,93 @@ To correctly report overall progress:
 
 If we only intercept `JSON_PROGRESS` lines, we will at least get the speed and eta of the *current* active stream.
 For `highway` integration, we will parse the JSON, ignore `"NA"` values by converting them to defaults (0), and send updates. When one stream finishes and another begins, `total_bytes` will change, which is perfectly acceptable for the highway to just update its display with the new stream's total bytes.
+
+### Vimeo Download Test
+
+Executed command:
+```sh
+/tmp/yt-dlp-bin "https://vimeo.com/22439234" --newline --progress-template 'JSON_PROGRESS: {"downloaded_bytes": "%(progress.downloaded_bytes)s", "total_bytes": "%(progress.total_bytes)s", "status": "%(progress.status)s"}' -o "vimeo_test.mp4"
+```
+
+Output highlights:
+```
+[info] 22439234: Downloading 1 format(s): http-1080p
+[download] Destination: vimeo_test.mp4
+JSON_PROGRESS: {"downloaded_bytes": "1024", "total_bytes": "126357367", "status": "downloading"}
+...
+JSON_PROGRESS: {"downloaded_bytes": "126357367", "total_bytes": "126357367", "status": "finished"}
+```
+This shows that `yt-dlp` accurately reports Vimeo multi-resolution downloads by returning proper JSON strings with completed file sizes.
+
+### Go Integration Example
+
+To seamlessly intercept this within the `highway` downloader structure using Go, we can invoke `exec.Command` and stream the stdout using a scanner:
+
+```go
+package main
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"log"
+	"os/exec"
+	"strings"
+)
+
+type YTDLPProgress struct {
+	DownloadedBytes string `json:"downloaded_bytes"`
+	TotalBytes      string `json:"total_bytes"`
+	Status          string `json:"status"`
+}
+
+func main() {
+	url := "https://vimeo.com/22439234"
+
+	// Command uses our defined JSON template
+	cmd := exec.Command("yt-dlp", url,
+		"--newline",
+		"--progress-template",
+		`JSON_PROGRESS: {"downloaded_bytes": "%(progress.downloaded_bytes)s", "total_bytes": "%(progress.total_bytes)s", "status": "%(progress.status)s"}`,
+		"-o", "sample_output.mp4")
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatalf("Failed to create stdout pipe: %v", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		log.Fatalf("Failed to start yt-dlp: %v", err)
+	}
+
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Look for our specific prefix
+		if strings.HasPrefix(line, "JSON_PROGRESS: ") {
+			jsonStr := strings.TrimPrefix(line, "JSON_PROGRESS: ")
+			var progress YTDLPProgress
+			if err := json.Unmarshal([]byte(jsonStr), &progress); err != nil {
+				log.Printf("Failed to parse JSON: %v, raw: %s", err, jsonStr)
+				continue
+			}
+
+			// Yield progress to UI / Highway architecture here
+			fmt.Printf("Status: %s | Downloaded: %s / %s bytes\n",
+				progress.Status, progress.DownloadedBytes, progress.TotalBytes)
+		} else {
+			// Optional: Intercept and log yt-dlp internal messages
+			fmt.Printf("YT-DLP LOG: %s\n", line)
+		}
+	}
+
+	if err := cmd.Wait(); err != nil {
+		log.Printf("yt-dlp finished with error: %v", err)
+	} else {
+		log.Println("yt-dlp completed successfully")
+	}
+}
+```
+
+This acts as a standalone proof of concept for intercepting `yt-dlp` logs with high precision and translating them into an integration that can be consumed by the Danzo go routine architecture.
