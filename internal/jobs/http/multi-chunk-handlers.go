@@ -18,42 +18,48 @@ func chunkedDownload(ctx context.Context, job *HTTPDownloadJob, chunk *HTTPDownl
 	tempDir := filepath.Join(filepath.Dir(job.Config.OutputPath), ".danzo-temp")
 	tempFileName := filepath.Join(tempDir, fmt.Sprintf("%s.part%d", filepath.Base(job.Config.OutputPath), chunk.ID))
 	expectedSize := chunk.EndByte - chunk.StartByte + 1
-	resumeOffset := int64(0)
-	if fileInfo, err := os.Stat(tempFileName); err == nil {
-		resumeOffset = fileInfo.Size()
-		if resumeOffset == expectedSize {
-			mutex.Lock()
-			job.TempFiles = append(job.TempFiles, tempFileName)
-			mutex.Unlock()
-			chunk.Downloaded = resumeOffset
-			chunk.Completed = true
-			progressCh <- resumeOffset
-			return nil
-		} else if resumeOffset > 0 && resumeOffset < expectedSize {
-			// resume partial chunk
-		} else if chunk.Downloaded > 0 {
-			os.Remove(tempFileName)
-			resumeOffset = 0
+
+	// reconcile keeps chunk.Downloaded equal to the on-disk size and emits the
+	// signed delta on progressCh, so the receiver's accumulated total never
+	// drifts above the true byte count across retries.
+	reconcile := func() int64 {
+		currentSize := int64(0)
+		if fi, err := os.Stat(tempFileName); err == nil {
+			currentSize = fi.Size()
 		}
+		if currentSize > expectedSize {
+			os.Remove(tempFileName)
+			currentSize = 0
+		}
+		if delta := currentSize - chunk.Downloaded; delta != 0 {
+			progressCh <- delta
+			chunk.Downloaded = currentSize
+		}
+		return currentSize
 	}
+
+	resumeOffset := reconcile()
+	if resumeOffset == expectedSize {
+		mutex.Lock()
+		job.TempFiles = append(job.TempFiles, tempFileName)
+		mutex.Unlock()
+		chunk.Completed = true
+		return nil
+	}
+
 	maxRetries := 5
+	var lastErr error
 	for retry := range maxRetries {
 		if retry > 0 {
 			time.Sleep(time.Duration(retry+1) * 500 * time.Millisecond)
-			if fileInfo, err := os.Stat(tempFileName); err == nil {
-				currentSize := fileInfo.Size()
-				if currentSize != chunk.Downloaded && chunk.Downloaded > 0 {
-					os.Remove(tempFileName)
-					progressCh <- -chunk.Downloaded
-					chunk.Downloaded = 0
-					resumeOffset = 0
-				}
-			}
+			resumeOffset = reconcile()
 		}
 		if err := downloadSingleChunk(ctx, job, chunk, client, tempFileName, progressCh, resumeOffset); err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			lastErr = err
+			resumeOffset = reconcile()
 			continue
 		}
 		mutex.Lock()
@@ -61,6 +67,9 @@ func chunkedDownload(ctx context.Context, job *HTTPDownloadJob, chunk *HTTPDownl
 		mutex.Unlock()
 		chunk.Completed = true
 		return nil
+	}
+	if lastErr != nil {
+		return fmt.Errorf("chunk %d failed after %d retries: %w", chunk.ID, maxRetries, lastErr)
 	}
 	return fmt.Errorf("chunk %d failed after %d retries", chunk.ID, maxRetries)
 }
@@ -99,10 +108,6 @@ func downloadSingleChunk(ctx context.Context, job *HTTPDownloadJob, chunk *HTTPD
 		return errors.New("missing Content-Range header")
 	}
 
-	if resumeOffset > 0 {
-		progressCh <- resumeOffset
-		chunk.Downloaded = resumeOffset
-	}
 	remainingBytes := chunk.EndByte - startByte + 1
 	buffer := make([]byte, utils.DefaultBufferSize)
 	newBytes := int64(0)

@@ -19,16 +19,35 @@ func PerformSimpleDownload(ctx context.Context, url, outputPath string, client *
 		return fmt.Errorf("error creating temp directory: %v", err)
 	}
 	tempOutputPath := fmt.Sprintf("%s.part", filepath.Join(tempDir, filepath.Base(outputPath)))
+
+	// reported is the running sum of byte deltas this function has emitted on
+	// progressCh. reconcile re-syncs it with the on-disk temp file size so the
+	// receiver's accumulated total never drifts above the true byte count
+	// across retries.
+	var reported int64
+	reconcile := func() {
+		currentSize := int64(0)
+		if fi, err := os.Stat(tempOutputPath); err == nil {
+			currentSize = fi.Size()
+		}
+		if delta := currentSize - reported; delta != 0 {
+			progressCh <- delta
+			reported = currentSize
+		}
+	}
+	reconcile()
+
 	maxRetries := 5
 	var lastErr error
-
 	for retry := range maxRetries {
 		if retry > 0 {
 			time.Sleep(time.Duration(retry+1) * 500 * time.Millisecond)
+			reconcile()
 		}
-		err := downloadAttempt(ctx, url, tempOutputPath, client, progressCh)
+		err := downloadAttempt(ctx, url, tempOutputPath, client, progressCh, &reported)
 		if err != nil {
 			lastErr = err
+			reconcile()
 			continue
 		}
 		if err := os.Rename(tempOutputPath, outputPath); err != nil {
@@ -39,7 +58,7 @@ func PerformSimpleDownload(ctx context.Context, url, outputPath string, client *
 	return fmt.Errorf("download failed after %d retries: %w", maxRetries, lastErr)
 }
 
-func downloadAttempt(ctx context.Context, url, tempOutputPath string, client *utils.DanzoHTTPClient, progressCh chan<- int64) error {
+func downloadAttempt(ctx context.Context, url, tempOutputPath string, client *utils.DanzoHTTPClient, progressCh chan<- int64, reported *int64) error {
 	var resumeOffset int64 = 0
 	fileMode := os.O_CREATE | os.O_WRONLY
 	if fileInfo, err := os.Stat(tempOutputPath); err == nil {
@@ -70,18 +89,24 @@ func downloadAttempt(ctx context.Context, url, tempOutputPath string, client *ut
 	}
 	defer resp.Body.Close()
 
-	if resumeOffset > 0 {
-		if resp.StatusCode != http.StatusPartialContent {
-			outFile.Close()
-			outFile, err = os.OpenFile(tempOutputPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-			if err != nil {
-				return fmt.Errorf("error creating output file: %v", err)
-			}
-			resumeOffset = 0
-		} else {
-			progressCh <- resumeOffset
+	switch {
+	case resumeOffset > 0 && resp.StatusCode == http.StatusPartialContent:
+		// happy path: server is honoring the Range request
+	case resumeOffset > 0 && resp.StatusCode == http.StatusOK:
+		// server ignored Range and is sending the whole body; restart fresh
+		outFile.Close()
+		outFile, err = os.OpenFile(tempOutputPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			return fmt.Errorf("error creating output file: %v", err)
 		}
-	} else if resp.StatusCode != http.StatusOK {
+		if *reported > 0 {
+			progressCh <- -*reported
+			*reported = 0
+		}
+		resumeOffset = 0
+	case resumeOffset == 0 && resp.StatusCode == http.StatusOK:
+		// fresh download
+	default:
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 	buffer := make([]byte, utils.DefaultBufferSize)
@@ -97,6 +122,7 @@ func downloadAttempt(ctx context.Context, url, tempOutputPath string, client *ut
 			if writeErr != nil {
 				return fmt.Errorf("error writing to output file: %v", writeErr)
 			}
+			*reported += int64(bytesRead)
 			progressCh <- int64(bytesRead)
 		}
 		if readErr != nil {
