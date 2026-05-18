@@ -35,4 +35,4 @@ download.yaml
 .danzo-resume-state.json
 danzo-gdrive.json
 
-.agents
+.agents.torrent.db*

@@ -96,4 +96,5 @@ func init() {
 	rootCmd.AddCommand(newGDriveCmd())
 	rootCmd.AddCommand(newResumeCmd())
 	rootCmd.AddCommand(newYtdlpCmd())
+	rootCmd.AddCommand(newTorrentCmd())
 }
