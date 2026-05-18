@@ -1,14 +1,11 @@
-# Danzo
+<div align="center">
+  <img src=".github/assets/logo.svg" alt="Danzo Logo" width="300">
+  <h1>Danzo</h1>
 
-     
-  
-
-  A cross-platform and cross-architecture all-in-one CLI download utility designed for multi-threaded downloads, unique progress tracking, and an intuitive command structure.Just like Danzo collected powers through multiple "sources" ;) in Naruto, this tool uses multiple connections to supercharge downloads.  
-
-  [Capabilities](#capabilities) &bull; [Installation](#installation) &bull; [Usage](#usage) &bull; [Tips & Notes](#tips-and-notes)  
-
-
-
+  <a href="https://github.com/tanq16/danzo/actions/workflows/release.yaml"><img alt="Release" src="https://github.com/tanq16/danzo/actions/workflows/release.yaml/badge.svg"></a> <a href="https://github.com/Tanq16/danzo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/danzo"></a><br><br>
+  <p>A cross-platform and cross-architecture all-in-one CLI download utility designed for multi-threaded downloads, unique progress tracking, and an intuitive command structure.</p><p>Just like Danzo collected powers through multiple "sources" ;) in Naruto, this tool uses multiple connections to supercharge downloads.</p><br>
+  <a href="#capabilities">Capabilities</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a><br>
+</div>
 
 ---
 
