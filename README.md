@@ -1,11 +1,14 @@
-<div align="center">
-  <img src=".github/assets/logo.svg" alt="Danzo Logo" width="300">
-  <h1>Danzo</h1>
+# Danzo
 
-  <a href="https://github.com/tanq16/danzo/actions/workflows/release.yaml"><img alt="Release" src="https://github.com/tanq16/danzo/actions/workflows/release.yaml/badge.svg"></a> <a href="https://github.com/Tanq16/danzo/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/tanq16/danzo"></a><br><br>
-  <p>A cross-platform and cross-architecture all-in-one CLI download utility designed for multi-threaded downloads, unique progress tracking, and an intuitive command structure.</p><p>Just like Danzo collected powers through multiple "sources" ;) in Naruto, this tool uses multiple connections to supercharge downloads.</p><br>
-  <a href="#capabilities">Capabilities</a> &bull; <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#tips-and-notes">Tips & Notes</a><br>
-</div>
+     
+  
+
+  A cross-platform and cross-architecture all-in-one CLI download utility designed for multi-threaded downloads, unique progress tracking, and an intuitive command structure.Just like Danzo collected powers through multiple "sources" ;) in Naruto, this tool uses multiple connections to supercharge downloads.  
+
+  [Capabilities](#capabilities) &bull; [Installation](#installation) &bull; [Usage](#usage) &bull; [Tips & Notes](#tips-and-notes)  
+
+
+
 
 ---
 
@@ -15,17 +18,19 @@ This section gives a quick peek at the capabilities and the extremely simple com
 
 The primary downloaders and their supported aliases are as follows:
 
-| Command | Aliases (Shorthands) | Description |
-| --- | --- | --- |
-| `http` | - | Multi-chunked or linear downloads for general HTTP(S) sources |
-| `live-stream` | `hls`, `m3u8`, `livestream`, `stream` | Download a live stream format video (playlist.m3u8 files) with multi-threading and extractor support for multiple sites |
-| `git-clone` | `gitclone`, `gitc`, `git`, `clone` | Clone a git repository with SSH/token authentication |
-| `github-release` | `ghrelease`, `ghr` | Download a platform-correct release asset for a GitHub repo |
-| `google-drive` | `gdrive`, `gd`, `drive` | Download file/folder from Google drive with API key or OAuth flow authentication |
-| `s3` | - | Multi-threaded download for object, directory, or full AWS S3 bucket |
-| `ytdlp` | `yt-dlp`, `youtube-dl`, `ytdl` | Wraps the `yt-dlp` binary for sites Danzo doesn't natively support (YouTube, etc.) |
-| `resume` | - | Resume downloads from saved interrupted job state |
-| `clean` | - | Clear local cache for interrupted/incomplete downloads |
+
+| Command          | Aliases (Shorthands)                  | Description                                                                                                             |
+| ---------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `http`           | -                                     | Multi-chunked or linear downloads for general HTTP(S) sources                                                           |
+| `live-stream`    | `hls`, `m3u8`, `livestream`, `stream` | Download a live stream format video (playlist.m3u8 files) with multi-threading and extractor support for multiple sites |
+| `git-clone`      | `gitclone`, `gitc`, `git`, `clone`    | Clone a git repository with SSH/token authentication                                                                    |
+| `github-release` | `ghrelease`, `ghr`                    | Download a platform-correct release asset for a GitHub repo                                                             |
+| `google-drive`   | `gdrive`, `gd`, `drive`               | Download file/folder from Google drive with API key or OAuth flow authentication                                        |
+| `s3`             | -                                     | Multi-threaded download for object, directory, or full AWS S3 bucket                                                    |
+| `ytdlp`          | `yt-dlp`, `youtube-dl`, `ytdl`        | Wraps the `yt-dlp` binary for sites Danzo doesn't natively support (YouTube, etc.)                                      |
+| `resume`         | -                                     | Resume downloads from saved interrupted job state                                                                       |
+| `clean`          | -                                     | Clear local cache for interrupted/incomplete downloads                                                                  |
+
 
 Following are examples to get started with various flags:
 
@@ -66,8 +71,8 @@ Following are examples to get started with various flags:
   ```
 - Download via `yt-dlp` (for sites Danzo doesn't natively support, like YouTube)
   ```bash
-  danzo ytdlp "https://www.youtube.com/watch?v=jNQXAC9IVRw" -o me-at-the-zoo.mp4
-  danzo ytdlp "https://vimeo.com/22439234" # (default yt-dlp output template)
+  danzo ytdlp "https://www.youtube.com/watch?v=VizjMEe0agI" -o marigold.mp4
+  danzo ytdlp "https://vimeo.com/173855964" # (default yt-dlp output template)
   ```
 
 ## Installation
@@ -140,8 +145,7 @@ Follow these links to quickly jump to the relevant provider:
 
 ### HTTP(S) Downloads
 
-<details>
-<summary>Unfold to read</summary>
+Unfold to read
 
 The output filename will be inferred from the URL and Danzo will use 8 connection threads and 1 worker by default. You can also specify an output filename manually like:
 
@@ -183,12 +187,11 @@ danzo clean
 
 > ✦ Failed chunks are automatically retried up to 5 times before failing the entire file. Additionally, Danzo automatically runs a clean for a download event once it is successful.
 
-</details>
+
 
 ### Google Drive Downloads
 
-<details>
-<summary>Unfold to read</summary>
+Unfold to read
 
 Downloading a file from a Drive URL requires authentication, which Danzo supports in 2 ways:
 
@@ -226,12 +229,11 @@ danzo gdrive "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link" --c
 
 > ✎ Users who have never logged into GCP may be required to create a new GCP Project. This is normal and doesn't cost anything.
 
-</details>
+
 
 ### M3U8 Stream Downloads
 
-<details>
-<summary>Unfold to read</summary>
+Unfold to read
 
 Danzo supports downloading streamed content from M3U8 manifests. This is commonly used for video streaming services, live broadcasts, and VOD content.
 
@@ -256,12 +258,11 @@ danzo hls "https://www.dailymotion.com/video/a999aas" -e dailymotion
 danzo hls "https://dai.ly/a999aas" -e dailymotion
 ```
 
-</details>
+
 
 ### AWS S3 Downloads
 
-<details>
-<summary>Unfold to read</summary>
+Unfold to read
 
 There are 2 ways of downloading objects from S3:
 
@@ -287,12 +288,11 @@ AWS session profiles are used to allow for flexibility and ease of access. As a 
 
 > ✎ For S3 downloads, the `connections` flag determines how many objects will be downloaded in parallel if downloading a folder.
 
-</details>
+
 
 ### GitHub Release Downloads
 
-<details>
-<summary>Unfold to read</summary>
+Unfold to read
 
 It is often a task to download GitHub project releases because it requires figuring out the exact name of the asset file based on the OS and architecture of the machine. Danzo simplifies this process and only requires you to provide the owner and the project name. It uses that to automatically identify the correct latest release for its host's architecture and OS.
 
@@ -309,12 +309,11 @@ If the user selection process needs to be manually kicked off, use Danzo like so
 danzo ghrelease "owner/repo" --manual
 ```
 
-</details>
+
 
 ### Git Repository Cloning
 
-<details>
-<summary>Unfold to read</summary>
+Unfold to read
 
 Danzo can clone repositores sourced by various providers. While this is not particularly an expensive operation to run using just `git clone`, it serves to provide ease of setup when setting up a remote server with a large number of files as downloads and clones.
 
@@ -352,12 +351,11 @@ danzo gitclone github.com/tanq16/private --ssh "/secrets/gh-ssh.key"
 
 > ✎ Repository cloning is another download provider that does not use `-c` or number of connections.
 
-</details>
+
 
 ### yt-dlp Downloads
 
-<details>
-<summary>Unfold to read</summary>
+Unfold to read
 
 For sites Danzo doesn't natively support (YouTube, Vimeo with audio, etc.), the `ytdlp` command wraps the `yt-dlp` binary and streams its progress into the Danzo TUI so it looks and behaves like every other Danzo job.
 
@@ -379,7 +377,7 @@ The wrapper:
 
 > ✎ This is intentionally a thin wrapper - any flags beyond `--output/-o` should be configured on the `yt-dlp` side (e.g., via its `--config-location`).
 
-</details>
+
 
 ## Tips and Notes
 
