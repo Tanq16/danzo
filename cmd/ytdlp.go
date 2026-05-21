@@ -12,7 +12,9 @@ import (
 )
 
 var ytdlpFlags struct {
-	outputPath string
+	outputPath         string
+	cookies            string
+	cookiesFromBrowser string
 }
 
 var ytdlpCmd = &cobra.Command{
@@ -28,7 +30,7 @@ var ytdlpCmd = &cobra.Command{
 
 		disp := display.New(display.DefaultConfig())
 
-		job := ytdlpjob.New(args[0], ytdlpFlags.outputPath, globalHTTPConfig)
+		job := ytdlpjob.New(args[0], ytdlpFlags.outputPath, ytdlpFlags.cookies, ytdlpFlags.cookiesFromBrowser, globalHTTPConfig)
 		disp.RegisterJob(job.ID())
 		hw.Submit(job)
 
@@ -48,4 +50,6 @@ func newYtdlpCmd() *cobra.Command {
 
 func init() {
 	ytdlpCmd.Flags().StringVarP(&ytdlpFlags.outputPath, "output", "o", "", "Output path for the download")
+	ytdlpCmd.Flags().StringVar(&ytdlpFlags.cookies, "cookies", "", "File name to read cookies from")
+	ytdlpCmd.Flags().StringVar(&ytdlpFlags.cookiesFromBrowser, "cookies-from-browser", "", "Browser name to load cookies from (e.g. chrome, firefox)")
 }

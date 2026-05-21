@@ -189,16 +189,16 @@ func TestLastErrorLinePrefersErrorPrefixOverTrailingNoise(t *testing.T) {
 }
 
 func TestIDFallsBackToURLWhenOutputPathIsEmpty(t *testing.T) {
-	if id := New("https://example.com/v.mp4", "", utils.HTTPClientConfig{}).ID(); id != "https://example.com/v.mp4" {
+	if id := New("https://example.com/v.mp4", "", "", "", utils.HTTPClientConfig{}).ID(); id != "https://example.com/v.mp4" {
 		t.Errorf("empty OutputPath: got %q want URL", id)
 	}
-	if id := New("https://example.com/v.mp4", "vid.mp4", utils.HTTPClientConfig{}).ID(); id != "vid.mp4" {
+	if id := New("https://example.com/v.mp4", "vid.mp4", "", "", utils.HTTPClientConfig{}).ID(); id != "vid.mp4" {
 		t.Errorf("OutputPath set: got %q want %q", id, "vid.mp4")
 	}
 }
 
 func TestMarshalUnmarshalRoundTrip(t *testing.T) {
-	src := New("https://example.com/v.mp4", "out/vid.mp4", utils.HTTPClientConfig{
+	src := New("https://example.com/v.mp4", "out/vid.mp4", "cookies.txt", "chrome", utils.HTTPClientConfig{
 		ProxyURL:  "http://proxy:8080",
 		UserAgent: "TestUA",
 		Headers:   map[string]string{"X-Test": "value"},
@@ -215,7 +215,7 @@ func TestMarshalUnmarshalRoundTrip(t *testing.T) {
 	if !ok {
 		t.Fatalf("unmarshal returned wrong type: %T", got)
 	}
-	if job.URL != src.URL || job.OutputPath != src.OutputPath {
+	if job.URL != src.URL || job.OutputPath != src.OutputPath || job.Cookies != src.Cookies || job.CookiesFromBrowser != src.CookiesFromBrowser {
 		t.Errorf("round trip mismatch: got %+v want %+v", job, src)
 	}
 	if job.HTTPConfig.ProxyURL != src.HTTPConfig.ProxyURL || job.HTTPConfig.UserAgent != src.HTTPConfig.UserAgent || job.HTTPConfig.Headers["X-Test"] != "value" {
@@ -239,7 +239,7 @@ exit 1
 	defer swap()
 
 	progressCh := make(chan highway.Progress, 8)
-	job := New("https://example.com/bad", filepath.Join(t.TempDir(), "out.mp4"), utils.HTTPClientConfig{})
+	job := New("https://example.com/bad", filepath.Join(t.TempDir(), "out.mp4"), "", "", utils.HTTPClientConfig{})
 	err := job.Run(context.Background(), progressCh)
 	close(progressCh)
 	if err == nil {
@@ -278,7 +278,7 @@ exit 0
 
 	progressCh := make(chan highway.Progress, 16)
 	outPath := filepath.Join(t.TempDir(), "out.mp4")
-	job := New("https://example.com/ok", outPath, utils.HTTPClientConfig{})
+	job := New("https://example.com/ok", outPath, "", "", utils.HTTPClientConfig{})
 	if err := job.Run(context.Background(), progressCh); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -320,7 +320,7 @@ exit 0
 		t.Fatalf("seed file: %v", err)
 	}
 
-	job := New("https://example.com/v", outPath, utils.HTTPClientConfig{})
+	job := New("https://example.com/v", outPath, "", "", utils.HTTPClientConfig{})
 	progressCh := make(chan highway.Progress, 8)
 	if err := job.Run(context.Background(), progressCh); err != nil {
 		t.Fatalf("Run: %v", err)
@@ -338,7 +338,7 @@ func TestRunReportsStartupErrorWhenBinaryMissing(t *testing.T) {
 	defer swap()
 
 	progressCh := make(chan highway.Progress, 4)
-	job := New("https://example.com/v", filepath.Join(t.TempDir(), "x.mp4"), utils.HTTPClientConfig{})
+	job := New("https://example.com/v", filepath.Join(t.TempDir(), "x.mp4"), "", "", utils.HTTPClientConfig{})
 	err := job.Run(context.Background(), progressCh)
 	close(progressCh)
 

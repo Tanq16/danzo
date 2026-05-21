@@ -31,6 +31,53 @@ var assetSelectMapFallback = map[string][]string{
 	"darwinarm64":  {"darwin", "apple", "arm", "arm64"},
 }
 
+func getOSArchKeywords() ([]string, []string) {
+	var osKeys, archKeys []string
+	switch runtime.GOOS {
+	case "linux":
+		osKeys = []string{"linux", "gnu"}
+	case "windows":
+		osKeys = []string{"windows", "win", ".exe"}
+	case "darwin":
+		osKeys = []string{"darwin", "mac", "apple", "osx"}
+	}
+	switch runtime.GOARCH {
+	case "amd64":
+		archKeys = []string{"amd64", "x86_64", "x86-64", "x64", "64-bit", "64bit"}
+	case "arm64":
+		archKeys = []string{"arm64", "aarch64"}
+	}
+	return osKeys, archKeys
+}
+
+func getConflictingKeywords() []string {
+	var conflicts []string
+	if runtime.GOOS != "linux" {
+		conflicts = append(conflicts, "linux", "gnu")
+	}
+	if runtime.GOOS != "windows" {
+		conflicts = append(conflicts, "windows", "win", ".exe")
+	}
+	if runtime.GOOS != "darwin" {
+		conflicts = append(conflicts, "darwin", "mac", "apple", "osx")
+	}
+
+	if runtime.GOARCH != "amd64" {
+		conflicts = append(conflicts, "amd64", "x86_64", "x86-64", "x64")
+	}
+	if runtime.GOARCH != "arm64" {
+		conflicts = append(conflicts, "arm64", "aarch64")
+	}
+	if runtime.GOARCH != "386" {
+		conflicts = append(conflicts, "i386", "386", "x86_32", "x86-32")
+	}
+	if runtime.GOARCH != "arm" {
+		conflicts = append(conflicts, "armv6", "armv7", "arm32")
+	}
+
+	return conflicts
+}
+
 var repoPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/]+)/?.*$`),
 	regexp.MustCompile(`^github\.com/([^/]+)/([^/]+)/?.*$`),
@@ -143,5 +190,65 @@ func selectGitHubLatestAsset(assets []map[string]any) (string, int64, error) {
 			}
 		}
 	}
+
+	osKeys, archKeys := getOSArchKeywords()
+	conflicts := getConflictingKeywords()
+
+	bestScore := -1000
+	var bestURL string
+	var bestSize int64
+
+	for _, asset := range assets {
+		assetName, _ := asset["name"].(string)
+		assetNameLower := strings.ToLower(assetName)
+
+		isIgnored := false
+		for _, ignored := range ignoredAssets {
+			if strings.Contains(assetNameLower, ignored) {
+				isIgnored = true
+				break
+			}
+		}
+		if isIgnored {
+			continue
+		}
+
+		score := 0
+
+		for _, key := range osKeys {
+			if strings.Contains(assetNameLower, key) {
+				score += 5
+				break
+			}
+		}
+
+		for _, key := range archKeys {
+			if strings.Contains(assetNameLower, key) {
+				score += 5
+				break
+			}
+		}
+
+		for _, key := range conflicts {
+			if strings.Contains(assetNameLower, key) {
+				score -= 100
+			}
+		}
+
+		if strings.HasSuffix(assetNameLower, ".tar.gz") || strings.HasSuffix(assetNameLower, ".zip") {
+			score += 1
+		}
+
+		if score > bestScore {
+			bestScore = score
+			bestURL, _ = asset["browser_download_url"].(string)
+			bestSize = int64(asset["size"].(float64))
+		}
+	}
+
+	if bestScore > 0 && bestURL != "" {
+		return bestURL, bestSize, nil
+	}
+
 	return "", 0, nil
 }

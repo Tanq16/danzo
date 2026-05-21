@@ -31,22 +31,26 @@ type YTDLPProgress struct {
 }
 
 type YTDLPJob struct {
-	id         string
-	URL        string
-	OutputPath string
-	HTTPConfig utils.HTTPClientConfig
+	id                 string
+	URL                string
+	OutputPath         string
+	Cookies            string
+	CookiesFromBrowser string
+	HTTPConfig         utils.HTTPClientConfig
 }
 
-func New(url, outputPath string, httpConfig utils.HTTPClientConfig) *YTDLPJob {
+func New(url, outputPath, cookies, cookiesFromBrowser string, httpConfig utils.HTTPClientConfig) *YTDLPJob {
 	id := outputPath
 	if id == "" {
 		id = url
 	}
 	return &YTDLPJob{
-		id:         id,
-		URL:        url,
-		OutputPath: outputPath,
-		HTTPConfig: httpConfig,
+		id:                 id,
+		URL:                url,
+		OutputPath:         outputPath,
+		Cookies:            cookies,
+		CookiesFromBrowser: cookiesFromBrowser,
+		HTTPConfig:         httpConfig,
 	}
 }
 
@@ -66,6 +70,12 @@ func (j *YTDLPJob) Run(ctx context.Context, prog chan<- highway.Progress) error 
 	args := []string{j.URL, "--newline", "--progress-template", progressTemplate}
 	if j.OutputPath != "" {
 		args = append(args, "-o", j.OutputPath)
+	}
+	if j.Cookies != "" {
+		args = append(args, "--cookies", j.Cookies)
+	}
+	if j.CookiesFromBrowser != "" {
+		args = append(args, "--cookies-from-browser", j.CookiesFromBrowser)
 	}
 	if j.HTTPConfig.ProxyURL != "" {
 		args = append(args, "--proxy", j.HTTPConfig.ProxyURL)
@@ -201,20 +211,24 @@ func parseFloatOrInt(s string) (int64, error) {
 }
 
 type ytdlpJobState struct {
-	URL        string            `json:"url"`
-	OutputPath string            `json:"outputPath"`
-	ProxyURL   string            `json:"proxyURL,omitempty"`
-	UserAgent  string            `json:"userAgent,omitempty"`
-	Headers    map[string]string `json:"headers,omitempty"`
+	URL                string            `json:"url"`
+	OutputPath         string            `json:"outputPath"`
+	Cookies            string            `json:"cookies,omitempty"`
+	CookiesFromBrowser string            `json:"cookiesFromBrowser,omitempty"`
+	ProxyURL           string            `json:"proxyURL,omitempty"`
+	UserAgent          string            `json:"userAgent,omitempty"`
+	Headers            map[string]string `json:"headers,omitempty"`
 }
 
 func (j *YTDLPJob) Marshal() ([]byte, error) {
 	return json.Marshal(ytdlpJobState{
-		URL:        j.URL,
-		OutputPath: j.OutputPath,
-		ProxyURL:   j.HTTPConfig.ProxyURL,
-		UserAgent:  j.HTTPConfig.UserAgent,
-		Headers:    j.HTTPConfig.Headers,
+		URL:                j.URL,
+		OutputPath:         j.OutputPath,
+		Cookies:            j.Cookies,
+		CookiesFromBrowser: j.CookiesFromBrowser,
+		ProxyURL:           j.HTTPConfig.ProxyURL,
+		UserAgent:          j.HTTPConfig.UserAgent,
+		Headers:            j.HTTPConfig.Headers,
 	})
 }
 
@@ -223,7 +237,7 @@ func Unmarshal(data []byte) (highway.Job, error) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return nil, err
 	}
-	return New(state.URL, state.OutputPath, utils.HTTPClientConfig{
+	return New(state.URL, state.OutputPath, state.Cookies, state.CookiesFromBrowser, utils.HTTPClientConfig{
 		ProxyURL:  state.ProxyURL,
 		UserAgent: state.UserAgent,
 		Headers:   state.Headers,
