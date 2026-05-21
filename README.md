@@ -23,6 +23,7 @@ The primary downloaders and their supported aliases are as follows:
 | `github-release` | `ghrelease`, `ghr`                    | Download a platform-correct release asset for a GitHub repo                                                             |
 | `s3`             | -                                     | Multi-threaded download for object, directory, or full AWS S3 bucket                                                    |
 | `ytdlp`          | `yt-dlp`, `youtube-dl`, `ytdl`        | Wraps the `yt-dlp` binary for sites Danzo doesn't natively support (YouTube, etc.)                                      |
+| `torrent`        | -                                     | Download file or directory via BitTorrent or Magnet link                                                                |
 | `resume`         | -                                     | Resume downloads from saved interrupted job state                                                                       |
 | `clean`          | -                                     | Clear local cache for interrupted/incomplete downloads                                                                  |
 | `batch`          | -                                     | Download multiple resources of different types in batch from a file or stdin                                            |
@@ -57,6 +58,11 @@ Following are examples to get started with various flags:
   ```bash
   danzo ytdlp "https://www.youtube.com/watch?v=VizjMEe0agI" -o marigold.mp4
   danzo ytdlp "https://vimeo.com/173855964" # (default yt-dlp output template)
+  ```
+- Download via BitTorrent or Magnet link
+  ```bash
+  danzo torrent "magnet:?xt=urn:btih:..." -o ./downloads/
+  danzo torrent "./ubuntu.torrent" -o ./iso/
   ```
 - Download multiple files in batch (mixed types in parallel)
   ```bash
@@ -130,6 +136,7 @@ Follow these links to quickly jump to the relevant provider:
 - [AWS S3 Downloads](#aws-s3-downloads)
 - [GitHub Release Downloads](#github-release-downloads)
 - [yt-dlp Downloads](#yt-dlp-downloads)
+- [Torrent Downloads](#torrent-downloads)
 - [Batch Downloads](#batch-downloads)
 
 ### HTTP(S) Downloads
@@ -288,6 +295,23 @@ The wrapper:
 - If the chosen output path already exists, falls back to `name-(1).ext` (same behavior as `http` / `git-clone`).
 
 > ✎ This is intentionally a thin wrapper - any flags beyond `--output/-o` should be configured on the `yt-dlp` side (e.g., via its `--config-location`).
+</details>
+
+### Torrent Downloads
+
+<details><summary>Unfold to read</summary>
+
+Danzo supports downloading files and folders from the BitTorrent network using either a `.torrent` file path, a magnet link, or a public torrent URL. It utilizes multi-peer downloading and displays detailed real-time statistics in the highway TUI display.
+
+```bash
+# Download using a magnet link
+danzo torrent "magnet:?xt=urn:btih:..." -o ./downloads/
+
+# Download using a local .torrent file
+danzo torrent "./ubuntu-24.04-desktop-amd64.torrent" -o ./iso/
+```
+
+> ✎ For Torrent downloads, the `-o` or `--output` flag specifies the target output directory where the files within the torrent will be saved.
 </details>
 
 ### Batch Downloads
