@@ -14,6 +14,7 @@ import (
 )
 
 type GHReleaseJob struct {
+	id            string
 	URL           string
 	OutputPath    string
 	Manual        bool
@@ -32,7 +33,12 @@ type ghReleaseJobState struct {
 }
 
 func New(url, outputPath string, manual bool, httpConfig utils.HTTPClientConfig) *GHReleaseJob {
+	id := outputPath
+	if id == "" {
+		id = url
+	}
 	return &GHReleaseJob{
+		id:         id,
 		URL:        url,
 		OutputPath: outputPath,
 		Manual:     manual,
@@ -41,10 +47,7 @@ func New(url, outputPath string, manual bool, httpConfig utils.HTTPClientConfig)
 }
 
 func (j *GHReleaseJob) ID() string {
-	if j.OutputPath != "" {
-		return j.OutputPath
-	}
-	return j.URL
+	return j.id
 }
 
 func (j *GHReleaseJob) Type() string { return "github-release" }

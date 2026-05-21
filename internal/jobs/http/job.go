@@ -46,6 +46,7 @@ type HTTPDownloadJob struct {
 }
 
 type HTTPJob struct {
+	id          string
 	URL         string
 	OutputPath  string
 	Connections int
@@ -62,7 +63,12 @@ type httpJobState struct {
 }
 
 func New(url, outputPath string, connections int, httpConfig utils.HTTPClientConfig) *HTTPJob {
+	id := outputPath
+	if id == "" {
+		id = url
+	}
 	return &HTTPJob{
+		id:          id,
 		URL:         url,
 		OutputPath:  outputPath,
 		Connections: connections,
@@ -71,19 +77,7 @@ func New(url, outputPath string, connections int, httpConfig utils.HTTPClientCon
 }
 
 func (j *HTTPJob) ID() string {
-	if j.OutputPath != "" {
-		return j.OutputPath
-	}
-	parsedURL, err := url.Parse(j.URL)
-	if err != nil {
-		return j.URL
-	}
-	parts := strings.Split(parsedURL.Path, "/")
-	name := parts[len(parts)-1]
-	if name == "" {
-		return j.URL
-	}
-	return name
+	return j.id
 }
 
 func (j *HTTPJob) Type() string { return "http" }

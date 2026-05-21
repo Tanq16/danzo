@@ -15,6 +15,7 @@ import (
 )
 
 type GDriveJob struct {
+	id              string
 	URL             string
 	OutputPath      string
 	APIKey          string
@@ -35,7 +36,12 @@ type gdriveJobState struct {
 }
 
 func New(url, outputPath, apiKey, credentialsFile string, httpConfig utils.HTTPClientConfig) *GDriveJob {
+	id := outputPath
+	if id == "" {
+		id = url
+	}
 	return &GDriveJob{
+		id:              id,
 		URL:             url,
 		OutputPath:      outputPath,
 		APIKey:          apiKey,
@@ -45,10 +51,7 @@ func New(url, outputPath, apiKey, credentialsFile string, httpConfig utils.HTTPC
 }
 
 func (j *GDriveJob) ID() string {
-	if j.OutputPath != "" {
-		return j.OutputPath
-	}
-	return j.URL
+	return j.id
 }
 
 func (j *GDriveJob) Type() string { return "google-drive" }

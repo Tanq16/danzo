@@ -16,6 +16,7 @@ import (
 )
 
 type TorrentJob struct {
+	id          string
 	URI         string
 	OutputPath  string
 	Connections int
@@ -32,7 +33,16 @@ type torrentJobState struct {
 }
 
 func New(uri, outputPath string, connections int, httpConfig utils.HTTPClientConfig) *TorrentJob {
+	id := outputPath
+	if id == "" || id == "." {
+		if strings.HasPrefix(uri, "magnet:") {
+			id = "magnet-link"
+		} else {
+			id = filepath.Base(uri)
+		}
+	}
 	return &TorrentJob{
+		id:          id,
 		URI:         uri,
 		OutputPath:  outputPath,
 		Connections: connections,
@@ -41,13 +51,7 @@ func New(uri, outputPath string, connections int, httpConfig utils.HTTPClientCon
 }
 
 func (j *TorrentJob) ID() string {
-	if j.OutputPath != "" && j.OutputPath != "." {
-		return j.OutputPath
-	}
-	if strings.HasPrefix(j.URI, "magnet:") {
-		return "magnet-link"
-	}
-	return filepath.Base(j.URI)
+	return j.id
 }
 
 func (j *TorrentJob) Type() string { return "torrent" }

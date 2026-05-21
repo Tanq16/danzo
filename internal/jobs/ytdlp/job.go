@@ -31,13 +31,19 @@ type YTDLPProgress struct {
 }
 
 type YTDLPJob struct {
+	id         string
 	URL        string
 	OutputPath string
 	HTTPConfig utils.HTTPClientConfig
 }
 
 func New(url, outputPath string, httpConfig utils.HTTPClientConfig) *YTDLPJob {
+	id := outputPath
+	if id == "" {
+		id = url
+	}
 	return &YTDLPJob{
+		id:         id,
 		URL:        url,
 		OutputPath: outputPath,
 		HTTPConfig: httpConfig,
@@ -45,10 +51,7 @@ func New(url, outputPath string, httpConfig utils.HTTPClientConfig) *YTDLPJob {
 }
 
 func (j *YTDLPJob) ID() string {
-	if j.OutputPath != "" {
-		return j.OutputPath
-	}
-	return j.URL
+	return j.id
 }
 
 func (j *YTDLPJob) Type() string { return "ytdlp" }

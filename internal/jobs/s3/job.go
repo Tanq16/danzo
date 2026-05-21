@@ -14,6 +14,7 @@ import (
 )
 
 type S3Job struct {
+	id          string
 	URL         string
 	OutputPath  string
 	Connections int
@@ -28,7 +29,12 @@ type s3JobState struct {
 }
 
 func New(url, outputPath string, connections int, profile string) *S3Job {
+	id := outputPath
+	if id == "" {
+		id = url
+	}
 	return &S3Job{
+		id:          id,
 		URL:         url,
 		OutputPath:  outputPath,
 		Connections: connections,
@@ -37,10 +43,7 @@ func New(url, outputPath string, connections int, profile string) *S3Job {
 }
 
 func (j *S3Job) ID() string {
-	if j.OutputPath != "" {
-		return j.OutputPath
-	}
-	return j.URL
+	return j.id
 }
 
 func (j *S3Job) Type() string { return "s3" }

@@ -3,6 +3,8 @@ package ghrelease
 import (
 	"runtime"
 	"testing"
+
+	"github.com/tanq16/danzo/utils"
 )
 
 func TestParseGitHubURLAcceptsSupportedRepositoryForms(t *testing.T) {
@@ -62,5 +64,17 @@ func TestSelectGitHubLatestAssetIgnoresChecksumsAndMatchesRuntimePlatform(t *tes
 	}
 	if url != "https://example.com/danzo" || size != 42 {
 		t.Fatalf("expected platform asset, got url=%q size=%d", url, size)
+	}
+}
+
+func TestGHReleaseJobIDIsStable(t *testing.T) {
+	job := New("tanq16/danzo", "", false, utils.HTTPClientConfig{})
+	initialID := job.ID()
+	
+	// Simulate what happens in Run() when output path is resolved
+	job.OutputPath = "danzo_resolved.tar.gz"
+	
+	if job.ID() != initialID {
+		t.Fatalf("expected ID to be stable (%q), but got %q", initialID, job.ID())
 	}
 }

@@ -15,6 +15,7 @@ import (
 )
 
 type LiveStreamJob struct {
+	id          string
 	URL         string
 	OutputPath  string
 	Connections int
@@ -33,7 +34,12 @@ type liveStreamJobState struct {
 }
 
 func New(urlStr, outputPath string, connections int, extractor string, httpConfig utils.HTTPClientConfig) *LiveStreamJob {
+	id := outputPath
+	if id == "" {
+		id = urlStr
+	}
 	return &LiveStreamJob{
+		id:          id,
 		URL:         urlStr,
 		OutputPath:  outputPath,
 		Connections: connections,
@@ -43,10 +49,7 @@ func New(urlStr, outputPath string, connections int, extractor string, httpConfi
 }
 
 func (j *LiveStreamJob) ID() string {
-	if j.OutputPath != "" {
-		return j.OutputPath
-	}
-	return j.URL
+	return j.id
 }
 
 func (j *LiveStreamJob) Type() string { return "live-stream" }

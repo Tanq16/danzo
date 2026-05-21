@@ -14,6 +14,7 @@ import (
 )
 
 type GitCloneJob struct {
+	id         string
 	URL        string
 	OutputPath string
 	Depth      int
@@ -30,7 +31,12 @@ type gitCloneJobState struct {
 }
 
 func New(url, outputPath string, depth int, token, sshKey string) *GitCloneJob {
+	id := outputPath
+	if id == "" {
+		id = url
+	}
 	return &GitCloneJob{
+		id:         id,
 		URL:        url,
 		OutputPath: outputPath,
 		Depth:      depth,
@@ -40,10 +46,7 @@ func New(url, outputPath string, depth int, token, sshKey string) *GitCloneJob {
 }
 
 func (j *GitCloneJob) ID() string {
-	if j.OutputPath != "" {
-		return j.OutputPath
-	}
-	return j.URL
+	return j.id
 }
 
 func (j *GitCloneJob) Type() string { return "git-clone" }
