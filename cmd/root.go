@@ -95,4 +95,5 @@ func init() {
 	rootCmd.AddCommand(newResumeCmd())
 	rootCmd.AddCommand(newYtdlpCmd())
 	rootCmd.AddCommand(newTorrentCmd())
+	rootCmd.AddCommand(newBatchCmd())
 }
