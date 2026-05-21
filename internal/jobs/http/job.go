@@ -108,6 +108,7 @@ func (j *HTTPJob) Run(ctx context.Context, progress chan<- highway.Progress) err
 	}
 	resp.Body.Close()
 
+	headBlocked := false
 	if resp.StatusCode == http.StatusMovedPermanently || resp.StatusCode == http.StatusFound {
 		if location := resp.Header.Get("Location"); location != "" {
 			j.URL = location
@@ -115,12 +116,31 @@ func (j *HTTPJob) Run(ctx context.Context, progress chan<- highway.Progress) err
 	} else if resp.StatusCode == http.StatusNotFound {
 		return fmt.Errorf("URL not found (404)")
 	} else if resp.StatusCode >= 400 {
-		return fmt.Errorf("server returned error: %d", resp.StatusCode)
+		// Fallback: Some CDNs/hosts block HEAD requests (returning 403 or 405).
+		// Attempt a lightweight GET request with Range: bytes=0-0 to verify accessibility.
+		getReq, getErr := http.NewRequestWithContext(ctx, "GET", j.URL, nil)
+		if getErr != nil {
+			return fmt.Errorf("server returned error: %d", resp.StatusCode)
+		}
+		getReq.Header.Set("Range", "bytes=0-0")
+		getResp, getRespErr := client.Do(getReq)
+		if getRespErr != nil {
+			return fmt.Errorf("server returned error: %d", resp.StatusCode)
+		}
+		getResp.Body.Close()
+
+		if getResp.StatusCode >= 400 {
+			return fmt.Errorf("server returned error: %d (GET fallback returned: %d)", resp.StatusCode, getResp.StatusCode)
+		}
+		if getResp.Request != nil && getResp.Request.URL != nil {
+			j.URL = getResp.Request.URL.String()
+		}
+		headBlocked = true
 	}
 
 	j.HTTPConfig.HighThreadMode = j.Connections > 5
 	client = utils.NewDanzoHTTPClient(j.HTTPConfig)
-	fileSize, fileName, err := getFileInfo(ctx, j.URL, client)
+	fileSize, fileName, err := getFileInfo(ctx, j.URL, client, headBlocked)
 	rangeSupported := err != utils.ErrRangeRequestsNotSupported
 	if err != nil && err != utils.ErrRangeRequestsNotSupported {
 		return fmt.Errorf("error getting file info: %v", err)
@@ -233,16 +253,31 @@ func Unmarshal(data []byte) (highway.Job, error) {
 	}), nil
 }
 
-func getFileInfo(ctx context.Context, link string, client *utils.DanzoHTTPClient) (int64, string, error) {
-	req, err := http.NewRequestWithContext(ctx, "HEAD", link, nil)
-	if err != nil {
-		return 0, "", err
+func getFileInfo(ctx context.Context, link string, client *utils.DanzoHTTPClient, useGET bool) (int64, string, error) {
+	var resp *http.Response
+	var err error
+
+	if useGET {
+		// HEAD was blocked by the server; use a lightweight GET with Range: bytes=0-0
+		// to extract headers without downloading the entire file.
+		req, reqErr := http.NewRequestWithContext(ctx, "GET", link, nil)
+		if reqErr != nil {
+			return 0, "", reqErr
+		}
+		req.Header.Set("Range", "bytes=0-0")
+		resp, err = client.Do(req)
+	} else {
+		req, reqErr := http.NewRequestWithContext(ctx, "HEAD", link, nil)
+		if reqErr != nil {
+			return 0, "", reqErr
+		}
+		resp, err = client.Do(req)
 	}
-	resp, err := client.Do(req)
 	if err != nil {
 		return 0, "", err
 	}
 	defer resp.Body.Close()
+
 	filename := ""
 	filenameRegex := regexp.MustCompile(`[^a-zA-Z0-9_\-\. ]+`)
 	if contentDisposition := resp.Header.Get("Content-Disposition"); contentDisposition != "" {
@@ -257,16 +292,37 @@ func getFileInfo(ctx context.Context, link string, client *utils.DanzoHTTPClient
 			}
 		}
 	}
-	if resp.Header.Get("Accept-Ranges") != "bytes" {
+
+	acceptRanges := resp.Header.Get("Accept-Ranges")
+	// For GET Range:0-0, a 206 response proves range support even without the Accept-Ranges header.
+	rangeSupported := acceptRanges == "bytes" || (useGET && resp.StatusCode == http.StatusPartialContent)
+	if !rangeSupported {
 		return 0, filename, utils.ErrRangeRequestsNotSupported
 	}
-	contentLength := resp.Header.Get("Content-Length")
-	if contentLength == "" {
-		return 0, filename, errors.New("server didn't provide Content-Length header")
+
+	// Extract total file size: from Content-Range header (GET Range response) or Content-Length (HEAD).
+	var size int64
+	if contentRange := resp.Header.Get("Content-Range"); contentRange != "" {
+		// Content-Range: bytes 0-0/12345 — extract the total after the slash.
+		if idx := strings.LastIndex(contentRange, "/"); idx != -1 {
+			totalStr := contentRange[idx+1:]
+			if totalStr != "*" {
+				size, err = strconv.ParseInt(totalStr, 10, 64)
+				if err != nil {
+					return 0, filename, fmt.Errorf("invalid Content-Range total: %v", err)
+				}
+			}
+		}
 	}
-	size, err := strconv.ParseInt(contentLength, 10, 64)
-	if err != nil {
-		return 0, filename, err
+	if size <= 0 {
+		contentLength := resp.Header.Get("Content-Length")
+		if contentLength == "" {
+			return 0, filename, errors.New("server didn't provide Content-Length header")
+		}
+		size, err = strconv.ParseInt(contentLength, 10, 64)
+		if err != nil {
+			return 0, filename, err
+		}
 	}
 	if size <= 0 {
 		return 0, filename, errors.New("invalid file size reported by server")

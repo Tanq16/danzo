@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/tanq16/danzo/internal/highway"
 	"github.com/tanq16/danzo/utils"
 )
 
@@ -27,7 +28,7 @@ func TestGetFileInfoExtractsSafeFilenameAndSize(t *testing.T) {
 	}))
 	defer server.Close()
 
-	size, filename, err := getFileInfo(context.Background(), server.URL, utils.NewDanzoHTTPClient(utils.HTTPClientConfig{}))
+	size, filename, err := getFileInfo(context.Background(), server.URL, utils.NewDanzoHTTPClient(utils.HTTPClientConfig{}), false)
 	if err != nil {
 		t.Fatalf("get file info: %v", err)
 	}
@@ -46,7 +47,7 @@ func TestGetFileInfoSeparatesRangeSupportFromFilenameDiscovery(t *testing.T) {
 	}))
 	defer server.Close()
 
-	size, filename, err := getFileInfo(context.Background(), server.URL, utils.NewDanzoHTTPClient(utils.HTTPClientConfig{}))
+	size, filename, err := getFileInfo(context.Background(), server.URL, utils.NewDanzoHTTPClient(utils.HTTPClientConfig{}), false)
 	if !errors.Is(err, utils.ErrRangeRequestsNotSupported) {
 		t.Fatalf("expected range support error, got %v", err)
 	}
@@ -62,7 +63,7 @@ func TestGetFileInfoRejectsInvalidContentLength(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, _, err := getFileInfo(context.Background(), server.URL, utils.NewDanzoHTTPClient(utils.HTTPClientConfig{}))
+	_, _, err := getFileInfo(context.Background(), server.URL, utils.NewDanzoHTTPClient(utils.HTTPClientConfig{}), false)
 	if err == nil {
 		t.Fatalf("expected invalid content length error")
 	}
@@ -419,3 +420,67 @@ func TestChunkedDownloadTreatsCompletedPartialFileAsProgress(t *testing.T) {
 		t.Fatalf("expected resumed progress 5, got %d", got)
 	}
 }
+
+func TestHTTPJobHEADFailureGETFallback(t *testing.T) {
+	var headCalled, getCheckCalled, getDownloadCalled bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			headCalled = true
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if r.Method == http.MethodGet {
+			rangeHdr := r.Header.Get("Range")
+			if rangeHdr == "bytes=0-0" {
+				getCheckCalled = true
+				w.Header().Set("Accept-Ranges", "bytes")
+				w.Header().Set("Content-Length", "1")
+				w.Header().Set("Content-Range", "bytes 0-0/5")
+				w.WriteHeader(http.StatusPartialContent)
+				_, _ = w.Write([]byte("h"))
+				return
+			}
+			getDownloadCalled = true
+			w.Header().Set("Content-Length", "5")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("hello"))
+			return
+		}
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	outputPath := filepath.Join(dir, "output.txt")
+	job := New(server.URL, outputPath, 4, utils.HTTPClientConfig{})
+	progressCh := make(chan highway.Progress, 100)
+
+	go func() {
+		for range progressCh {
+		}
+	}()
+
+	err := job.Run(context.Background(), progressCh)
+	close(progressCh)
+	if err != nil {
+		t.Fatalf("expected job to succeed with GET fallback, got error: %v", err)
+	}
+
+	if !headCalled {
+		t.Error("expected initial HEAD request to be attempted")
+	}
+	if !getCheckCalled {
+		t.Error("expected GET check fallback to be attempted")
+	}
+	if !getDownloadCalled {
+		t.Error("expected GET download request to be executed")
+	}
+
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "hello" {
+		t.Fatalf("expected downloaded content to be 'hello', got %q", string(data))
+	}
+}
+

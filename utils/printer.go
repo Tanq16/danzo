@@ -158,6 +158,9 @@ func ClearPreviousLine() {
 }
 
 func PrintProgress(label string, percent int) {
+	if percent < 0 {
+		percent = 0
+	}
 	if percent > 100 {
 		percent = 100
 	}

@@ -115,14 +115,16 @@ func listFolderContents(ctx context.Context, folderID, token string, client *uti
 		if err != nil {
 			return nil, err
 		}
-		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
 			return nil, fmt.Errorf("failed to list folder contents: %d", resp.StatusCode)
 		}
 
 		var result map[string]any
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			return nil, err
+		decodeErr := json.NewDecoder(resp.Body).Decode(&result)
+		resp.Body.Close()
+		if decodeErr != nil {
+			return nil, decodeErr
 		}
 		if items, ok := result["files"].([]any); ok {
 			for _, item := range items {
