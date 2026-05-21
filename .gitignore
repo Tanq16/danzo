@@ -13,6 +13,7 @@ dist/
 # IDE
 .idea/
 .vscode/
+.agents/
 *.swp
 *.swo
 

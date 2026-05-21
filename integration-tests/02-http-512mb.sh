@@ -8,14 +8,26 @@ set -euo pipefail
 
 readonly DEST="${DANZO_TEST_DEST:-/mnt/usbdrive/danzo-tests}"
 readonly DANZO_BIN="${DANZO:-danzo}"
-readonly URL="https://download.thinkbroadband.com/512MB.zip"
-readonly OUT_NAME="512mb-thinkbroadband.zip"
+readonly TEST_SIZE="${DANZO_HTTP_SIZE:-50MB}" # e.g. 5MB, 10MB, 50MB, 100MB, 512MB
+readonly URL="https://download.thinkbroadband.com/${TEST_SIZE}.zip"
+readonly OUT_NAME="${TEST_SIZE}-thinkbroadband.zip"
 
 mkdir -p "$DEST"
 
-echo "==> http integration: large binary (~512 MB)"
+echo "==> http integration: static file (${TEST_SIZE})"
 echo "    URL:  $URL"
 echo "    dest: $DEST/$OUT_NAME"
-echo "    (this will take a while depending on bandwidth)"
+echo "    (size is configurable via DANZO_HTTP_SIZE, default 50MB)"
 "$DANZO_BIN" http "$URL" -o "$DEST/$OUT_NAME"
+
+# Verify the file was downloaded successfully and is not empty
+if [ -f "$DEST/$OUT_NAME" ] && [ -s "$DEST/$OUT_NAME" ]; then
+    echo "==> Success: File downloaded successfully to $DEST/$OUT_NAME"
+    ls -lh "$DEST/$OUT_NAME"
+else
+    echo "==> Error: Download failed or file is empty!"
+    exit 1
+fi
+
 echo "==> done"
+

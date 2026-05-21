@@ -33,12 +33,14 @@ type YTDLPProgress struct {
 type YTDLPJob struct {
 	URL        string
 	OutputPath string
+	HTTPConfig utils.HTTPClientConfig
 }
 
-func New(url, outputPath string) *YTDLPJob {
+func New(url, outputPath string, httpConfig utils.HTTPClientConfig) *YTDLPJob {
 	return &YTDLPJob{
 		URL:        url,
 		OutputPath: outputPath,
+		HTTPConfig: httpConfig,
 	}
 }
 
@@ -61,6 +63,15 @@ func (j *YTDLPJob) Run(ctx context.Context, prog chan<- highway.Progress) error 
 	args := []string{j.URL, "--newline", "--progress-template", progressTemplate}
 	if j.OutputPath != "" {
 		args = append(args, "-o", j.OutputPath)
+	}
+	if j.HTTPConfig.ProxyURL != "" {
+		args = append(args, "--proxy", j.HTTPConfig.ProxyURL)
+	}
+	if j.HTTPConfig.UserAgent != "" {
+		args = append(args, "--user-agent", j.HTTPConfig.UserAgent)
+	}
+	for k, v := range j.HTTPConfig.Headers {
+		args = append(args, "--add-header", fmt.Sprintf("%s:%s", k, v))
 	}
 
 	cmd := exec.CommandContext(ctx, ytdlpBinary, args...)
@@ -165,12 +176,12 @@ func parseProgressJSON(s string) (current, total int64, ok bool) {
 	if err := json.Unmarshal([]byte(s), &p); err != nil {
 		return 0, 0, false
 	}
-	current, _ = strconv.ParseInt(p.DownloadedBytes, 10, 64)
+	current, _ = parseFloatOrInt(p.DownloadedBytes)
 	switch {
 	case p.TotalBytes != "" && p.TotalBytes != "NA":
-		total, _ = strconv.ParseInt(p.TotalBytes, 10, 64)
+		total, _ = parseFloatOrInt(p.TotalBytes)
 	case p.TotalBytesEst != "" && p.TotalBytesEst != "NA":
-		total, _ = strconv.ParseInt(p.TotalBytesEst, 10, 64)
+		total, _ = parseFloatOrInt(p.TotalBytesEst)
 	}
 	if total <= 0 {
 		return 0, 0, false
@@ -178,15 +189,29 @@ func parseProgressJSON(s string) (current, total int64, ok bool) {
 	return current, total, true
 }
 
+func parseFloatOrInt(s string) (int64, error) {
+	val, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, err
+	}
+	return int64(val), nil
+}
+
 type ytdlpJobState struct {
-	URL        string `json:"url"`
-	OutputPath string `json:"outputPath"`
+	URL        string            `json:"url"`
+	OutputPath string            `json:"outputPath"`
+	ProxyURL   string            `json:"proxyURL,omitempty"`
+	UserAgent  string            `json:"userAgent,omitempty"`
+	Headers    map[string]string `json:"headers,omitempty"`
 }
 
 func (j *YTDLPJob) Marshal() ([]byte, error) {
 	return json.Marshal(ytdlpJobState{
 		URL:        j.URL,
 		OutputPath: j.OutputPath,
+		ProxyURL:   j.HTTPConfig.ProxyURL,
+		UserAgent:  j.HTTPConfig.UserAgent,
+		Headers:    j.HTTPConfig.Headers,
 	})
 }
 
@@ -195,5 +220,9 @@ func Unmarshal(data []byte) (highway.Job, error) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return nil, err
 	}
-	return New(state.URL, state.OutputPath), nil
+	return New(state.URL, state.OutputPath, utils.HTTPClientConfig{
+		ProxyURL:  state.ProxyURL,
+		UserAgent: state.UserAgent,
+		Headers:   state.Headers,
+	}), nil
 }

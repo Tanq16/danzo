@@ -359,8 +359,21 @@ func (d *Display) buildDisplay() []string {
 			}
 
 			pct := float64(job.Current) / float64(job.Total)
+			if pct < 0 {
+				pct = 0
+			} else if pct > 1 {
+				pct = 1
+			}
 			filled := int(pct * float64(progressWidth))
+			if filled < 0 {
+				filled = 0
+			} else if filled > progressWidth {
+				filled = progressWidth
+			}
 			empty := progressWidth - filled
+			if empty < 0 {
+				empty = 0
+			}
 
 			progressLine := "    " +
 				progressFillStyle.Render("●"+strings.Repeat("━", filled)) +

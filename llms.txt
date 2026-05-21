@@ -1,0 +1,62 @@
+# Danzo LLMs Reference
+
+Danzo is a high-performance, modular CLI download manager written in Go. It orchestrates multiple download protocols under a single core execution engine. Use this file as a brief, high-level guide to understand the architecture, patterns, and principles of the codebase.
+
+---
+
+## 1. Directory Structure
+
+*   **`cmd/`**: CLI command definitions and flag configurations built using Cobra. Handles mapping flags to job properties.
+*   **`internal/highway/`**: The core execution engine. Coordinates concurrent workers, progress channels (`Progress` struct), and state serialization (pause/resume).
+*   **`internal/jobs/`**: Protocol adapters implementing the `highway.Job` interface:
+    *   `http`: Multi-threaded segment downloader.
+    *   `ytdlp`: Media downloader wrapped around the `yt-dlp` binary.
+    *   `google-drive` / `s3` / `github-release`: Cloud/API-specific adapters.
+    *   `torrent`: BitTorrent engine.
+    *   `live-stream`: HLS/MPEG-DASH stream capturer.
+*   **`internal/display/`**: TUI (Terminal User Interface) and progress bar rendering logic.
+*   **`utils/`**: Core utilities, including interactive input helper routines and the global HTTP client setup.
+
+---
+
+## 2. Core Interfaces & Contracts
+
+### The Highway Job
+Every protocol adapter must satisfy the `Job` interface defined in [highway.go](file:///Users/tanishqrupaal/repos/danzo/internal/highway/highway.go):
+
+```go
+type Job interface {
+	ID() string
+	Type() string
+	Run(ctx context.Context, progress chan<- Progress) error
+	Marshal() ([]byte, error)
+}
+```
+
+### State Serialization (Pause & Resume)
+*   **Checkpointing**: In-progress jobs serialize their current metadata (e.g., target URL, connections, cookies, downloaded chunks/offsets) to a JSON state file via `Marshal()`.
+*   **Unmarshaling**: To resume, a `JobUnmarshaler` function must be registered with the engine using `Highway.RegisterType(typeName, unmarshalFunc)`. Ensure all new configuration settings or flags are fully mapped in the state struct so that resumed downloads behave identically.
+
+---
+
+## 3. General Principles & Best Practices
+
+### Resource Lifecycle Management
+*   **HTTP Response Bodies**: Always close response bodies (`resp.Body.Close()`) promptly to prevent connection leaks.
+*   **Function vs. Loop Defer**: Do **NOT** use `defer resp.Body.Close()` inside loops (e.g., listing directories with paginated API calls). Because Go's defers are function-scoped, they will remain open until the entire function exits, causing file descriptor exhaustion on large pages. Close the body explicitly immediately after decoding instead.
+
+### Unified Network Clients
+*   **Standard HTTP Client**: Never use `http.DefaultClient`. Use the centralized `utils.NewDanzoHTTPClient(cfg)` helper instead. It automatically handles socket tuning (High Thread Mode socket options), keep-alives, connection pooling, proxy configuration, and propagates user-defined headers and User-Agents automatically.
+
+### CDN & HEAD-blocking Fallbacks
+*   **GET Fallbacks**: Some CDNs block standard `HEAD` requests (e.g., returning 403 or 405). When detecting a HEAD failure, fallback gracefully to a lightweight `GET` request with `Range: bytes=0-0`.
+*   **Range Detection**: Infer range request capability if the response is `206 Partial Content` (for `GET Range` fallbacks) or if the `Accept-Ranges: bytes` header is present.
+*   **Content-Range vs. Content-Length**: For a `GET Range: bytes=0-0` request, `Content-Length` will only return the size of the first byte (1). You must parse the `Content-Range` header (`bytes 0-0/TOTAL`) to extract the correct total file size.
+
+### Subprocess / Adapter Integrations
+*   Ensure all user-defined parameters (such as custom header flags `-H`) propagate correctly to adapters.
+*   For CLI adapters like `yt-dlp`, always use correct, singular flags (e.g. `--add-header "Key:Value"` for each entry) instead of plural alternatives that might not be compatible.
+
+### Progress Reporting
+*   Routinely publish `highway.Progress` updates to the `progress` channel inside `Run()`.
+*   Accurately report the `Current` and `Total` bytes to ensure the TUI display calculates speed and ETA correctly.

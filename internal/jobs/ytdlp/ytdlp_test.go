@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/tanq16/danzo/internal/highway"
+	"github.com/tanq16/danzo/utils"
 )
 
 func TestParseProgressJSONHandlesTotalAndEstimateFallback(t *testing.T) {
@@ -34,6 +35,20 @@ func TestParseProgressJSONHandlesTotalAndEstimateFallback(t *testing.T) {
 			wantOK:    true,
 			wantCurr:  2048,
 			wantTotal: 4096,
+		},
+		{
+			name:      "handlesDecimalsFromYtdlp",
+			input:     `{"downloaded_bytes":"235677176","total_bytes":"NA","total_bytes_estimate":"490316784.7586207","status":"downloading"}`,
+			wantOK:    true,
+			wantCurr:  235677176,
+			wantTotal: 490316784,
+		},
+		{
+			name:      "handlesDecimalDownloadedBytes",
+			input:     `{"downloaded_bytes":"12345.67","total_bytes":"50000.99","total_bytes_estimate":"NA","status":"downloading"}`,
+			wantOK:    true,
+			wantCurr:  12345,
+			wantTotal: 50000,
 		},
 		{
 			name:   "rejectedWhenBothTotalsAreNA",
@@ -174,16 +189,20 @@ func TestLastErrorLinePrefersErrorPrefixOverTrailingNoise(t *testing.T) {
 }
 
 func TestIDFallsBackToURLWhenOutputPathIsEmpty(t *testing.T) {
-	if id := New("https://example.com/v.mp4", "").ID(); id != "https://example.com/v.mp4" {
+	if id := New("https://example.com/v.mp4", "", utils.HTTPClientConfig{}).ID(); id != "https://example.com/v.mp4" {
 		t.Errorf("empty OutputPath: got %q want URL", id)
 	}
-	if id := New("https://example.com/v.mp4", "vid.mp4").ID(); id != "vid.mp4" {
+	if id := New("https://example.com/v.mp4", "vid.mp4", utils.HTTPClientConfig{}).ID(); id != "vid.mp4" {
 		t.Errorf("OutputPath set: got %q want %q", id, "vid.mp4")
 	}
 }
 
 func TestMarshalUnmarshalRoundTrip(t *testing.T) {
-	src := New("https://example.com/v.mp4", "out/vid.mp4")
+	src := New("https://example.com/v.mp4", "out/vid.mp4", utils.HTTPClientConfig{
+		ProxyURL:  "http://proxy:8080",
+		UserAgent: "TestUA",
+		Headers:   map[string]string{"X-Test": "value"},
+	})
 	data, err := src.Marshal()
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -198,6 +217,9 @@ func TestMarshalUnmarshalRoundTrip(t *testing.T) {
 	}
 	if job.URL != src.URL || job.OutputPath != src.OutputPath {
 		t.Errorf("round trip mismatch: got %+v want %+v", job, src)
+	}
+	if job.HTTPConfig.ProxyURL != src.HTTPConfig.ProxyURL || job.HTTPConfig.UserAgent != src.HTTPConfig.UserAgent || job.HTTPConfig.Headers["X-Test"] != "value" {
+		t.Errorf("round trip HTTP config mismatch: got %+v want %+v", job.HTTPConfig, src.HTTPConfig)
 	}
 	if job.Type() != "ytdlp" {
 		t.Errorf("type: got %q want ytdlp", job.Type())
@@ -217,7 +239,7 @@ exit 1
 	defer swap()
 
 	progressCh := make(chan highway.Progress, 8)
-	job := New("https://example.com/bad", filepath.Join(t.TempDir(), "out.mp4"))
+	job := New("https://example.com/bad", filepath.Join(t.TempDir(), "out.mp4"), utils.HTTPClientConfig{})
 	err := job.Run(context.Background(), progressCh)
 	close(progressCh)
 	if err == nil {
@@ -256,7 +278,7 @@ exit 0
 
 	progressCh := make(chan highway.Progress, 16)
 	outPath := filepath.Join(t.TempDir(), "out.mp4")
-	job := New("https://example.com/ok", outPath)
+	job := New("https://example.com/ok", outPath, utils.HTTPClientConfig{})
 	if err := job.Run(context.Background(), progressCh); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -298,7 +320,7 @@ exit 0
 		t.Fatalf("seed file: %v", err)
 	}
 
-	job := New("https://example.com/v", outPath)
+	job := New("https://example.com/v", outPath, utils.HTTPClientConfig{})
 	progressCh := make(chan highway.Progress, 8)
 	if err := job.Run(context.Background(), progressCh); err != nil {
 		t.Fatalf("Run: %v", err)
@@ -316,7 +338,7 @@ func TestRunReportsStartupErrorWhenBinaryMissing(t *testing.T) {
 	defer swap()
 
 	progressCh := make(chan highway.Progress, 4)
-	job := New("https://example.com/v", filepath.Join(t.TempDir(), "x.mp4"))
+	job := New("https://example.com/v", filepath.Join(t.TempDir(), "x.mp4"), utils.HTTPClientConfig{})
 	err := job.Run(context.Background(), progressCh)
 	close(progressCh)
 
