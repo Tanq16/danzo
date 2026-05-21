@@ -358,7 +358,15 @@ func (d *Display) buildDisplay() []string {
 				extraInfo = truncateString(extraInfo, innerWidth-4-1-1-6-progressWidth)
 			}
 
-			pct := float64(job.Current) / float64(job.Total)
+			var pct float64
+			if job.Total > 0 {
+				pct = float64(job.Current) / float64(job.Total)
+			}
+			if pct > 1.0 {
+				pct = 1.0
+			} else if pct < 0 {
+				pct = 0
+			}
 			filled := int(pct * float64(progressWidth))
 			empty := progressWidth - filled
 
