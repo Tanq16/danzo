@@ -20,9 +20,7 @@ The primary downloaders and their supported aliases are as follows:
 | ---------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `http`           | -                                     | Multi-chunked or linear downloads for general HTTP(S) sources                                                           |
 | `live-stream`    | `hls`, `m3u8`, `livestream`, `stream` | Download a live stream format video (playlist.m3u8 files) with multi-threading and extractor support for multiple sites |
-| `git-clone`      | `gitclone`, `gitc`, `git`, `clone`    | Clone a git repository with SSH/token authentication                                                                    |
 | `github-release` | `ghrelease`, `ghr`                    | Download a platform-correct release asset for a GitHub repo                                                             |
-| `google-drive`   | `gdrive`, `gd`, `drive`               | Download file/folder from Google drive with API key or OAuth flow authentication                                        |
 | `s3`             | -                                     | Multi-threaded download for object, directory, or full AWS S3 bucket                                                    |
 | `ytdlp`          | `yt-dlp`, `youtube-dl`, `ytdl`        | Wraps the `yt-dlp` binary for sites Danzo doesn't natively support (YouTube, etc.)                                      |
 | `resume`         | -                                     | Resume downloads from saved interrupted job state                                                                       |
@@ -36,11 +34,6 @@ Following are examples to get started with various flags:
   danzo http https://example.com/internet-file.zip -o local.zip # (in lieu of `wget`)
   danzo http https://example.com/file.zip -H "Authorization: Basic dW46cHc=" # (custom headers like in curl)
   danzo http https://example.com/largefile.zip -c 40 # (fast, multi-threaded, multi-chunked with 40 threads)
-  ```
-- Download file from Google Drive
-  ```bash
-  danzo gd "https://drive.google.com/file/d/abc123/view" --api-key your_key # (static Key only for publicly shared files)
-  danzo gd "https://drive.google.com/file/d/abc123/view" --creds service-acc-key.json # (OAuth device code flow for private files)
   ```
 - Download streamed output from an m3u8-manifest
   ```bash
@@ -58,13 +51,6 @@ Following are examples to get started with various flags:
   ```bash
   danzo ghr "username/repo" # (auto-selects release according to OS and arch)
   danzo ghr "username/repo" --manual # (choose asset interactively)
-  ```
-- Clone a git repository
-  ```bash
-  danzo git "gitlab.com/username/repo" # (supports `github.com/`, `bitbucket.org/`, and `git.com/`)
-  danzo git "github.com/username/repo" --depth 1 # (clone with --depth=1)
-  danzo git "github.com/tanq16/private" --token $(cat /secrets/ghtoken) # (use a PAT; auto-manages for different providers)
-  danzo git "github.com/tanq16/private" --ssh "/secrets/gh-ssh.key" # (use an SSH key to authenticate)
   ```
 - Download via `yt-dlp` (for sites Danzo doesn't natively support, like YouTube)
   ```bash
@@ -133,11 +119,9 @@ Using a download directly won't always yield the best result, so to optimize acc
 Follow these links to quickly jump to the relevant provider:
 
 - [HTTP(S) Downloads](#https-downloads)
-- [Google Drive Downloads](#google-drive-downloads)
 - [M3U8 Stream Downloads](#m3u8-stream-downloads)
 - [AWS S3 Downloads](#aws-s3-downloads)
 - [GitHub Release Downloads](#github-release-downloads)
-- [Git Repository Cloning](#git-repository-cloning)
 - [yt-dlp Downloads](#yt-dlp-downloads)
 
 ### HTTP(S) Downloads
@@ -183,48 +167,6 @@ danzo clean
 ```
 
 > ✦ Failed chunks are automatically retried up to 5 times before failing the entire file. Additionally, Danzo automatically runs a clean for a download event once it is successful.
-
-
-
-### Google Drive Downloads
-
-Unfold to read
-
-Downloading a file from a Drive URL requires authentication, which Danzo supports in 2 ways:
-
-- `API Key`:
-  - This requires the end-user to create an API key after enabling the drive API [here](https://console.cloud.google.com/apis/dashboard).
-  - Users should visit the [GCP credentials console](https://console.cloud.google.com/apis/credentials), and then create an API key.
-  - Then, click the key and restrict it to only the Google Drive API. Save this somewhere safe (**this is a secret**).
-- `OAuth2.0 Device Code`: This requires an OAuth client credential file passed to Danzo (similar to how `rclone` does it).
-  - Users should enable the necessary APIs like shown in the `API Key` section before this.
-  - Then, visit the [GCP credentials console](https://console.cloud.google.com/apis/credentials) and create an "OAuth2.0 Client ID".
-  - Download and save the credential JSON file in a safe location (**this is a secret**).
-  - During authentication, Danzo will produce a URL to authenticate via the device code flow; users should copy that into a browser.
-  - In the browser, allow access to the credential (this effectively allows the credntial you downloaded to act on your behalf and read all your GDrive files).
-  - Moving forward after allowing the credential and clicking "Continue", a webpage will appear with an error like "*This site can't be reached*". THIS IS OKAY!
-  - The URL bar will have a link of the form `http ://localhost/?state=state-token&code=4/0.....AOwVQ&scope=https:// www.googleapis.com/auth/drive.readonly`.
-  - The `code=....&`, i.e., the part after the `=` and before the next `&` sign (highlighted in bold in the previous URL) is what you need to copy and paste into the Danzo terminal waiting for input, then press return.
-  - Danzo will exchange this for an authentication token and save it to `.danzo-token.json`.
-  - If you re-attempt the use of these credentials, Danzo will reuse the token from current directory if it exists, refresh it if possible, and fallback to reauthentication.
-
-> ✦ The API Key method only works on files that are either publicly shared or shared with your user. It cannot be used to download private files that you own. So for your own files, use the OAuth device code method.
-
-Danzo can be used in this manner to download Google Drive files:
-
-```bash
-danzo gdrive "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link" --api-key $(cat ~/secrets/gdrive-api.key)
-```
-
-OR
-
-```bash
-danzo gdrive "https://drive.google.com/file/d/1w.....HK/view?usp=drive_link" --creds ~/secrets/gdrive-oauth.key
-```
-
-> ⚠︎ Danzo does not perform multi-connection download for Google Drive files; instead it uses the simple download method. For Google Drive specifically, this does not present a significant loss in bandwidth. This is done because Google can throttle multiple connections after a while.
-
-> ✎ Users who have never logged into GCP may be required to create a new GCP Project. This is normal and doesn't cost anything.
 
 
 
@@ -308,48 +250,6 @@ danzo ghrelease "owner/repo" --manual
 
 
 
-### Git Repository Cloning
-
-Unfold to read
-
-Danzo can clone repositores sourced by various providers. While this is not particularly an expensive operation to run using just `git clone`, it serves to provide ease of setup when setting up a remote server with a large number of files as downloads and clones.
-
-As such, given a situation where a server needs to be prepared for operation by cloning repositories alongside other downloaded assets, it would be slow to write a script incorporating several tools to get the environment ready. Danzo keeps those provider workflows available behind one command surface, which is primarily why an operation as simple and atomic as `git clone` was replicated here.
-
-> ⚠︎ While Danzo as a tool is focused on conducting very fast downloads, it is important to note that in some cases where a git repository may be more than 1.5-2 GB in size, Danzo may experience easily noticeable slowdowns compared to plain old `git clone`. This is expected and usually, it's recommended to enforce depth (continue reading) when cloning repositories that large.
-
-Danzo supports the use of Personal Access Tokens as well as SSH keys when cloning repositories. The syntax has been simplified to refer to repositories with one of the following:
-
-- `github.com/owner/repo`
-- `gitlab.com/owner/repo`
-- `bitbucket.org/owner/repo`
-
-To clone a publicly available git repository, use a command like so:
-
-```bash
-danzo gitclone "gitlab.com/volian/nala"
-```
-
-If there is a need to enforce clone depth (`git clone REPO --depth=1`), use a suffix like so:
-
-```bash
-danzo gitclone "gitlab.com/volian/nala" --depth 1
-```
-
-To clone a git repository with authentication (PAT or SSH Key), use one of the following:
-
-```bash
-# use a personal access token; Danzo will handle username per provider
-danzo gitclone "github.com/tanq16/private" --token $(cat /secrets/ghtoken)
-
-# use an SSH key to authenticate
-danzo gitclone github.com/tanq16/private --ssh "/secrets/gh-ssh.key"
-```
-
-> ✎ Repository cloning is another download provider that does not use `-c` or number of connections.
-
-
-
 ### yt-dlp Downloads
 
 Unfold to read
@@ -363,6 +263,9 @@ danzo ytdlp "https://www.youtube.com/watch?v=jNQXAC9IVRw" -o me-at-the-zoo.mp4
 
 # Without -o, yt-dlp picks its own filename via its default output template.
 danzo ytdlp "https://vimeo.com/22439234"
+
+# Use browser cookies to download authenticated content (e.g., private Google Drive files)
+danzo ytdlp "https://drive.google.com/file/d/..." --cookies-from-browser chrome
 ```
 
 The wrapper:
