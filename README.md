@@ -25,6 +25,7 @@ The primary downloaders and their supported aliases are as follows:
 | `ytdlp`          | `yt-dlp`, `youtube-dl`, `ytdl`        | Wraps the `yt-dlp` binary for sites Danzo doesn't natively support (YouTube, etc.)                                      |
 | `resume`         | -                                     | Resume downloads from saved interrupted job state                                                                       |
 | `clean`          | -                                     | Clear local cache for interrupted/incomplete downloads                                                                  |
+| `batch`          | -                                     | Download multiple resources of different types in batch from a file or stdin                                            |
 
 
 Following are examples to get started with various flags:
@@ -56,6 +57,12 @@ Following are examples to get started with various flags:
   ```bash
   danzo ytdlp "https://www.youtube.com/watch?v=VizjMEe0agI" -o marigold.mp4
   danzo ytdlp "https://vimeo.com/173855964" # (default yt-dlp output template)
+  ```
+- Download multiple files in batch (mixed types in parallel)
+  ```bash
+  danzo batch downloads.txt # (plaintext batch file)
+  danzo batch jobs.yaml --workers 4 # (YAML batch file with 4 workers)
+  cat urls.txt | danzo batch # (pipe urls directly from stdin)
   ```
 
 ## Installation
@@ -123,10 +130,11 @@ Follow these links to quickly jump to the relevant provider:
 - [AWS S3 Downloads](#aws-s3-downloads)
 - [GitHub Release Downloads](#github-release-downloads)
 - [yt-dlp Downloads](#yt-dlp-downloads)
+- [Batch Downloads](#batch-downloads)
 
 ### HTTP(S) Downloads
 
-Unfold to read
+<details><summary>Unfold to read</summary>
 
 The output filename will be inferred from the URL and Danzo will use 8 connection threads and 1 worker by default. You can also specify an output filename manually like:
 
@@ -167,12 +175,13 @@ danzo clean
 ```
 
 > ✦ Failed chunks are automatically retried up to 5 times before failing the entire file. Additionally, Danzo automatically runs a clean for a download event once it is successful.
+</details>
 
 
 
 ### M3U8 Stream Downloads
 
-Unfold to read
+<details><summary>Unfold to read</summary>
 
 Danzo supports downloading streamed content from M3U8 manifests. This is commonly used for video streaming services, live broadcasts, and VOD content.
 
@@ -196,12 +205,13 @@ danzo hls "https://rumble.com/v893ud-something.html" -e rumble
 danzo hls "https://www.dailymotion.com/video/a999aas" -e dailymotion
 danzo hls "https://dai.ly/a999aas" -e dailymotion
 ```
+</details>
 
 
 
 ### AWS S3 Downloads
 
-Unfold to read
+<details><summary>Unfold to read</summary>
 
 There are 2 ways of downloading objects from S3:
 
@@ -226,12 +236,13 @@ AWS session profiles are used to allow for flexibility and ease of access. As a 
 > ⚠︎ For successful authentication, Danzo needs to use a profile that is configured for the same region as the S3 bucket.
 
 > ✎ For S3 downloads, the `connections` flag determines how many objects will be downloaded in parallel if downloading a folder.
+</details>
 
 
 
 ### GitHub Release Downloads
 
-Unfold to read
+<details><summary>Unfold to read</summary>
 
 It is often a task to download GitHub project releases because it requires figuring out the exact name of the asset file based on the OS and architecture of the machine. Danzo simplifies this process and only requires you to provide the owner and the project name. It uses that to automatically identify the correct latest release for its host's architecture and OS.
 
@@ -247,12 +258,13 @@ If the user selection process needs to be manually kicked off, use Danzo like so
 ```bash
 danzo ghrelease "owner/repo" --manual
 ```
+</details>
 
 
 
 ### yt-dlp Downloads
 
-Unfold to read
+<details><summary>Unfold to read</summary>
 
 For sites Danzo doesn't natively support (YouTube, Vimeo with audio, etc.), the `ytdlp` command wraps the `yt-dlp` binary and streams its progress into the Danzo TUI so it looks and behaves like every other Danzo job.
 
@@ -276,6 +288,64 @@ The wrapper:
 - If the chosen output path already exists, falls back to `name-(1).ext` (same behavior as `http` / `git-clone`).
 
 > ✎ This is intentionally a thin wrapper - any flags beyond `--output/-o` should be configured on the `yt-dlp` side (e.g., via its `--config-location`).
+</details>
+
+### Batch Downloads
+
+<details><summary>Unfold to read</summary>
+
+Danzo supports batch downloading multiple files from a plaintext file, a YAML/JSON configuration, or directly piped from standard input (`stdin`). This allows running mixed job types (HTTP, HLS stream, GitHub Releases, S3, yt-dlp, Torrents) in parallel.
+
+#### Prefix Mapping
+URLs can be prefixed with `prefix::` to explicitly set the download provider:
+- `http::` -> HTTP download
+- `hls::` / `livestream::` / `live-stream::` / `m3u8::` -> HLS live stream video download
+- `ghr::` / `github-release::` / `ghrelease::` -> GitHub release download
+- `s3::` -> AWS S3 download
+- `ytdlp::` / `yt-dlp::` / `youtube-dl::` -> yt-dlp download
+- `torrent::` -> BitTorrent / Magnet link download
+
+If no prefix is present, standard HTTP is used as a fallback (with auto-detection for `s3://`, `magnet:`, `.m3u8`, etc.).
+
+#### Plain-Text Format
+Each line represents a job with the format `[PREFIX::]URL [OUTPUT_PATH]`. Whitespace splits the URL and optional output path. Output paths with spaces can be wrapped in double quotes.
+
+Example plaintext file `downloads.txt`:
+```text
+# Mixed batch download list
+ytdlp::https://www.youtube.com/watch?v=VizjMEe0agI "youtube video.mp4"
+https://example.com/file.zip ./downloads/my-file.zip
+s3::s3://mybucket/dataset/
+```
+
+Execute via:
+```bash
+danzo batch downloads.txt --workers 3
+```
+
+#### YAML Configuration
+Allows setting specific connection counts or custom options per job:
+```yaml
+- url: "ytdlp::https://www.youtube.com/watch?v=VizjMEe0agI"
+  output: "marigold.mp4"
+- url: "https://example.com/largefile.zip"
+  output: "archive.zip"
+  connections: 32
+- url: "s3::s3://mybucket/dataset/"
+  profile: "prod-profile"
+```
+
+Execute via:
+```bash
+danzo batch jobs.yaml --workers 4
+```
+
+#### Stdin Piping
+Piping links from other commands directly:
+```bash
+cat list.txt | danzo batch --workers 2
+```
+</details>
 
 
 
